@@ -1,0 +1,53 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    container_name: shou-api
+    ports:
+      - '127.0.0.1:3000:3000'
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://mp.shoudanba.cn,https://www.shoudanba.cn,https://h5.shoudanba.cn}
+      NODE_ENV: production
+      PORT: 3000
+      TZ: Asia/Shanghai
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
+      IMPORT_JOB_WORKER_ENABLED: 'false'
+      IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS: ${IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS:-900}
+      IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS: ${IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS:-60}
+      LAKALA_BASE_URL: ${LAKALA_BASE_URL:-}
+      LAKALA_APP_ID: ${LAKALA_APP_ID:-}
+      LAKALA_SERIAL_NO: ${LAKALA_SERIAL_NO:-}
+      LAKALA_PRIVATE_KEY: ${LAKALA_PRIVATE_KEY:-}
+      LAKALA_PLATFORM_PUBLIC_KEY: ${LAKALA_PLATFORM_PUBLIC_KEY:-}
+      LAKALA_NOTIFY_URL: ${LAKALA_NOTIFY_URL:-}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    restart: always
+
+  import-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    container_name: shou-import-worker
+    command: ['node', 'dist/import-worker.main']
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://mp.shoudanba.cn,https://www.shoudanba.cn,https://h5.shoudanba.cn}
+      NODE_ENV: production
+      PORT: 3000
+      TZ: Asia/Shanghai
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
+      IMPORT_JOB_WORKER_ENABLED: 'true'
+      IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS: ${IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS:-900}
+      IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS: ${IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS:-60}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    restart: always

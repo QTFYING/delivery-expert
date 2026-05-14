@@ -1,0 +1,4 @@
+interface:
+  display_name: "支付账务安全"
+  short_description: "约束支付状态机、回调幂等、金额累计和账务流水正确性的实施规则。"
+  default_prompt: "使用 $payment-and-ledger-safety 设计或审查支付、核销、支付回调和账务流水相关实现。"

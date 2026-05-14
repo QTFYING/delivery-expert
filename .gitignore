@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Claude
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Lockfile: 禁止提交其它包管理器锁文件
+package-lock.json
+yarn.lock
+.npmrc.local
+
+# Other
+.edge-cdp-admin
+.cache/
+.turbo/
+.runtime
+
+# Vite / mock temp modules
+*.timestamp-*.mjs
+.edge-cdp-tenant-inspect
+
+
+# Prompt
+prompt/
+
+# Logs
+logs/
+*.log
+
+# Alias
+static_alias

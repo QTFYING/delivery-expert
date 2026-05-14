@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep:*)",
+      "Bash(npx prisma:*)",
+      "Bash(pnpm:*)",
+      "Bash(starship --version)",
+      "Bash(node /c/Users/T590/.claude/statusline.js)",
+      "Bash(echo \"--- exit=$? ---\")",
+      "Bash(STARSHIP_CONFIG='C:\\\\Users\\\\T590\\\\.claude\\\\starship.toml' CLAUDE_MODEL='Opus 4.7' CLAUDE_CTX_PCT='42' starship prompt)",
+      "Bash(node -e ' *)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(grep -n 'transaction\\\\|Transaction\\\\|$transaction\\\\|for update\\\\|FOR UPDATE' /home/server/Documents/Sinhe/api/apps/api/src/payment/payment.service.ts)",
+      "Bash(grep -E \"\\\\.\\(env|json\\)$\")",
+      "Bash(xargs ls *)",
+      "Bash(rg '\\\\$queryRaw|\\\\$executeRaw' apps/api/src -n)",
+      "Bash(grep -E \"\\\\.\\(ts|js\\)$\")",
+      "Bash(awk '$1 > 500 && $2 != \"total\"')",
+      "Bash(node *)",
+      "Bash(npx tsc *)",
+      "Bash(grep -v \"^$\")",
+      "Bash(npx --prefix apps/api tsc --noEmit -p apps/api/tsconfig.json)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(echo \"=== EXIT=$?\")",
+      "Bash(echo \"==EXIT=$?\")",
+      "Bash(_ZO_DOCTOR=0 bash -c 'cd apps/api && npx tsc --noEmit -p tsconfig.json')"
+    ]
+  }
+}

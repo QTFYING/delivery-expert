@@ -1,0 +1,12 @@
+packages:
+  - apps/*
+  - packages/*
+ignoredBuiltDependencies:
+  - '@scarf/scarf'
+onlyBuiltDependencies:
+  - '@nestjs/core'
+  - '@prisma/client'
+  - '@prisma/engines'
+  - bcrypt
+  - esbuild
+  - prisma

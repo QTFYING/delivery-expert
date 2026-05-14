@@ -1,0 +1,4 @@
+interface:
+  display_name: "租户边界与权限"
+  short_description: "统一多租户隔离、平台租户边界、固定角色与作用域注入的约束规则。"
+  default_prompt: "使用 $tenant-boundary-and-rbac 设计或审查 Admin、Tenant 与 H5 三端的作用域和权限边界。"

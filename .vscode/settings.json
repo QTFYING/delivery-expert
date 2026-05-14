@@ -1,0 +1,20 @@
+{
+  "cSpell.words": ["LAKALA", "pingan", "shou", "shoudanba", "SHOUQIANBA", "Sinhe", "Streamable"],
+  "files.exclude": {
+    "**/dist": true,
+    "**/.git": true,
+    "**/.runtime": true,
+    "**/.DS_Store": true,
+    "**/node_modules": true,
+    "**/.turbo": true,
+    "**/.pnpm-store": true,
+    "**/.claude": true,
+    "turbo.json": true,
+    "nginx.conf": true,
+    ".gitattributes": true,
+    "pnpm-lock.yaml": true,
+    "pnpm-workspace.yaml": true,
+    "ecosystem.config.js": true,
+    "docker-compose.full.yml": true
+  }
+}

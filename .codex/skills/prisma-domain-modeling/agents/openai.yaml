@@ -1,0 +1,4 @@
+interface:
+  display_name: "Prisma 领域建模"
+  short_description: "统一 Prisma schema、索引、唯一键和多租户字段的建模与同步规则。"
+  default_prompt: "使用 $prisma-domain-modeling 根据 API 文档和建模参考调整 Prisma schema、关系和索引。"

@@ -1,0 +1,4 @@
+interface:
+  display_name: "项目质量闸门"
+  short_description: "作为多租户收款平台的最终一致性、红线风险和落地质量复核清单。"
+  default_prompt: "使用 $project-quality-assurance 对当前改动做多租户、金额、状态机、幂等和文档一致性复核。"

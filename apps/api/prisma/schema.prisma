@@ -1,0 +1,604 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRoleEnum {
+  OS_SUPER_ADMIN
+  TENANT_OWNER
+  TENANT_OPERATOR
+  TENANT_FINANCE
+  TENANT_VIEWER
+}
+
+enum TenantStatusEnum {
+  ACTIVE     @map("active")
+  ONBOARDING @map("onboarding")
+  ATTENTION  @map("attention")
+  PAUSED     @map("paused")
+}
+
+enum TenantSoftwareVersionEnum {
+  L1
+  L2
+  L3
+}
+
+enum UserStatusEnum {
+  ACTIVE   @map("active")
+  INVITED  @map("invited")
+  LOCKED   @map("locked")
+  DISABLED @map("disabled")
+}
+
+enum TenantCertificationStatusEnum {
+  PENDING_INITIAL_REVIEW   @map("pending_initial_review")
+  PENDING_SECONDARY_REVIEW @map("pending_secondary_review")
+  PENDING_CONFIRMATION     @map("pending_confirmation")
+  APPROVED                 @map("approved")
+  REJECTED                 @map("rejected")
+}
+
+enum AuditTargetTypeEnum {
+  ACCOUNT @map("account")
+  ROLE    @map("role")
+  TENANT  @map("tenant")
+}
+
+enum AuditResultEnum {
+  SUCCESS @map("success")
+  PENDING @map("pending")
+}
+
+enum OrderStatusEnum {
+  PENDING @map("pending")
+  PARTIAL @map("partial")
+  PAID    @map("paid")
+  EXPIRED @map("expired")
+  CREDIT  @map("credit")
+}
+
+enum OrderPayTypeEnum {
+  CASH   @map("cash")
+  CREDIT @map("credit")
+}
+
+enum OrderImportJobStatusEnum {
+  PENDING    @map("pending")
+  PROCESSING @map("processing")
+  COMPLETED  @map("completed")
+  FAILED     @map("failed")
+}
+
+enum OrderImportConflictPolicyEnum {
+  SKIP      @map("skip")
+  OVERWRITE @map("overwrite")
+}
+
+enum PaymentMethodEnum {
+  ONLINE     @map("online")
+  CASH       @map("cash")
+  OTHER_PAID @map("other_paid")
+}
+
+enum PaymentChannelEnum {
+  LAKALA      @map("lakala")
+  SHOUQIANBA  @map("shouqianba")
+  PINGAN_BANK @map("pingan_bank")
+}
+
+enum TenantPaymentConfigStoredStatusEnum {
+  PENDING_VALIDATION @map("pending_validation")
+  AVAILABLE          @map("available")
+  DISABLED           @map("disabled")
+  INVALID            @map("invalid")
+}
+
+enum PaymentOrderStatusEnum {
+  UNPAID               @map("unpaid")
+  PAYING               @map("paying")
+  PENDING_VERIFICATION @map("pending_verification")
+  PAID                 @map("paid")
+  EXPIRED              @map("expired")
+}
+
+enum CashVerifyStatusEnum {
+  PENDING  @map("pending")
+  VERIFIED @map("verified")
+}
+
+enum PaymentRecordStatusEnum {
+  SUCCESS @map("success")
+  PARTIAL @map("partial")
+  PENDING @map("pending")
+  FAILED  @map("failed")
+}
+
+enum PaymentWebhookEventStatusEnum {
+  RECEIVED  @map("received")
+  PROCESSED @map("processed")
+  IGNORED   @map("ignored")
+  REJECTED  @map("rejected")
+  FAILED    @map("failed")
+}
+
+enum OrderReminderStatusEnum {
+  SENT   @map("sent")
+  FAILED @map("failed")
+}
+
+enum PrintRecordResultEnum {
+  SUCCESS @map("success")
+  FAILED  @map("failed")
+}
+
+enum PublishTimingEnum {
+  IMMEDIATE @map("immediate")
+  SCHEDULED @map("scheduled")
+}
+
+enum NoticeStatusEnum {
+  PUBLISHED @map("published")
+  DRAFT     @map("draft")
+  OFFLINE   @map("offline")
+}
+
+model Tenant {
+  id                   String                    @id @db.VarChar(10)
+  name                 String                    @db.VarChar(100)
+  contactPhone         String                    @db.VarChar(20)
+  softwareVersion      TenantSoftwareVersionEnum @default(L1)
+  adminName            String?                   @db.VarChar(50)
+  address              String?                   @db.VarChar(255)
+  licenseNo            String?                   @db.VarChar(100)
+  status               TenantStatusEnum          @default(ACTIVE)
+  rejectReason         String?                   @db.VarChar(255)
+  freezeReason         String?                   @db.VarChar(255)
+  serviceExpireAt      DateTime?
+  maxCreditDays        Int                       @default(30)
+  creditReminderDays   Int                       @default(3)
+  activePaymentChannel PaymentChannelEnum?
+  importRevision       Int                       @default(0)
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  deletedAt            DateTime?
+
+  users                User[]
+  generalSettings      TenantGeneralSettings?
+  paymentConfigs       TenantPaymentConfig[]
+  importTemplates      ImportTemplate[]
+  printerTemplates     PrinterTemplate[]
+  orders               Order[]
+  importJobs           ImportJob[]
+  payments             Payment[]
+  paymentOrders        PaymentOrder[]
+  paymentWebhookEvents PaymentWebhookEvent[]
+  orderPrintRecords    OrderPrintRecord[]
+  orderReminders       OrderReminder[]
+  noticeReads          NoticeRead[]
+  certifications       TenantCertification[]
+  auditLogs            AuditLog[]
+
+  @@map("tenants")
+}
+
+model User {
+  id                    String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String?        @db.VarChar(10)
+  account               String         @unique @db.VarChar(50)
+  phone                 String?        @db.VarChar(20)
+  passwordHash          String         @db.VarChar(255)
+  realName              String         @db.VarChar(50)
+  role                  UserRoleEnum
+  scope                 String?        @db.VarChar(100)
+  status                UserStatusEnum @default(ACTIVE)
+  requiresPasswordReset Boolean        @default(false)
+  loginAt               DateTime?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  deletedAt             DateTime?
+
+  tenant            Tenant?            @relation(fields: [tenantId], references: [id])
+  orderPrintRecords OrderPrintRecord[] @relation("OrderPrintRecordOperator")
+  noticeReads       NoticeRead[]
+  orderReminders    OrderReminder[]    @relation("OrderReminderOperator")
+
+  @@index([tenantId])
+  @@index([status])
+  @@map("users")
+}
+
+model TenantGeneralSettings {
+  tenantId         String   @id @db.VarChar(10)
+  qrCodeExpiry     Int?
+  notifySeller     Boolean?
+  notifyOwner      Boolean?
+  notifyFinance    Boolean?
+  creditRemindDays Int?
+  dailyReportPush  Boolean?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_general_settings")
+}
+
+model SystemConfig {
+  group String  @db.VarChar(50)
+  key   String  @db.VarChar(100)
+  value String  @db.Text
+  note  String? @db.VarChar(255)
+
+  @@id([group, key])
+  @@map("system_configs")
+}
+
+model TenantPaymentConfig {
+  id              String                              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String                              @db.VarChar(10)
+  channel         PaymentChannelEnum
+  status          TenantPaymentConfigStoredStatusEnum @default(PENDING_VALIDATION)
+  configJson      Json                                @default("{}")
+  invalidReason   String?                             @db.VarChar(255)
+  lastValidatedAt DateTime?
+  updatedBy       String?                             @db.VarChar(50)
+  createdAt       DateTime                            @default(now())
+  updatedAt       DateTime                            @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, channel])
+  @@index([tenantId, status])
+  @@map("tenant_payment_configs")
+}
+
+model ImportTemplate {
+  id             BigInt    @id @default(autoincrement())
+  tenantId       String    @db.VarChar(10)
+  name           String    @db.VarChar(100)
+  isDefault      Boolean   @default(false)
+  defaultFields  Json      @default("[]")
+  customerFields Json      @default("[]")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  printerTemplate PrinterTemplate?
+  orders          Order[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("import_templates")
+}
+
+model PrinterTemplate {
+  id               BigInt   @id @default(autoincrement())
+  tenantId         String   @db.VarChar(10)
+  importTemplateId BigInt   @unique
+  config           Json
+  configVersion    Int      @default(1)
+  remark           String?  @db.VarChar(255)
+  updatedBy        String?  @db.VarChar(50)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  importTemplate ImportTemplate @relation(fields: [importTemplateId], references: [id])
+
+  @@unique([tenantId, importTemplateId])
+  @@map("printer_templates")
+}
+
+model ImportJob {
+  id               String                        @id @db.VarChar(20)
+  tenantId         String                        @db.VarChar(10)
+  status           OrderImportJobStatusEnum      @default(PENDING)
+  conflictPolicy   OrderImportConflictPolicyEnum @default(SKIP)
+  snapshot         Json?
+  submittedCount   Int                           @default(0)
+  processedCount   Int                           @default(0)
+  successCount     Int                           @default(0)
+  skippedCount     Int                           @default(0)
+  overwrittenCount Int                           @default(0)
+  failedCount      Int                           @default(0)
+  failedOrders     Json?                         @default("[]")
+  conflictDetails  Json?                         @default("[]")
+  startedAt        DateTime?
+  heartbeatAt      DateTime?
+  completedAt      DateTime?
+  lastError        String?                       @db.VarChar(500)
+  createdAt        DateTime                      @default(now())
+  updatedAt        DateTime                      @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([status, heartbeatAt])
+  @@map("import_jobs")
+}
+
+model Order {
+  id                  String           @id @db.VarChar(20)
+  tenantId            String           @db.VarChar(10)
+  sourceOrderNo       String?          @db.VarChar(100)
+  groupKey            String?          @db.VarChar(100)
+  mappingTemplateId   BigInt?
+  qrCodeToken         String           @unique @db.VarChar(64)
+  customer            String           @db.VarChar(100)
+  customerPhone       String?          @db.VarChar(30)
+  customerAddress     String           @default("") @db.VarChar(255)
+  totalAmount         Decimal          @db.Decimal(12, 2)
+  paid                Decimal          @default(0.00) @db.Decimal(12, 2)
+  customerFieldValues Json?            @default("{}")
+  status              OrderStatusEnum  @default(PENDING)
+  payType             OrderPayTypeEnum @default(CASH)
+  prints              Int              @default(0)
+  lastPrintedAt       DateTime?
+  printFailedCount    Int              @default(0)
+  lastFailedAt        DateTime?
+  creditDays          Int?
+  creditDueDate       DateTime?
+  orderTime           DateTime
+  voided              Boolean          @default(false)
+  voidReason          String?          @db.VarChar(255)
+  voidedAt            DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  deletedAt           DateTime?
+
+  tenant               Tenant                @relation(fields: [tenantId], references: [id])
+  mappingTemplate      ImportTemplate?       @relation(fields: [mappingTemplateId], references: [id])
+  lineItems            OrderItem[]
+  payments             Payment[]
+  paymentOrders        PaymentOrder[]
+  paymentWebhookEvents PaymentWebhookEvent[]
+  printRecords         OrderPrintRecord[]
+  reminders            OrderReminder[]
+
+  @@unique([tenantId, sourceOrderNo])
+  @@index([tenantId, status])
+  @@index([tenantId, payType])
+  @@index([tenantId, orderTime])
+  @@index([mappingTemplateId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id         BigInt  @id @default(autoincrement())
+  orderId    String  @db.VarChar(20)
+  skuId      String? @db.VarChar(50)
+  skuName    String  @db.VarChar(200)
+  skuSpec    String? @db.VarChar(100)
+  unit       String  @db.VarChar(20)
+  quantity   Decimal @db.Decimal(12, 3)
+  unitPrice  Decimal @db.Decimal(12, 2)
+  lineAmount Decimal @db.Decimal(12, 2)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model Payment {
+  id             String                  @id @db.VarChar(20)
+  tenantId       String                  @db.VarChar(10)
+  orderId        String                  @db.VarChar(20)
+  customer       String                  @db.VarChar(100)
+  amount         Decimal                 @db.Decimal(12, 2)
+  channel        String                  @db.VarChar(50)
+  fee            Decimal                 @default(0.00) @db.Decimal(12, 2)
+  net            Decimal                 @default(0.00) @db.Decimal(12, 2)
+  status         PaymentRecordStatusEnum @default(SUCCESS)
+  gatewayTradeNo String?                 @unique @db.VarChar(100)
+  paidAt         DateTime
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  order  Order  @relation(fields: [orderId], references: [id])
+
+  @@index([tenantId, paidAt])
+  @@index([orderId])
+  @@map("payments")
+}
+
+model PaymentOrder {
+  id                 String                 @id @db.VarChar(20)
+  tenantId           String                 @db.VarChar(10)
+  orderId            String                 @db.VarChar(20)
+  amount             Decimal                @db.Decimal(12, 2)
+  status             PaymentOrderStatusEnum @default(UNPAID)
+  paymentMethod      PaymentMethodEnum?
+  channel            PaymentChannelEnum?
+  statusMessage      String?                @db.VarChar(255)
+  offlineRemark      String?                @db.VarChar(255)
+  cashVerifyStatus   CashVerifyStatusEnum?
+  offlineSubmittedAt DateTime?
+  cashVerifiedAt     DateTime?
+  gatewayTradeNo     String?                @unique @db.VarChar(100)
+  lastInitiatedAt    DateTime?
+  cashierUrl         String?                @db.Text
+  cashierExpiresAt   DateTime?
+  paidAt             DateTime?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  tenant        Tenant                @relation(fields: [tenantId], references: [id])
+  order         Order                 @relation(fields: [orderId], references: [id])
+  webhookEvents PaymentWebhookEvent[]
+
+  @@index([tenantId, status])
+  @@index([orderId])
+  @@map("payment_orders")
+}
+
+model PaymentWebhookEvent {
+  id                String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider          String                        @db.VarChar(50)
+  tenantId          String?                       @db.VarChar(10)
+  orderId           String?                       @db.VarChar(20)
+  paymentOrderId    String?                       @db.VarChar(20)
+  gatewayTradeNo    String?                       @db.VarChar(100)
+  externalStatus    String?                       @db.VarChar(50)
+  signatureVerified Boolean?
+  processingStatus  PaymentWebhookEventStatusEnum @default(RECEIVED)
+  reason            String?                       @db.VarChar(255)
+  rawBody           String?                       @db.Text
+  headers           Json?                         @default("{}")
+  payload           Json?                         @default("{}")
+  normalized        Json?                         @default("{}")
+  receivedAt        DateTime                      @default(now())
+  processedAt       DateTime?
+  createdAt         DateTime                      @default(now())
+  updatedAt         DateTime                      @updatedAt
+
+  tenant       Tenant?       @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  order        Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  paymentOrder PaymentOrder? @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
+
+  @@index([provider, receivedAt])
+  @@index([tenantId, receivedAt])
+  @@index([gatewayTradeNo, receivedAt])
+  @@index([processingStatus, receivedAt])
+  @@map("payment_webhook_events")
+}
+
+/// 订单打印事件记录（不可变 append-only 事件流）
+/// 来源：POST /orders/print-records（成功）或 POST /orders/{id}/print-failures（失败）
+model OrderPrintRecord {
+  id            String                @id @db.VarChar(20)
+  tenantId      String                @db.VarChar(10)
+  orderId       String                @db.VarChar(20)
+  operatorId    String?               @db.Uuid
+  operatorName  String?               @db.VarChar(50)
+  result        PrintRecordResultEnum
+  failureReason String?               @db.VarChar(500)
+  printedAt     DateTime              @default(now())
+  requestId     String?               @db.VarChar(100)
+  remark        String?               @db.VarChar(255)
+  createdAt     DateTime              @default(now())
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  order    Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  operator User?  @relation("OrderPrintRecordOperator", fields: [operatorId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, requestId], map: "order_print_records_tenant_request_key")
+  @@index([tenantId, orderId, printedAt(sort: Desc)])
+  @@index([tenantId, printedAt(sort: Desc)])
+  @@index([tenantId, result, printedAt(sort: Desc)])
+  @@map("order_print_records")
+}
+
+model OrderReminder {
+  id         String                  @id @db.VarChar(20)
+  tenantId   String                  @db.VarChar(10)
+  orderId    String                  @db.VarChar(20)
+  operatorId String?                 @db.Uuid
+  channels   String[]
+  status     OrderReminderStatusEnum @default(SENT)
+  sentAt     DateTime                @default(now())
+  createdAt  DateTime                @default(now())
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order    Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  operator User?  @relation("OrderReminderOperator", fields: [operatorId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, sentAt])
+  @@index([orderId, sentAt])
+  @@map("order_reminders")
+}
+
+model Notice {
+  id          String            @id @db.VarChar(10)
+  title       String            @db.VarChar(200)
+  content     String            @db.Text
+  planVersion String?           @db.VarChar(100)
+  audience    String?           @db.VarChar(100)
+  timing      PublishTimingEnum @default(IMMEDIATE)
+  scheduledAt DateTime?
+  reminder    Boolean           @default(false)
+  isDraft     Boolean           @default(true)
+  status      NoticeStatusEnum  @default(DRAFT)
+  publishAt   DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  reads NoticeRead[]
+
+  @@map("notices")
+}
+
+model NoticeRead {
+  noticeId String    @db.VarChar(10)
+  tenantId String    @db.VarChar(10)
+  userId   String    @db.Uuid
+  isRead   Boolean   @default(false)
+  readAt   DateTime?
+
+  notice Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([noticeId, tenantId, userId])
+  @@index([tenantId, userId, isRead])
+  @@map("notice_reads")
+}
+
+model TenantCertification {
+  id           String                        @id @db.VarChar(10)
+  tenantId     String                        @db.VarChar(10)
+  type         String                        @db.VarChar(50)
+  licenseUrl   String                        @db.VarChar(500)
+  legalPerson  String                        @db.VarChar(50)
+  legalIdCard  String                        @db.VarChar(50)
+  contactPhone String                        @db.VarChar(20)
+  remark       String?                       @db.VarChar(255)
+  status       TenantCertificationStatusEnum @default(PENDING_INITIAL_REVIEW)
+  comment      String?                       @db.VarChar(255)
+  rejectReason String?                       @db.VarChar(255)
+  submitAt     DateTime                      @default(now())
+  reviewedAt   DateTime?
+  createdAt    DateTime                      @default(now())
+  updatedAt    DateTime                      @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, submitAt])
+  @@index([status, submitAt])
+  @@map("tenant_certifications")
+}
+
+model AuditLog {
+  id         BigInt              @id @default(autoincrement())
+  actor      String              @db.VarChar(50)
+  action     String              @db.VarChar(100)
+  target     String              @db.VarChar(100)
+  targetType AuditTargetTypeEnum
+  tenantId   String?             @db.VarChar(10)
+  result     AuditResultEnum     @default(SUCCESS)
+  ip         String?             @db.VarChar(64)
+  time       DateTime            @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, time])
+  @@index([targetType, time])
+  @@map("audit_logs")
+}
+
+model IdSequence {
+  prefix     String   @db.VarChar(10)
+  dateKey    DateTime @db.Date
+  currentVal BigInt   @default(0)
+
+  @@id([prefix, dateKey])
+  @@map("id_sequences")
+}

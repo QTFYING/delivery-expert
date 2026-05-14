@@ -1,0 +1,18 @@
+{
+  "name": "@shou/utils",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "jest"
+  },
+  "dependencies": {
+    "decimal.js": "^10.6.0",
+    "dayjs": "^1.11.10"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

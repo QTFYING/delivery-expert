@@ -1,0 +1,4 @@
+interface:
+  display_name: "NestJS 模块落地"
+  short_description: "按项目契约将 API 文档稳定落成 NestJS 模块、控制器与服务实现。"
+  default_prompt: "使用 $nestjs-module-delivery 将稳定的 API 文档和 contracts 落地为一个新的 NestJS 业务模块。"
