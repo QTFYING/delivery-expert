@@ -517,6 +517,7 @@
   cashVerifyStatus: CashVerifyStatusEnum | null; // 现金核销状态
   offlineSubmittedAt: string | null; // 线下支付提交时间
   cashVerifiedAt: string | null; // 现金核销时间
+  onlineAttemptNo: number | null; // 线上支付尝试序号，仅 online 支付单使用
   gatewayTradeNo: string | null; // 第三方交易单号
   lastInitiatedAt: string | null; // 最近一次发起支付时间
   cashierUrl: string | null; // 当前收银台继续支付地址
@@ -531,6 +532,7 @@
 
 - 主键：`id`
 - 唯一键：`gatewayTradeNo`
+- 唯一键：`(orderId, paymentMethod, onlineAttemptNo)`
 - 索引：`(tenantId, status)`、`orderId`
 - 表名：`payment_orders`
 

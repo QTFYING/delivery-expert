@@ -30,9 +30,9 @@ import { PaymentTenantConfigService } from './payment-tenant-config.service';
 import { PaymentWindowService } from './payment-window.service';
 import { buildActivateOnlinePaymentAttemptTransition, buildGatewayCreateFailedTransition, resolvePaymentOrderStatus } from './payment.domain';
 import type { ActivatedOnlinePaymentAttempt, PreparedOnlinePaymentAttempt } from './payment-initiation.types';
-import { buildPaymentOrderSummary } from './payment.shared';
+import { buildGatewayTradeNo, buildPaymentOrderSummary } from './payment.shared';
 
-const PAYMENT_INITIATE_LOCK_SECONDS = 10;
+const PAYMENT_INITIATE_LOCK_SECONDS = 20;
 
 @Injectable()
 export class PaymentInitiationService {
@@ -193,7 +193,8 @@ export class PaymentInitiationService {
         throw new BusinessException(1004, availability.failureMessage ?? '当前租户支付渠道不可用', 409);
       }
       const gatewayProvider = this.gatewayRegistry.getProvider(availability.prismaChannel);
-      const gatewayTradeNo = gatewayProvider.generateTradeNo();
+      const onlineAttemptNo = await this.resolveNextOnlineAttemptNo(tx, currentOrder.id);
+      const gatewayTradeNo = buildGatewayTradeNo(currentOrder.id, onlineAttemptNo);
       const paymentOrderId = await this.idGen.nextDailyId(ID_CONFIG.PAYMENT_ORDER.prefix, ID_CONFIG.PAYMENT_ORDER.digits);
       await tx.paymentOrder.create({
         data: {
@@ -205,6 +206,7 @@ export class PaymentInitiationService {
           paymentMethod: PrismaPaymentMethodEnum.ONLINE,
           channel: gatewayProvider.channel,
           statusMessage: '支付发起中',
+          onlineAttemptNo,
           gatewayTradeNo,
         },
       });
@@ -220,6 +222,24 @@ export class PaymentInitiationService {
         channelConfig: activePaymentChannel.config ?? {},
       };
     });
+  }
+
+  /**
+   * 计算当前订单下一次线上支付尝试序号。
+   * 序号只以 payment_orders 为事实源，不依赖 Redis 或订单表冗余计数。
+   */
+  private async resolveNextOnlineAttemptNo(tx: Prisma.TransactionClient, orderId: string): Promise<number> {
+    const aggregate = await tx.paymentOrder.aggregate({
+      where: {
+        orderId,
+        paymentMethod: PrismaPaymentMethodEnum.ONLINE,
+      },
+      _max: {
+        onlineAttemptNo: true,
+      },
+    });
+
+    return (aggregate._max.onlineAttemptNo ?? 0) + 1;
   }
 
   /**

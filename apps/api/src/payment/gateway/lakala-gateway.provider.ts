@@ -4,7 +4,6 @@ import { PaymentChannelEnum as PrismaPaymentChannelEnum } from '@prisma/client';
 import { decimal } from '../../common/money';
 import { paymentConfig } from '../../config/payment.config';
 import {
-  generateLakalaTradeNo,
   isLakalaFailureStatus,
   isLakalaSuccessStatus,
   parseLakalaAmount,
@@ -31,11 +30,6 @@ export class LakalaGatewayProvider implements PaymentGatewayProvider {
     @Inject(paymentConfig.KEY)
     private readonly paymentSettings: ConfigType<typeof paymentConfig>,
   ) {}
-
-  // 生成拉卡拉侧使用的商户订单号，业务层只把它当作通用 gatewayTradeNo
-  generateTradeNo(): string {
-    return generateLakalaTradeNo();
-  }
 
   // 创建聚合收银台支付单，并隐藏拉卡拉建单报文、签名和响应字段差异
   async createCounterPayment(input: CreateCounterPaymentInput): Promise<CreateCounterPaymentResult> {

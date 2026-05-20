@@ -42,8 +42,6 @@ export type NormalizedGatewayWebhook = {
 export interface PaymentGatewayProvider {
   readonly channel: PrismaPaymentChannelEnum;
 
-  generateTradeNo(): string;
-
   createCounterPayment(input: CreateCounterPaymentInput): Promise<CreateCounterPaymentResult>;
 
   verifyAndNormalizeWebhook(input: PaymentGatewayWebhookInput): NormalizedGatewayWebhook;

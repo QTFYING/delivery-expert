@@ -29,3 +29,7 @@ export function buildPaymentOrderSummary(lineItems: PaymentOrderSummaryLineItem[
   const quantityText = Number.isInteger(firstQuantity) ? String(firstQuantity) : firstQuantity.toFixed(3);
   return rest.length > 0 ? `${first.skuName}×${quantityText}等${lineItems.length}件` : `${first.skuName}×${quantityText}`;
 }
+
+export function buildGatewayTradeNo(orderId: string, onlineAttemptNo: number): string {
+  return `${orderId}_${String(onlineAttemptNo).padStart(2, '0')}`;
+}

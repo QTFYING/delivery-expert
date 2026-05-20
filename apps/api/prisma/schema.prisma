@@ -423,6 +423,7 @@ model PaymentOrder {
   cashVerifyStatus   CashVerifyStatusEnum?
   offlineSubmittedAt DateTime?              @db.Timestamptz(3)
   cashVerifiedAt     DateTime?              @db.Timestamptz(3)
+  onlineAttemptNo    Int?
   gatewayTradeNo     String?                @unique @db.VarChar(100)
   lastInitiatedAt    DateTime?              @db.Timestamptz(3)
   cashierUrl         String?                @db.Text
@@ -437,6 +438,7 @@ model PaymentOrder {
 
   @@index([tenantId, status])
   @@index([orderId])
+  @@unique([orderId, paymentMethod, onlineAttemptNo])
   @@map("payment_orders")
 }
 

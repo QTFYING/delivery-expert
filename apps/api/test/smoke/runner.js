@@ -18,6 +18,7 @@ const {
   resolvePaymentOrderStatus,
   shouldExpirePayingPaymentOrder,
 } = require('../../dist/payment/payment.domain');
+const { buildGatewayTradeNo } = require('../../dist/payment/payment.shared');
 
 const OrderPayTypeEnum = {
   CASH: 'cash',
@@ -132,6 +133,11 @@ run('构建产物包含独立导入 Worker 入口', () => {
 run('构建产物包含导入 Worker 调度 helper', () => {
   const helperEntry = path.join(__dirname, '..', '..', 'dist', 'import', 'import-job.worker.helpers.js');
   assert.equal(fs.existsSync(helperEntry), true);
+});
+
+run('网关商户订单号使用系统订单号和两位尝试序号', () => {
+  assert.equal(buildGatewayTradeNo('ORD20260518000002', 1), 'ORD20260518000002_01');
+  assert.equal(buildGatewayTradeNo('ORD20260518000002', 12), 'ORD20260518000002_12');
 });
 
 run('导入字段解析覆盖字符串、时间、金额与结算方式规范化', () => {

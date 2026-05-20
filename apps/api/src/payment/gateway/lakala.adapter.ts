@@ -139,10 +139,6 @@ export function parseLakalaJsonResponse(
   }
 }
 
-export function generateLakalaTradeNo(): string {
-  return `lkl${Date.now()}${randomBytes(4).toString('hex')}`;
-}
-
 export function parseLakalaDateTime(value?: string): Date | undefined {
   if (!value) return undefined;
   const compact = dayjs(value, 'YYYYMMDDHHmmss', true);
