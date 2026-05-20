@@ -1,5 +1,6 @@
 services:
   api:
+    image: shou-backend:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -30,10 +31,7 @@ services:
     restart: always
 
   import-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: api
+    image: shou-backend:latest
     container_name: shou-import-worker
     command: ['node', 'dist/import-worker.main']
     environment:

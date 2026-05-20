@@ -265,7 +265,7 @@ location / {
 cd /data/www/api
 git pull
 docker compose up -d --build api
-docker compose up -d --build import-worker
+docker compose up -d import-worker
 ```
 
 ## 15. 涉及数据库迁移的更新
