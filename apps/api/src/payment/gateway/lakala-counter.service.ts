@@ -1,6 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
 import dayjs from 'dayjs';
+import timezone from 'dayjs/plugin/timezone';
+import utc from 'dayjs/plugin/utc';
 import { BusinessException } from '../../common/exceptions/business.exception';
 import { paymentConfig } from '../../config/payment.config';
 import { generateLakalaAuthorization, parseLakalaJsonResponse, readLakalaString } from './lakala.adapter';
@@ -8,6 +10,7 @@ import { generateLakalaAuthorization, parseLakalaJsonResponse, readLakalaString 
 const LAKALA_COUNTER_CREATE_TIMEOUT_MS = 8_000;
 const LAKALA_COUNTER_ORDER_EXPIRE_MINUTES = 5;
 const LAKALA_SUPPORT_REPEAT_PAY = 1;
+const LAKALA_TIMEZONE = 'Asia/Shanghai';
 const LAKALA_MERCHANT_CONFIG_ERROR_PATTERNS = [
   '商户不存在',
   '商户号不存在',
@@ -25,6 +28,9 @@ const LAKALA_MERCHANT_CONFIG_ERROR_PATTERNS = [
   '无接口权限',
 ];
 const LAKALA_TERMINAL_ERROR_PATTERNS = ['终端', 'term_no', 'termNo', 'terminal'];
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export type LakalaCounterPaymentResult = {
   cashierUrl: string;
@@ -109,18 +115,23 @@ export class LakalaCounterService {
     const merchantNo = this.readLakalaMerchantNo(config);
 
     return {
-      req_time: dayjs().format('YYYYMMDDHHmmss'),
+      req_time: this.formatLakalaTime(new Date()),
       version: '3.0',
       req_data: {
         merchant_no: merchantNo,
         out_order_no: gatewayTradeNo,
         total_amount: Math.round(payableAmount.toNumber() * 100),
-        order_efficient_time: dayjs(cashierExpiresAt).format('YYYYMMDDHHmmss'),
+        order_efficient_time: this.formatLakalaTime(cashierExpiresAt),
         notify_url: this.paymentSettings.lakalaNotifyUrl,
         support_repeat_pay: LAKALA_SUPPORT_REPEAT_PAY,
         order_info: `订单号：${orderId}，描述：${orderDescription}`,
       },
     };
+  }
+
+  /** 拉卡拉紧凑时间字段不带时区，统一按北京时间输出，避免 Docker 镜像时区差异导致立即过期 */
+  private formatLakalaTime(value: Date): string {
+    return dayjs(value).tz(LAKALA_TIMEZONE).format('YYYYMMDDHHmmss');
   }
 
   /** 从租户渠道配置中读取拉卡拉商户号，避免继续依赖全局 env 商户号 */

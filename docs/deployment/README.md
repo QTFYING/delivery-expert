@@ -11,7 +11,6 @@
 | 阿里云生产主方案       | 1Panel 托管 PostgreSQL / Redis / OpenResty，Compose 只启动 API / Worker | [aliyun-with-1panel.md](./aliyun-with-1panel.md)                 |
 | 阿里云无 1Panel        | Nginx / PostgreSQL / Redis / API / Worker 全部由 Compose 编排           | [aliyun-full-docker-compose.md](./aliyun-full-docker-compose.md) |
 | 环境变量               | 生成 `.env`、`JWT_SECRET`、连接串                                       | [env.md](./env.md)                                               |
-| 数据库迁移规范         | 生产数据库迁移原则、顺序与回滚边界                                      | [database-migration-guide.md](./database-migration-guide.md)     |
 
 ## 当前仓库默认口径
 
@@ -37,7 +36,7 @@
 1. 先确认部署场景。
 2. 按 [env.md](./env.md) 生成对应 `.env`。
 3. 准备 PostgreSQL 与 Redis。
-4. 如涉及结构变更，先按数据库迁移文档执行迁移。
+4. 如涉及结构变更，先备份数据库，停写入型 Worker，执行经评审的迁移 SQL，再更新应用。
 5. 启动或更新 API 与 Worker。
 6. 配置前端静态资源和反向代理。
 7. 验证 Swagger、登录、订单列表、导入预检、正式导入、H5 支付入口。

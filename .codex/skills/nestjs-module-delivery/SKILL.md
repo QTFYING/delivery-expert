@@ -16,14 +16,15 @@ description: 按本项目既定契约落地 NestJS 业务模块。新增或重�
 
 1. 先读对应 `docs/api/*.md` 和 `packages/types/src/contracts/*`。
 2. 定义 controller 端点、入参和出参。
-3. 在 service 收口业务语义、状态流转、事务和幂等。
+3. 在 service 收口业务编排、事务边界、权限边界、幂等和 domain 规则调用；核心状态裁决优先复用 domain 规则。
 4. 将数据查询与持久化收敛到 Prisma 调用层。
 5. 补齐守卫、租户作用域、异常映射和必要的文档同步。
 
 ## 硬约束
 
 - controller：只处理 HTTP 契约、参数校验、响应组装。
-- service：只处理业务语义、状态流转、幂等规则和事务边界。
+- service：负责业务编排、事务边界、幂等收口、权限边界和 domain 规则调用。
+- domain：负责核心状态裁决与纯业务规则，不依赖 `@prisma/client`，不使用 Prisma enum 承载业务状态机判断。
 - Prisma 调用：只做数据查询与持久化，不承载复杂业务判断。
 - 不允许 controller 直接散落业务判断。
 - 不允许 service 继续沿用文档已废弃的旧字段名。
@@ -35,18 +36,20 @@ description: 按本项目既定契约落地 NestJS 业务模块。新增或重�
 
 ## 粒度与拆分
 
-service 的职责只到编排与事务边界。下列四类代码原则上**不属于** service；新增或明显扩展相关职责时，优先独立成文件；如果这次只是在历史超标文件上做局部修补，至少不要继续把新职责塞回同一个 service：
+service 的职责只到编排、事务边界、权限边界、幂等收口与 domain 规则调用。下列职责原则上**不属于** service；新增或明显扩展相关职责时，优先独立成文件；如果这次只是在历史超标文件上做局部修补，至少不要继续把新职责塞回同一个 service：
 
 - 第三方网关（拉卡拉、支付宝等）签名、加解密、报文解析 → `<module>/gateway/<vendor>.adapter.ts`
 - Prisma 枚举/实体 ↔ 领域类型的双向映射 → `<module>/mapping/<name>.mapper.ts`
 - 复杂业务域按用例划分的子 service → 如 `PaymentQueryService`、`PaymentWebhookService`、`PaymentInitiationService`，主 service 只做编排
-- 纯工具函数（金额换算、号段生成等）→ `<module>/utils/*.ts` 或 `common/*`
+- 跨 app 纯函数（金额换算、日期处理等）→ `packages/utils`
+- API 工程基础设施工具（依赖 Nest、Prisma、Config、HTTP、Exception、Pipe、Filter、Swagger DTO 等）→ `apps/api/src/common`
+- 单业务域 helper、校验、mapper、查询条件、网关适配 → 留在对应业务域目录，不提前上提
 
 文件行数上限：单个 `.ts` 默认 ≤ 500 行，`*.service.ts` ≤ 400 行。这是仓库目标态约束。新写文件不得超标；触及已超标文件时，优先拆出本次改动直接涉及的网关适配、映射层或子 service，不要求为无关历史逻辑一次性清债，但不得继续把新职责堆进超标文件。
 
 ## 交付检查
 
 - 模块输入输出与 contracts 一致。
-- 业务状态机只在 service 收口。
+- 核心状态裁决优先由 domain 承载，service 只负责事务、幂等、权限和调用编排。
 - 管理端跨租户接口不会错误复用租户侧作用域。
 - 本次新增 `.ts` 文件均未超过行数上限；如触及已超标文件，已避免继续堆入新职责，并在合理范围内拆出本次直接涉及的网关适配、映射层或子 service。

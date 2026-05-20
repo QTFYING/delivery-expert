@@ -49,8 +49,6 @@ export interface CreateTenantUserRequest {
   phone: string;
   /** 角色 */
   role: TenantRole;
-  /** 初始密码 */
-  password?: string;
 }
 
 export interface UpdateTenantUserRequest {

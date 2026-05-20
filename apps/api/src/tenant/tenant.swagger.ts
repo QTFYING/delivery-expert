@@ -49,8 +49,8 @@ export class TenantProfileSwagger implements TenantProfileContract {
   @ApiProperty({ description: '联系电话', example: '13800138000' })
   contactPhone!: string;
 
-  @ApiPropertyOptional({ description: '管理员名称', example: '张三' })
-  adminName!: string | null;
+  @ApiPropertyOptional({ description: '老板姓名', type: String, example: '张三', nullable: true })
+  ownerName!: string | null;
 
   @ApiProperty({ description: '租户状态', enum: Object.values(TenantStatusEnum), example: TenantStatusEnum.ACTIVE })
   status!: TenantProfileContract['status'];
@@ -90,29 +90,42 @@ export class TenantRecordItemSwagger implements TenantRecordItemContract {
   @ApiProperty({ description: '租户采购的软件版本级别', enum: Object.values(TenantSoftwareVersionEnum), example: TenantSoftwareVersionEnum.L1 })
   softwareVersion!: TenantRecordItemContract['softwareVersion'];
 
-  @ApiProperty({ description: '管理员名称', example: '张三' })
-  admin!: string;
+  @ApiProperty({ description: '老板姓名', example: '张三' })
+  ownerName!: string;
+
+  @ApiPropertyOptional({ description: '老板登录账号，当前按手机号使用', type: String, example: '13800138000', nullable: true })
+  ownerAccount!: string | null;
 
   @ApiProperty({ description: '联系地址', example: '河南省郑州市金水区经三路 88 号' })
   address!: string;
 
-  @ApiProperty({ description: '商户数', example: 1 })
-  merchants!: number;
+  @ApiProperty({ description: '统一社会信用代码', example: '91410100MA9F123456' })
+  licenseNo!: string;
 
   @ApiProperty({ description: '用户数', example: 5 })
   users!: number;
 
-  @ApiProperty({ description: '渠道列表', type: [String], example: ['lakala', 'shouqianba', 'pingan_bank'] })
-  channels!: string[];
+  @ApiPropertyOptional({
+    description: '当前生效支付渠道；未设置时返回 null',
+    enum: Object.values(PaymentChannelEnum),
+    example: PaymentChannelEnum.LAKALA,
+    nullable: true,
+  })
+  activePaymentChannel!: TenantRecordItemContract['activePaymentChannel'];
 
   @ApiProperty({ description: '本月流水（元）', example: 12800 })
   monthlyFlow!: number;
 
-  @ApiPropertyOptional({ description: '租户采购服务到期时间', example: '2026-12-31T23:59:59.000Z', nullable: true })
+  @ApiPropertyOptional({ description: '租户采购服务到期时间', type: String, example: '2026-12-31T23:59:59.000Z', nullable: true })
   serviceExpireAt!: string | null;
 
-  @ApiProperty({ description: '由服务到期时间派生的距到期天数，仅平台列表和风险视图返回', example: 28 })
-  dueInDays!: number;
+  @ApiPropertyOptional({
+    description: '由服务到期时间派生的距到期天数；未配置服务到期时间时返回 null',
+    type: Number,
+    example: 28,
+    nullable: true,
+  })
+  dueInDays!: TenantRecordItemContract['dueInDays'];
 
   @ApiProperty({ description: '最后活跃时间', example: '2026-04-11T09:00:00.000Z' })
   lastActiveAt!: string;

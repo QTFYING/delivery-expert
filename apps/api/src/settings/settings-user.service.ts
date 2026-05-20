@@ -10,7 +10,7 @@ import type {
 import { TenantRoleEnum, UserSimpleStatusEnum } from '@shou/types/enums';
 import * as bcrypt from 'bcrypt';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
-import { assertPasswordStrength, normalizeText } from '../common/validators';
+import { normalizeText } from '../common/validators';
 import { PrismaService } from '../prisma/prisma.service';
 import { getTenantPrismaRoles, toPrismaTenantUserStatus, toTenantPrismaRole, toTenantSettingsUser } from './mapping/settings.mapper';
 import { createAuditLog, getTenantSideId } from './settings.shared';
@@ -121,19 +121,18 @@ export class SettingsUserService {
     const tenantId = getTenantSideId(currentUser);
     const account = this.normalizePhoneAsAccount(request.phone);
     await this.ensureAccountAvailable(account);
-    const customPassword = request.password === undefined || request.password === '' ? undefined : assertPasswordStrength(request.password);
 
     const created = await this.prisma.user.create({
       data: {
         tenantId,
         account,
         phone: account,
-        passwordHash: await bcrypt.hash(customPassword ?? DEFAULT_TENANT_USER_PASSWORD, 10),
+        passwordHash: await bcrypt.hash(DEFAULT_TENANT_USER_PASSWORD, 10),
         realName: normalizeText(request.name, 'name', 50),
         role: toTenantPrismaRole(request.role),
         scope: 'tenant',
         status: UserStatusEnum.ACTIVE,
-        requiresPasswordReset: !customPassword,
+        requiresPasswordReset: true,
       },
     });
 

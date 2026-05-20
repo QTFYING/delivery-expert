@@ -2,8 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import type { TenantNotificationRecordItem } from '@shou/types/contracts';
 import type { PaginatedResponse } from '@shou/types/common';
 import { NoticeStatusEnum, Prisma } from '@prisma/client';
-import dayjs from 'dayjs';
 import { JwtPayload } from '../auth/decorators/current-user.decorator';
+import { formatDateTime } from '../common/validators';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -43,7 +43,7 @@ export class NotificationService {
         id: item.id,
         title: item.title,
         content: item.content,
-        publishAt: dayjs(item.publishAt ?? item.createdAt).format('YYYY-MM-DD HH:mm:ss'),
+        publishAt: formatDateTime(item.publishAt ?? item.createdAt),
         isRead: item.reads.some((read) => read.isRead),
       })),
       total,

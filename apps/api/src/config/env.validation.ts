@@ -58,6 +58,15 @@ export function validateEnv(rawEnv: Record<string, unknown>): Record<string, unk
     env.NODE_ENV = 'development';
   }
 
+  // API / Worker 运行环境统一使用 UTC，避免多节点部署时产生本机时区差异
+  if (!env.TZ || typeof env.TZ !== 'string') {
+    env.TZ = 'UTC';
+  }
+  if (env.TZ !== 'UTC') {
+    throw new Error('TZ 必须为 UTC');
+  }
+  process.env.TZ = env.TZ;
+
   // API 监听端口 默认 3000
   if (!env.PORT || typeof env.PORT !== 'string') {
     env.PORT = '3000';

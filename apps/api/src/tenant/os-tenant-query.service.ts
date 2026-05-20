@@ -24,14 +24,11 @@ export class OsTenantQueryService {
         include: {
           users: {
             where: { deletedAt: null },
-            select: { id: true, loginAt: true },
+            select: { id: true, loginAt: true, account: true, realName: true, role: true, createdAt: true },
           },
           payments: {
             where: { paidAt: { gte: monthStart } },
             select: { amount: true },
-          },
-          paymentOrders: {
-            select: { channel: true },
           },
         },
         orderBy: buildTenantOrderBy(query),
@@ -42,13 +39,7 @@ export class OsTenantQueryService {
     ]);
 
     return {
-      list: tenants.map((tenant) => {
-        const mapped = toTenantRecordItem(tenant);
-        return {
-          ...mapped,
-          lastActiveAt: dayjs(mapped.lastActiveAt).format('YYYY-MM-DD HH:mm:ss'),
-        };
-      }),
+      list: tenants.map((tenant) => toTenantRecordItem(tenant)),
       total,
       page,
       pageSize,

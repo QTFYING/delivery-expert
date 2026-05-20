@@ -1,6 +1,8 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import {
   AuditTargetTypeEnum as PrismaAuditTargetTypeEnum,
+  PaymentChannelEnum as PrismaPaymentChannelEnum,
+  Prisma,
   TenantStatusEnum as PrismaTenantStatusEnum,
   UserRoleEnum,
   UserStatusEnum,
@@ -11,14 +13,16 @@ import type {
   CreateTenantRequest,
   CreateTenantRenewalRequest,
   CreateTenantStatusChangeBatchRequest,
-  PatchTenantStatusRequest,
+  FreezeTenantRequest,
+  PatchTenantBaseInfoRequest,
   TenantAuditDecisionResponse,
   TenantBatchActionResponse,
   TenantRecordItem,
   TenantRenewalResponse,
   TenantStatusMutationResponse,
+  UpdateTenantBaseInfoRequest,
 } from '@shou/types/contracts';
-import { FreezeActionEnum, ReviewActionEnum } from '@shou/types/enums';
+import { PaymentChannelEnum, ReviewActionEnum, type PaymentChannel } from '@shou/types/enums';
 import * as bcrypt from 'bcrypt';
 import dayjs from 'dayjs';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
@@ -49,14 +53,14 @@ export class OsTenantLifecycleService {
   async createAdminTenant(currentUser: JwtPayload, request: CreateTenantRequest, ip?: string): Promise<TenantRecordItem> {
     const tenantName = normalizeText(request.name, 'name', 100);
     const softwareVersion = toPrismaTenantSoftwareVersion(request.softwareVersion);
-    const adminName = normalizeText(request.admin, 'admin', 50);
+    const ownerName = normalizeText(request.ownerName, 'ownerName', 50);
     const address = normalizeText(request.address, 'address', 255);
     const licenseNo = normalizeText(request.licenseNo, 'licenseNo', 100);
     const ownerAccount = normalizeText(request.ownerAccount, 'ownerAccount', 50);
-    const ownerPhone = normalizeText(request.ownerPhone, 'ownerPhone', 20);
     const ownerPassword = request.ownerInitialPassword?.trim() || DEFAULT_OWNER_PASSWORD;
     await this.ensureAccountAvailable(ownerAccount);
     const tenantId = await this.idGen.nextGlobalId(ID_CONFIG.TENANT.prefix, ID_CONFIG.TENANT.seqName, ID_CONFIG.TENANT.digits);
+    const activePaymentChannel = this.toPrismaPaymentChannel(this.normalizePaymentChannel(request.channel));
     const serviceExpireAt = this.parseServiceExpireAt(request.serviceExpireAt);
     const passwordHash = await bcrypt.hash(ownerPassword, 10);
 
@@ -67,10 +71,11 @@ export class OsTenantLifecycleService {
           name: tenantName,
           contactPhone: '',
           softwareVersion,
-          adminName,
+          adminName: ownerName,
           address,
           licenseNo,
           status: PrismaTenantStatusEnum.ONBOARDING,
+          activePaymentChannel,
           serviceExpireAt,
         },
       });
@@ -79,9 +84,9 @@ export class OsTenantLifecycleService {
         data: {
           tenantId: tenant.id,
           account: ownerAccount,
-          phone: ownerPhone,
+          phone: ownerAccount,
           passwordHash,
-          realName: adminName,
+          realName: ownerName,
           role: UserRoleEnum.TENANT_OWNER,
           scope: 'tenant',
           status: UserStatusEnum.ACTIVE,
@@ -104,20 +109,82 @@ export class OsTenantLifecycleService {
         ip,
       });
 
-      return tx.tenant.findUniqueOrThrow({
+      return this.findTenantRecordById(tx, tenant.id);
+    });
+
+    return toTenantRecordItem(created);
+  }
+
+  // 更新租户主体资料，不处理账号资料、状态动作和支付渠道切换。
+  async updateTenantBaseInfo(currentUser: JwtPayload, tenantId: string, request: UpdateTenantBaseInfoRequest, ip?: string): Promise<null> {
+    const tenant = await getTenantOrThrow(this.prisma, tenantId);
+    const tenantName = normalizeText(request.name, 'name', 100);
+    const address = normalizeText(request.address, 'address', 255);
+    const licenseNo = normalizeText(request.licenseNo, 'licenseNo', 100);
+    const softwareVersion = toPrismaTenantSoftwareVersion(request.softwareVersion);
+    const serviceExpireAt = this.parseServiceExpireAt(request.serviceExpireAt);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.tenant.update({
         where: { id: tenant.id },
-        include: {
-          users: { where: { deletedAt: null }, select: { id: true, loginAt: true } },
-          payments: {
-            where: { paidAt: { gte: dayjs().startOf('month').toDate() } },
-            select: { amount: true },
-          },
-          paymentOrders: { select: { channel: true } },
+        data: {
+          name: tenantName,
+          address,
+          licenseNo,
+          softwareVersion,
+          serviceExpireAt,
         },
+      });
+
+      await createTenantAuditLog(tx, currentUser, {
+        tenantId: tenant.id,
+        action: '编辑租户主体资料',
+        target: tenantName,
+        targetType: PrismaAuditTargetTypeEnum.TENANT,
+        ip,
       });
     });
 
-    return toTenantRecordItem(created, [request.channel]);
+    return null;
+  }
+
+  // 局部更新租户主体资料，只写入本次提交的字段。
+  async patchTenantBaseInfo(currentUser: JwtPayload, tenantId: string, request: PatchTenantBaseInfoRequest, ip?: string): Promise<null> {
+    const tenant = await getTenantOrThrow(this.prisma, tenantId);
+    const data: {
+      name?: string;
+      address?: string;
+      licenseNo?: string;
+      softwareVersion?: ReturnType<typeof toPrismaTenantSoftwareVersion>;
+      serviceExpireAt?: Date;
+    } = {};
+
+    if (request.name !== undefined) data.name = normalizeText(request.name, 'name', 100);
+    if (request.address !== undefined) data.address = normalizeText(request.address, 'address', 255);
+    if (request.licenseNo !== undefined) data.licenseNo = normalizeText(request.licenseNo, 'licenseNo', 100);
+    if (request.softwareVersion !== undefined) data.softwareVersion = toPrismaTenantSoftwareVersion(request.softwareVersion);
+    if (request.serviceExpireAt !== undefined) data.serviceExpireAt = this.parseServiceExpireAt(request.serviceExpireAt);
+
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException('至少提交一个可更新字段');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.tenant.update({
+        where: { id: tenant.id },
+        data,
+      });
+
+      await createTenantAuditLog(tx, currentUser, {
+        tenantId: tenant.id,
+        action: '局部编辑租户主体资料',
+        target: data.name ?? tenant.name,
+        targetType: PrismaAuditTargetTypeEnum.TENANT,
+        ip,
+      });
+    });
+
+    return null;
   }
 
   // 处理单个租户的审核决议
@@ -223,29 +290,50 @@ export class OsTenantLifecycleService {
     };
   }
 
-  // 冻结或解冻单个租户
-  async patchTenantStatus(
-    currentUser: JwtPayload,
-    tenantId: string,
-    request: PatchTenantStatusRequest,
-    ip?: string,
-  ): Promise<TenantStatusMutationResponse> {
+  // 冻结单个租户，并记录冻结原因。
+  async freezeTenant(currentUser: JwtPayload, tenantId: string, request: FreezeTenantRequest, ip?: string): Promise<TenantStatusMutationResponse> {
     const tenant = await getTenantOrThrow(this.prisma, tenantId);
-    if (request.action === FreezeActionEnum.FREEZE && !request.reason?.trim()) {
-      throw new BadRequestException('冻结时 reason 必填');
-    }
+    const reason = normalizeText(request.reason, 'reason', 255);
 
     const updated = await this.prisma.tenant.update({
       where: { id: tenant.id },
       data: {
-        status: request.action === FreezeActionEnum.FREEZE ? PrismaTenantStatusEnum.PAUSED : PrismaTenantStatusEnum.ACTIVE,
-        freezeReason: request.action === FreezeActionEnum.FREEZE ? request.reason?.trim() || null : null,
+        status: PrismaTenantStatusEnum.PAUSED,
+        freezeReason: reason,
       },
     });
 
     await createTenantAuditLog(this.prisma, currentUser, {
       tenantId: tenant.id,
-      action: request.action === FreezeActionEnum.FREEZE ? '冻结租户' : '解冻租户',
+      action: '冻结租户',
+      target: tenant.name,
+      targetType: PrismaAuditTargetTypeEnum.TENANT,
+      ip,
+    });
+
+    return {
+      tenantId: updated.id,
+      status: fromPrismaTenantStatus(updated.status),
+      freezeReason: updated.freezeReason ?? null,
+      effectiveAt: updated.updatedAt.toISOString(),
+    };
+  }
+
+  // 解冻单个租户，并清空冻结原因。
+  async unfreezeTenant(currentUser: JwtPayload, tenantId: string, ip?: string): Promise<TenantStatusMutationResponse> {
+    const tenant = await getTenantOrThrow(this.prisma, tenantId);
+
+    const updated = await this.prisma.tenant.update({
+      where: { id: tenant.id },
+      data: {
+        status: PrismaTenantStatusEnum.ACTIVE,
+        freezeReason: null,
+      },
+    });
+
+    await createTenantAuditLog(this.prisma, currentUser, {
+      tenantId: tenant.id,
+      action: '解冻租户',
       target: tenant.name,
       targetType: PrismaAuditTargetTypeEnum.TENANT,
       ip,
@@ -310,12 +398,65 @@ export class OsTenantLifecycleService {
     }
   }
 
-  // 解析平台提交的服务到期时间；接口契约要求传 ISO 日期时间字符串
+  // 解析平台提交的服务到期日期，并归一为上海时区当天结束时刻。
   private parseServiceExpireAt(value: string): Date {
-    const parsed = dayjs(value);
-    if (!parsed.isValid()) {
-      throw new BadRequestException('serviceExpireAt 不是合法日期时间');
+    const matched = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+    if (!matched) {
+      throw new BadRequestException('serviceExpireAt 必须是 YYYY-MM-DD 日期格式');
     }
-    return parsed.toDate();
+
+    const year = Number(matched[1]);
+    const month = Number(matched[2]);
+    const day = Number(matched[3]);
+    const normalized = new Date(Date.UTC(year, month - 1, day, 15, 59, 59, 999));
+
+    if (normalized.getUTCFullYear() !== year || normalized.getUTCMonth() !== month - 1 || normalized.getUTCDate() !== day) {
+      throw new BadRequestException('serviceExpireAt 不是合法日期');
+    }
+
+    return normalized;
+  }
+
+  // 查询用于平台租户列表和编辑返回的租户记录快照。
+  private findTenantRecordById(client: Prisma.TransactionClient | PrismaService, tenantId: string) {
+    return client.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      include: {
+        users: {
+          where: { deletedAt: null },
+          select: { id: true, account: true, realName: true, role: true, loginAt: true, createdAt: true },
+        },
+        payments: {
+          where: { paidAt: { gte: dayjs().startOf('month').toDate() } },
+          select: { amount: true },
+        },
+      },
+    });
+  }
+
+  // 归一化创建租户时提交的支付渠道字符串。
+  private normalizePaymentChannel(channel: string): PaymentChannel {
+    switch (channel) {
+      case PaymentChannelEnum.LAKALA:
+      case PaymentChannelEnum.SHOUQIANBA:
+      case PaymentChannelEnum.PINGAN_BANK:
+        return channel;
+      default:
+        throw new BadRequestException('channel 不是合法支付渠道');
+    }
+  }
+
+  // 解析创建租户时提交的首个生效支付渠道。
+  private toPrismaPaymentChannel(channel: PaymentChannel): PrismaPaymentChannelEnum {
+    switch (channel) {
+      case PaymentChannelEnum.LAKALA:
+        return PrismaPaymentChannelEnum.LAKALA;
+      case PaymentChannelEnum.SHOUQIANBA:
+        return PrismaPaymentChannelEnum.SHOUQIANBA;
+      case PaymentChannelEnum.PINGAN_BANK:
+        return PrismaPaymentChannelEnum.PINGAN_BANK;
+      default:
+        throw new BadRequestException('channel 不是合法支付渠道');
+    }
   }
 }

@@ -27,9 +27,9 @@
 
 `docs/api` 不负责完整镜像 DTO、分页包装或嵌套响应结构，也不维护第二份 Swagger 式字段表。
 
-### 2.2 `packages/types/src/enums`：闭集值层
+### 2.2 `packages/types/src/enums`：枚举值层
 
-`packages/types/src/enums` 是稳定闭集值的唯一事实源，负责：
+`packages/types/src/enums` 是稳定枚举值的唯一事实源，负责：
 
 1. 枚举英文值
 2. 枚举类型
@@ -70,7 +70,7 @@ Swagger / OpenAPI 与 DTO 负责定义 HTTP 传输结构，包括：
 出现契约冲突时，按冲突类型裁决：
 
 1. 业务语义冲突，看 `docs/api`。
-2. 闭集值冲突，看 `packages/types/src/enums`。
+2. 枚举值冲突，看 `packages/types/src/enums`。
 3. 请求响应结构、可选项、`nullable`、示例冲突，看 Swagger / DTO。
 4. 建模字段、索引、唯一约束冲突，看 `schema.prisma` 与 `docs/prisma/data-model-reference.md`。
 5. `contracts` 与上游不一致时，`contracts` 必须回对齐，不能反向改义。
@@ -86,7 +86,7 @@ Swagger / OpenAPI 与 DTO 负责定义 HTTP 传输结构，包括：
 维护顺序：
 
 1. 先改 `docs/api`
-2. 若涉及闭集值，再改 `packages/types/src/enums`
+2. 若涉及枚举值，再改 `packages/types/src/enums`
 3. 再改 DTO / Swagger
 4. 最后同步 `packages/types/src/contracts`
 5. 若涉及持久化含义，再同步 `docs/prisma/data-model-reference.md`

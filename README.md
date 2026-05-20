@@ -30,7 +30,7 @@
 补充说明：
 
 - `docs/api` 定义业务语义、状态流转与字段含义。
-- `enums` 定义闭集值。
+- `enums` 定义枚举值。
 - `contracts` 只做共享结构投影与消费，不独立发明语义。
 - `data-model-reference` 只做建模同步。
 - Swagger / OpenAPI 只作为传输结构与联调产物，不反向推动接口改义。
@@ -89,6 +89,7 @@ JWT_SECRET=replace-with-local-secret
 CORS_ORIGINS=http://localhost:5173,http://localhost:5001,http://localhost:5002,http://localhost:5003
 PORT=3000
 NODE_ENV=development
+TZ=UTC
 AUTH_COOKIE_SECURE=false
 IMPORT_JOB_WORKER_ENABLED=false
 ```

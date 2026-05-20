@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 import { TenantSoftwareVersionEnum } from '@shou/types/enums';
 
 export class CreateOsTenantDto {
@@ -11,9 +11,9 @@ export class CreateOsTenantDto {
   @IsEnum(TenantSoftwareVersionEnum)
   softwareVersion!: (typeof TenantSoftwareVersionEnum)[keyof typeof TenantSoftwareVersionEnum];
 
-  @ApiProperty({ description: '管理员名称', example: '张三' })
+  @ApiProperty({ description: '老板姓名', example: '张三' })
   @IsString()
-  admin!: string;
+  ownerName!: string;
 
   @ApiProperty({ description: '联系地址', example: '河南省郑州市金水区经三路 88 号' })
   @IsString()
@@ -29,17 +29,13 @@ export class CreateOsTenantDto {
   @IsString()
   channel!: string;
 
-  @ApiProperty({ description: '租户采购服务到期时间', example: '2027-05-13T23:59:59.000Z' })
-  @IsDateString()
+  @ApiProperty({ description: '租户采购服务到期日期，前端按 YYYY-MM-DD 提交', example: '2027-05-13' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'serviceExpireAt 必须是 YYYY-MM-DD 日期格式' })
   serviceExpireAt!: string;
 
-  @ApiProperty({ description: '首个老板登录账号', example: 'tenant_a_boss' })
+  @ApiProperty({ description: '首个老板登录账号，当前按手机号使用', example: '13800138000' })
   @IsString()
   ownerAccount!: string;
-
-  @ApiProperty({ description: '首个老板手机号', example: '13800138000' })
-  @IsString()
-  ownerPhone!: string;
 
   @ApiPropertyOptional({ description: '首个老板初始密码，不传则由服务端回退默认密码', example: '123456' })
   @IsOptional()

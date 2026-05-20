@@ -22,7 +22,7 @@ import {
   type OrderStatus,
 } from '@shou/types/enums';
 import Decimal from 'decimal.js';
-import { normalizeOptionalText } from '../../common/validators';
+import { formatDateTime, normalizeOptionalText } from '../../common/validators';
 import { resolveDefaultTemplateFieldValueRequired } from '../import-template.fields';
 
 const IMPORT_JOB_STATUS_TEXT: Record<OrderImportJobStatus, string> = {
@@ -57,7 +57,7 @@ export function toTemplate(template: {
     id: String(template.id),
     name: template.name,
     isDefault: template.isDefault,
-    updatedAt: template.updatedAt.toISOString(),
+    updatedAt: formatDateTime(template.updatedAt),
     defaultFields: asTemplateFields(template.defaultFields),
     customerFields: asTemplateFields(template.customerFields),
   };
@@ -74,7 +74,7 @@ export function toTemplateMutationResponse(template: {
     id: String(template.id),
     name: template.name,
     isDefault: template.isDefault,
-    updatedAt: template.updatedAt.toISOString(),
+    updatedAt: formatDateTime(template.updatedAt),
     customerFields: asTemplateFields(template.customerFields),
   };
 }

@@ -7,17 +7,17 @@
 
 ## 目录
 
-1. [通用约定](#一通用约定)
-2. [认证模块 Auth](#二认证模块-auth5-个端点)
-3. [订单模块 Orders](#三订单模块-orders17-个端点)
-4. [支付与核销 Payment](#四支付与核销-payment3-个端点)
-5. [财务对账 Finance](#五财务对账-finance3-个端点)
-6. [账期管理 Credit](#六账期管理-credit2-个端点)
-7. [数据分析 Analytics](#七数据分析-analytics4-个端点)
-8. [系统设置 Settings](#八系统设置-settings18-个端点)
-9. [通知 Notifications](#九通知-notifications2-个端点)
-10. [资质提交 Certification](#十资质提交-certification2-个端点)
-11. [跨项目关联](#十一跨项目关联)
+1. 通用约定
+2. 认证模块 Auth
+3. 订单模块 Orders
+4. 支付与核销 Payment
+5. 财务对账 Finance
+6. 账期管理与内部收款 Credit
+7. 数据分析 Analytics
+8. 系统设置 Settings
+9. 通知 Notifications
+10. 资质提交 Certification
+11. 跨项目关联
 
 ---
 
@@ -25,8 +25,8 @@
 
 > [!NOTE]
 > **全局规范指引**
-> 关于统一下发的 `code/data/message` 响应体包装、分页参数的请求与返回体指引、全局 `Http Status` 错误码机制以及环境拦截要求，本档内剔除重复声明，请直接翻阅架构大本营字典 **[api-architecture-overview.md]** 的第二章。
-> 本档负责描述商户端业务语义、角色边界、状态含义、协作约束与关键流程；闭集值以 `packages/types/src/enums` 为准，请求/响应结构、分页包装、`nullable` 与示例以 Swagger 与共享 `contracts` 为准。
+> 关于统一下发的 `code/data/message` 响应体包装、分页参数的请求与返回体指引、全局 `Http Status` 错误码机制以及环境拦截要求，请直接翻阅架构总览 **[api-architecture-overview.md]** 的第二章。
+> 本档负责描述 Tenant 端业务语义、角色边界、状态含义、协作约束与关键流程；枚举值以 `packages/types/src/enums` 为准，请求/响应结构、分页包装、`nullable` 与示例以 Swagger 与共享 `contracts` 为准。
 > 本档不再维护与 Swagger 完全同构的机械字段定义、参数表或分页包装镜像。
 
 ### 1.6 角色与来源标识
@@ -36,16 +36,15 @@
 
 | 角色              | 中文名 | 说明                               |
 | ----------------- | ------ | ---------------------------------- |
-| `TENANT_OWNER`    | 老板   | 全部权限，包含员工配置与财务全览   |
+| `TENANT_OWNER`    | 管理员   | 全部权限，包含员工配置与财务全览   |
 | `TENANT_OPERATOR` | 打单员 | 处理订单导入、打印、发货及催款操作 |
 | `TENANT_FINANCE`  | 财务   | 负责现金线下核销、对账单审计处理   |
 | `TENANT_VIEWER`   | 访客   | 只读，用于审计与只读查看流水       |
 
 ---
 
-## 二、认证模块 Auth（5 个端点）
+## 二、认证模块 Auth（5 个）
 
-> 源码：`features/auth/` + `@shou/shared/api/modules/auth`
 > 三端（Admin / Tenant / H5）共用同一套 Auth，后端通过 `user.tenantId` 区分身份。
 
 ### 2.1 登录
@@ -68,16 +67,7 @@
 - Cookie 属性：`HttpOnly`、`SameSite=Lax`
 - HTTPS 场景优先使用 `__Host-refreshToken` + `Secure`
 
-**前端标准化映射：**
-
-```typescript
-{
-  token: string; // accessToken
-  role: TenantRole; // 校验后的角色
-  name: string; // realName || name || account
-  source: AuthSourceTag; // 数据来源标记
-}
-```
+前端展示名称、来源标记等消费侧派生字段以共享 Auth contracts 为准，不在 API 语义文档中重复定义。
 
 ### 2.2 刷新令牌
 
@@ -114,6 +104,10 @@
 
 **契约类型：** 请求：`ChangePasswordRequest`；响应：`null`
 
+**登录与改密规则：**
+
+- Tenant 端新建用户创建成功后，服务端统一设置初始密码为 `123456`，并要求该用户首次登录修改密码；首次登录响应 `LoginResponse.user.requiresPasswordReset=true`
+
 **业务规则：**
 
 - 新密码长度必须为 8 到 20 位
@@ -124,9 +118,8 @@
 
 ---
 
-## 三、订单模块 Orders（17 个端点）
+## 三、订单模块 Orders（17 个）
 
-> 源码：`features/orders/` + `@shou/shared/api/modules/order`
 > 后端自动按当前用户的 tenantId 过滤，仅返回本租户数据。
 > 订单创建与正式导入成功时，服务端同步生成 `orders.qrCodeToken`。它的业务语义等同 `h5EntryToken`，供前端在送货单上渲染 `/pay/:token` 二维码并进入 H5 订单详情页。
 > 订单导入链路为“默认模板 -> 租户模板 -> 预检 -> 正式导入 -> 导入任务 -> 订单查询”；预检同步执行，正式导入异步执行。
@@ -326,19 +319,21 @@
 ### 3.13 提交打印成功回执
 
 - **POST** `/orders/print-records`
-- **描述**：前端在本机实际打印成功后，提交本次打印成功的订单 ID 列表；服务端据此累计 `orders.prints`、刷新 `orders.lastPrintedAt`，并为每张订单写入一条打印成功事件（`order_print_records`，`result=success`）用于打印追溯。
+- **描述**：前端在本机实际打印成功后，提交单张订单的打印成功回执；服务端据此累计该订单的 `orders.prints`、刷新 `orders.lastPrintedAt`，并写入一条打印成功事件（`order_print_records`，`result=success`）用于打印追溯。
 
 **契约类型：** 请求：`OrderPrintRecordRequest`；响应：`OrderPrintRecordResponse`
 
 **业务规则：**
 
 - 该接口是打印成功回执接口，不承担实际打印动作
-- `orderIds` 必须非空
-- `orderIds` 必须来自本次实际打印成功的订单，不应直接提交”用户选中的全部订单”
-- 服务端应按当前租户作用域校验订单归属，并对 `orderIds` 做去重处理
-- `totalCount` 以服务端去重后的 `orderIds` 数量为准
-- 服务端事务内按订单逐条写入 `order_print_records(result=success)`，自动附带 `operatorId / operatorName / printedAt / requestId`
-- 每张订单在写事件的同时：`orders.prints += 1`，`orders.lastPrintedAt = printedAt`；不触碰失败类计数器
+- 推荐使用 `orderId` 提交单张实际打印成功的订单
+- `orderIds` 仅为兼容旧前端保留，若传入则长度必须等于 `1`
+- `orderId` 与 `orderIds` 至少传一个；若两者同时传入，二者必须指向同一张订单
+- 前端批量打印应由前端循环调用本接口完成，服务端每次只确认一张订单的打印结果
+- 服务端应按当前租户作用域校验订单归属
+- `totalCount` 与 `successCount` 在成功场景下均为 `1`
+- 服务端事务内写入一条 `order_print_records(result=success)`，自动附带 `operatorId / operatorName / printedAt / requestId`
+- 写事件的同时：`orders.prints += 1`，`orders.lastPrintedAt = printedAt`；不触碰失败类计数器
 - 同一租户下，相同 `requestId` 的重复提交必须幂等返回首次结果，且不得产生重复事件与重复自增
 
 ### 3.14 上报打印失败记录
@@ -348,13 +343,7 @@
 
 **契约类型：** 请求：`CreateOrderPrintFailureRequest`；响应：`CreateOrderPrintFailureResponse`
 
-**路径参数：**
-
-```typescript
-{
-  id: string; // 订单 ID
-}
-```
+**路径参数：** `id` 为当前租户可访问的订单 ID。
 
 **业务规则：**
 
@@ -374,13 +363,7 @@
 
 **契约类型：** 请求：`OrderPrintRecordsQuery`；响应：`OrderPrintRecordsResponse`
 
-**路径参数：**
-
-```typescript
-{
-  id: string; // 订单 ID
-}
-```
+**路径参数：** `id` 为当前租户可访问的订单 ID。
 
 **业务规则：**
 
@@ -413,7 +396,7 @@
 
 ---
 
-## 四、支付与核销 Payment（3 个端点）
+## 四、支付与核销 Payment（3 个）
 
 > 此模块是 Tenant 与 H5 的核心关联点。客户在 H5 支付后，Tenant 端查看流水并核销。
 
@@ -462,9 +445,8 @@ Tenant 财务 POST /orders/{id}/cash-verifications
 
 ---
 
-## 五、财务对账 Finance（3 个端点）
+## 五、财务对账 Finance（3 个）
 
-> 源码：`features/finance/`
 > 提供本租户维度的财务汇总和对账明细。
 
 ### 契约约定
@@ -492,9 +474,8 @@ Tenant 财务 POST /orders/{id}/cash-verifications
 
 ---
 
-## 六、账期管理与内部收款 Credit（2 个端点）
+## 六、账期管理与内部收款 Credit（2 个）
 
-> 源码：`features/finance/`（信用管理子页面）
 > 管理 payType=账期 的订单，并提供租户财务后台内部收款能力。
 
 ### 6.1 获取账期订单列表
@@ -532,9 +513,8 @@ Tenant 财务 POST /orders/{id}/cash-verifications
 
 ---
 
-## 七、数据分析 Analytics（4 个端点）
+## 七、数据分析 Analytics（4 个）
 
-> 源码：`features/analytics/` + `@shou/shared/api/modules/analytics`
 > 全部数据自动按当前租户过滤。
 
 ### 7.1 获取日趋势
@@ -572,9 +552,8 @@ Tenant 财务 POST /orders/{id}/cash-verifications
 
 ---
 
-## 八、系统设置 Settings（18 个端点）
+## 八、系统设置 Settings（18 个）
 
-> 源码：`features/settings/` + `@shou/shared/api/modules/settings`
 > 默认仅 `TENANT_OWNER` 可写；少数只读接口按条目单独声明可见角色。
 
 ### 契约约定
@@ -621,9 +600,8 @@ Tenant 财务 POST /orders/{id}/cash-verifications
 
 - `phone` 在本租户内唯一（作为登录账号）
 - 新建用户初始状态为 `active`
-- 若手动传入 `password`，则密码长度必须为 8 到 20 位
-- 若手动传入 `password`，则密码至少包含大写字母、小写字母、数字、特殊字符中的 2 类
-- 若手动传入 `password`，则密码不能包含空格，且不能是常见弱口令
+- Tenant 端新建用户不由前端录入合规密码；服务端统一设置初始密码为 `123456`
+- 新建用户必须标记为首次登录需修改密码；首次登录响应 `LoginResponse.user.requiresPasswordReset=true`
 
 ### 8.5 更新用户
 
@@ -706,13 +684,7 @@ Tenant 财务 POST /orders/{id}/cash-verifications
 
 **契约类型：** 响应：`GetPrintingConfigDetailResponse`
 
-**路径参数：**
-
-```typescript
-{
-  importTemplateId: string; // 导入映射模板 ID
-}
-```
+**路径参数：** `importTemplateId` 为当前租户下的导入映射模板 ID。
 
 **关键说明：**
 
@@ -727,13 +699,7 @@ Tenant 财务 POST /orders/{id}/cash-verifications
 
 **契约类型：** 请求：`UpdatePrintingConfigRequest`；响应：`UpdatePrintingConfigResponse`
 
-**路径参数：**
-
-```typescript
-{
-  importTemplateId: string; // 导入映射模板 ID
-}
-```
+**路径参数：** `importTemplateId` 为当前租户下的导入映射模板 ID。
 
 **关键说明：**
 
@@ -823,7 +789,7 @@ Tenant 财务 POST /orders/{id}/cash-verifications
 
 ---
 
-## 九、通知 Notifications（2 个端点）
+## 九、通知 Notifications（2 个）
 
 > Tenant 是公告的**接收方**，Admin 是发布方。
 
@@ -842,7 +808,7 @@ Tenant 财务 POST /orders/{id}/cash-verifications
 
 ---
 
-## 十、资质提交 Certification（2 个端点）
+## 十、资质提交 Certification（2 个）
 
 > Tenant 提交资质材料，Admin 在 `/tenants/certifications/{id}/review-decisions` 创建审核决议。
 

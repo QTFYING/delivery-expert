@@ -5,9 +5,8 @@ import {
 } from '@prisma/client';
 import type { TenantCertificationStatusResult, TenantCertificationSubmitRequest, TenantCertificationSubmitResponse } from '@shou/types/contracts';
 import { TenantCertificationStatusEnum } from '@shou/types/enums';
-import dayjs from 'dayjs';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
-import { normalizeText } from '../common/validators';
+import { formatDateTime, normalizeText } from '../common/validators';
 import { ID_CONFIG } from '../id-generator/id-generator.constants';
 import { IdGeneratorService } from '../id-generator/id-generator.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -80,8 +79,8 @@ export class TenantCertificationService {
     return {
       certId: latest.id,
       status: fromPrismaCertificationStatus(latest.status),
-      submittedAt: dayjs(latest.submitAt).format('YYYY-MM-DD HH:mm:ss'),
-      reviewedAt: latest.reviewedAt ? dayjs(latest.reviewedAt).format('YYYY-MM-DD HH:mm:ss') : null,
+      submittedAt: formatDateTime(latest.submitAt),
+      reviewedAt: formatDateTime(latest.reviewedAt) ?? null,
       reviewComment: latest.comment ?? null,
       rejectReason: latest.rejectReason ?? null,
     };

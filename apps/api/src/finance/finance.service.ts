@@ -11,6 +11,7 @@ import { AdminReconciliationStatusEnum, FinanceReconciliationStatusEnum, OrderSt
 import dayjs from 'dayjs';
 import Decimal from 'decimal.js';
 import { JwtPayload } from '../auth/decorators/current-user.decorator';
+import { formatDateTime } from '../common/validators';
 import { fromPrismaOrderStatus } from '../order/mapping/order-enum.mapper';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -80,7 +81,7 @@ export class FinanceService {
         net: this.money(item.net),
         fee: this.money(item.fee),
         channel: item.channel,
-        paidAt: dayjs(item.paidAt).format('YYYY-MM-DD HH:mm:ss'),
+        paidAt: formatDateTime(item.paidAt),
         status: this.toTenantReconciliationStatus(item.status),
       })),
       total,

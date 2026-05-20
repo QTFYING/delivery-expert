@@ -152,7 +152,7 @@ export class SettingsService {
         action: item.action,
         operator: item.actor,
         ip: item.ip ?? '',
-        createdAt: dayjs(item.time).format('YYYY-MM-DD HH:mm:ss'),
+        createdAt: item.time.toISOString(),
       })),
       total,
       page,

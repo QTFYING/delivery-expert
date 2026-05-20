@@ -14,7 +14,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-https://mp.shoudanba.cn,https://www.shoudanba.cn,https://h5.shoudanba.cn}
       NODE_ENV: production
       PORT: 3000
-      TZ: Asia/Shanghai
+      TZ: UTC
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
       IMPORT_JOB_WORKER_ENABLED: 'false'
       IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS: ${IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS:-900}
@@ -43,7 +43,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-https://mp.shoudanba.cn,https://www.shoudanba.cn,https://h5.shoudanba.cn}
       NODE_ENV: production
       PORT: 3000
-      TZ: Asia/Shanghai
+      TZ: UTC
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
       IMPORT_JOB_WORKER_ENABLED: 'true'
       IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS: ${IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS:-900}

@@ -31,7 +31,7 @@
 补充：
 
 - `docs/api` 定义业务语义、状态流转与字段含义
-- `enums` 定义闭集值
+- `enums` 定义枚举值
 - `contracts` 只做共享结构投影与消费，不独立发明语义
 - 公开 `contracts` 默认保持平铺、可读、可直接复制给前端，不依赖 `generated/*` 或其他内部中间态
 - `data-model-reference` 只做建模同步
@@ -58,7 +58,7 @@
 ## 6. 默认分层
 
 - controller 只处理 HTTP 契约、参数校验、鉴权接入和响应组装。
-- service 只处理业务语义、状态流转、事务边界和幂等收口。
+- service 负责业务编排、事务边界、幂等收口和 domain 规则调用；核心状态裁决优先复用 domain 规则。
 - Prisma 查询与写入只承载持久化，不散落核心业务判断。
 - `domain` 层不得依赖 `@prisma/client`，不得使用 Prisma 生成枚举承载业务状态机判断；领域函数应接收业务枚举、领域快照或 `packages/types` 中的共享语义类型。
 - `mapper` 层负责 Prisma 持久化结构与领域/契约结构互转，Prisma enum 与业务 enum 的双向映射应集中在 mapper 中维护，并优先使用闭集映射表让新增枚举触发编译期缺口。

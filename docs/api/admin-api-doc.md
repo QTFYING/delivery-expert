@@ -1,33 +1,33 @@
 # Admin 平台运营后台 — API 接口契约文档
 
-> 本文档为 Admin（平台运营后台）前后端接口契约依据，覆盖全部业务模块。
+> 本文档为 Admin（平台运营后台）前后端接口契约依据，覆盖当前已落地接口，并单独标注远景规划能力。
 > 生成日期：2026-04-07
 
 ---
 
 ## 目录
 
-1. [通用约定](#一通用约定)
-2. [认证 Auth](#二认证-auth4-个端点)
-3. [控制台 Console](#三控制台-console1-个端点)
-4. [仪表盘 Dashboard](#四仪表盘-dashboard5-个端点)
-5. [租户中心 Tenant Center](#五租户中心-tenant-center15-个端点)
-6. [用户管理 Users](#六用户管理-users6-个端点)
-7. [订单管理 Orders](#七订单管理-orders2-个端点)
-8. [收款记录 Payments](#八收款记录-payments2-个端点)
-9. [财务对账 Reconciliation](#九财务对账-reconciliation3-个端点)
-10. [套餐计费 Billing - Packages](#十套餐计费-billing---packages4-个端点)
-11. [合同管理 Billing - Contracts](#十一合同管理-billing---contracts5-个端点)
-12. [账单发票 Billing - Invoices](#十二账单发票-billing---invoices3-个端点)
-13. [服务商管理 Service Providers](#十三服务商管理-service-providers4-个端点)
-14. [系统公告 Notices](#十四系统公告-notices4-个端点)
-15. [工单管理 Tickets](#十五工单管理-tickets5-个端点)
-16. [角色管理 Security - Roles](#十六角色管理-security---roles4-个端点)
-17. [操作日志 Security - Audit Logs](#十七操作日志-security---audit-logs1-个端点)
-18. [安全设置 Security - Settings](#十八安全设置-security---settings8-个端点)
-19. [告警规则 Ops - Alert Rules](#十九告警规则-ops---alert-rules5-个端点)
-20. [系统配置 Ops - System Config](#二十系统配置-ops---system-config5-个端点)
-21. [跨项目关联](#二十一跨项目关联)
+1. 通用约定
+2. 认证 Auth
+3. 控制台 Console
+4. 仪表盘 Dashboard
+5. 租户中心 Tenant Center
+6. 用户管理 Users
+7. 订单管理 Orders
+8. 收款记录 Payments
+9. 财务对账 Reconciliation
+10. 远景规划 - 套餐计费 Billing - Packages
+11. 远景规划 - 合同管理 Billing - Contracts
+12. 远景规划 - 账单发票 Billing - Invoices
+13. 远景规划 - 服务商管理 Service Providers
+14. 远景规划 - 系统公告 Notices
+15. 远景规划 - 工单管理 Tickets
+16. 远景规划 - 角色管理 Security - Roles
+17. 远景规划 - 操作日志 Security - Audit Logs
+18. 远景规划 - 安全设置 Security - Settings
+19. 远景规划 - 告警规则 Ops - Alert Rules
+20. 远景规划 - 系统配置 Ops - System Config
+21. 跨项目关联
 
 ---
 
@@ -35,31 +35,38 @@
 
 > [!NOTE]
 > **全局规范指引**
-> 关于统一下发的 `code/data/message` 响应体包装、分页参数的详细数据结构、金额传输要求与全局 `Http Status` 错误码等基础要素，在此单据内不再赘言，敬请直接调阅大本营总纲 **[api-architecture-overview.md]** 全局规范板块。
-> 本档负责描述接口用途、角色边界、字段业务含义、状态流转与运营约束；闭集值以 `packages/types/src/enums` 为准，请求/响应结构、分页包装、`nullable` 与示例以 Swagger 与共享 `contracts` 为准。
+> 关于统一下发的 `code/data/message` 响应体包装、分页参数的详细数据结构、金额传输要求与全局 `Http Status` 错误码等基础要素，在此单据内不再赘言，直接调阅总览 **[api-architecture-overview.md]** 全局规范板块。
+> 本档负责描述接口用途、角色边界、字段业务含义、状态流转与运营约束；枚举值以 `packages/types/src/enums` 为准，请求/响应结构、分页包装、`nullable` 与示例以 Swagger 与共享 `contracts` 为准。
 > 本档不再维护与 Swagger 完全同构的机械参数表、字段表或分页包装镜像。
 
 ### 路径前缀规范
 
-| 前缀                   | 域     | 说明                                 |
-| ---------------------- | ------ | ------------------------------------ |
-| `/auth/*`              | 认证   | 三端共用                             |
-| `/platform/*`          | 平台   | Admin 专属聚合数据（仪表盘、控制台） |
-| `/tenants/*`           | 租户   | 租户生命周期管理                     |
-| `/users/*`             | 用户   | 跨租户用户管理                       |
-| `/orders/*`            | 订单   | 跨租户订单管理                       |
-| `/payments/*`          | 收款   | 跨租户收款流水                       |
-| `/reconciliation/*`    | 对账   | 财务对账                             |
-| `/billing/*`           | 计费   | 套餐、合同、账单                     |
-| `/security/*`          | 安全   | 角色、审计日志、安全策略             |
-| `/ops/*`               | 运维   | 告警规则、系统配置                   |
-| `/notices/*`           | 公告   | 系统公告管理                         |
-| `/tickets/*`           | 工单   | 工单管理                             |
-| `/service-providers/*` | 服务商 | 外部服务商监管                       |
+当前已落地并可进入联调口径的 Admin 路径前缀：
+
+| 前缀                | 域   | 说明                                 |
+| ------------------- | ---- | ------------------------------------ |
+| `/auth/*`           | 认证 | 三端共用                             |
+| `/platform/*`       | 平台 | Admin 专属聚合数据（仪表盘、控制台） |
+| `/tenants/*`        | 租户 | 租户生命周期、资质与支付配置管理     |
+| `/users/*`          | 用户 | 跨租户用户管理                       |
+| `/orders/*`         | 订单 | 跨租户订单查看与审计                 |
+| `/payments/*`       | 收款 | 跨租户收款流水                       |
+| `/reconciliation/*` | 对账 | 财务对账                             |
+
+以下路径属于远景规划能力，当前后端未提供对应 Admin controller，不作为当前联调、Swagger 或 contracts 事实源：
+
+| 前缀                   | 域     | 规划说明                 |
+| ---------------------- | ------ | ------------------------ |
+| `/billing/*`           | 计费   | 套餐、合同、账单         |
+| `/security/*`          | 安全   | 角色、审计日志、安全策略 |
+| `/ops/*`               | 运维   | 告警规则、系统配置       |
+| `/notices/*`           | 公告   | 系统公告发布管理         |
+| `/tickets/*`           | 工单   | 工单管理                 |
+| `/service-providers/*` | 服务商 | 外部服务商监管           |
 
 ---
 
-## 二、认证 Auth（4 个端点）
+## 二、认证 Auth（4 个）
 
 > 与 Tenant 端共用同一套 Auth。平台用户 `tenantId = null`。
 
@@ -106,7 +113,7 @@
 
 ---
 
-## 三、控制台 Console（1 个端点）
+## 三、控制台 Console（1 个）
 
 ### 3.1 获取控制台上下文
 
@@ -117,7 +124,7 @@
 
 ---
 
-## 四、仪表盘 Dashboard（5 个端点）
+## 四、仪表盘 Dashboard（5 个）
 
 ### 4.1 获取平台核心指标
 
@@ -154,18 +161,13 @@
 
 **契约类型：** 响应：`PlatformOverviewResponse`
 
-**补充说明：**
-
-- `growth` 表示增长趋势聚合视图
-- `renewalRisks` 表示续费风险租户列表
-
 ---
 
-## 五、租户中心 Tenant Center（15 个端点）
+## 五、租户中心 Tenant Center（17 个）
 
 ### 契约约定
 
-- 租户中心相关闭集统一使用 `TenantStatus`、`TenantSortField`、`SortOrder`、`ReviewAction`、`FreezeAction`
+- 租户中心相关闭集统一使用 `TenantStatus`、`TenantSortField`、`SortOrder`、`ReviewAction`
 - 本章节只保留租户生命周期、状态动作、收单配置兜底与运营语义，不再长期维护同构字段镜像
 
 ### 5.1 获取租户列表
@@ -177,12 +179,8 @@
 
 **业务说明：**
 
-- 支持按关键词搜索，匹配租户名称、租户 ID、管理员
-- 支持按租户状态筛选，并按既定排序字段升序或降序排列
-- 列表项聚焦租户基础信息、联系地址、软件展示名称、软件版本级别、支付通道、商户数、账号数、本月流水、到期风险、最近活跃时间与当前状态
-- `address` 公司联系地址
-- `softwareVersion` 派生展示softwareName；`L1` 为基础版，`L2` 为标准版，`L3` 为高级版
-- `serviceExpireAt` 是租户采购服务到期时间；`dueInDays` 不入库，由 `serviceExpireAt` 按当前日期派生，仅用于平台列表、排序和风险提示
+- 支持关键词、租户状态和排序条件查询，用于平台运营巡检
+- 老板账号摘要来自当前首个 `TENANT_OWNER` 用户；该摘要不作为租户主体资料存储
 
 ### 5.2 创建租户
 
@@ -196,19 +194,41 @@
 - 创建后立即生成平台侧租户记录
 - 创建时同步生成首个 `TENANT_OWNER` 账号
 - 租户创建后状态保持 `onboarding`
-- `serviceExpireAt` 表示租户采购服务到期时间；创建请求不再接收 `dueInDays`
-- `channel` 表示首个开通的支付通道标识
-- `softwareVersion` 表示租户采购的软件版本级别，当前闭集为 `L1`、`L2`、`L3`
-- `admin` 表示老板姓名，同时回写租户展示字段
-- `address` 表示租户联系地址，创建时必填，并写入租户主体资料
-- `licenseNo` 为租户营业执照号，创建时必填，并写入租户主体资料
-- `ownerAccount` 为首个老板登录账号，要求全局唯一
-- `ownerPhone` 为首个老板手机号
-- `ownerInitialPassword` 未传时，服务端使用默认初始密码，并要求首次登录修改密码
+- 服务到期日期创建时必填；前端按 `YYYY-MM-DD` 提交，服务端归一为上海时区当天结束时刻
+- 首个老板登录账号当前按手机号使用，要求全局唯一；对外不再单独暴露老板手机号字段
+- 首个老板初始密码未传时，服务端使用默认初始密码，并要求首次登录修改密码
 - 首个老板账号创建成功后，可直接登录 Tenant 端完成初始化配置
 - 初始化配置不等于租户已正式开通线上收款；是否允许 H5 支付由支付配置状态单独决定
 
-### 5.3 创建租户审核决议
+### 5.3 编辑租户主体资料
+
+- **PUT** `/tenants/{id}`
+- **描述**：更新指定租户的主体资料。仅承载租户主体信息变更，不承载状态动作、支付渠道切换或老板账号资料变更。
+
+**契约类型：** 请求：`UpdateTenantBaseInfoRequest`；响应：`null`
+
+**业务规则：**
+
+- 本接口只更新租户主体资料，不更新首个老板账号资料
+- 本接口不承载冻结 / 解冻；冻结使用 `POST /tenants/{id}/freeze`，解冻使用 `POST /tenants/{id}/unfreeze`
+- 本接口不承载当前生效支付渠道切换；支付渠道切换继续使用 `POST /tenants/{id}/payment-configs/{channel}/activate`
+
+### 5.4 局部编辑租户主体资料
+
+- **PATCH** `/tenants/{id}`
+- **描述**：局部更新指定租户的主体资料。仅写入本次提交字段，未提交字段保持不变。
+
+**契约类型：** 请求：`PatchTenantBaseInfoRequest`；响应：`null`
+
+**业务规则：**
+
+- 本接口只允许更新租户主体资料白名单字段；具体字段以 `PatchTenantBaseInfoRequest` 为准
+- 至少应提交一个可更新字段
+- 如提交服务到期日期，仍按 `YYYY-MM-DD` 传输
+- 本接口不承载冻结 / 解冻；冻结使用 `POST /tenants/{id}/freeze`，解冻使用 `POST /tenants/{id}/unfreeze`
+- 本接口不承载支付渠道切换或老板账号资料变更
+
+### 5.5 创建租户审核决议
 
 - **POST** `/tenants/{id}/audit-decisions`
 - **描述**：在指定租户下创建一条审核决议记录
@@ -220,14 +240,14 @@
 - `approve` 时状态流转为 `active`
 - `reject` 时状态保持 `onboarding`，并记录 `rejectReason`
 
-### 5.4 创建租户批量审核批次
+### 5.6 创建租户批量审核批次
 
 - **POST** `/tenants/audit-batches`
 - **描述**：批量通过多个待审核租户
 
 **契约类型：** 请求：`CreateTenantAuditBatchRequest`；响应：`TenantBatchActionResponse`
 
-### 5.5 创建租户续费记录
+### 5.7 创建租户续费记录
 
 - **POST** `/tenants/{id}/renewals`
 - **描述**：在指定租户下创建一条续费记录，可同时变更软件版本级别和服务到期时间
@@ -236,43 +256,55 @@
 
 **业务规则：**
 
-- `serviceExpireAt` 为续费后生效的服务到期时间，由平台运营明确提交
+- `serviceExpireAt` 为续费后生效的服务到期日期；前端按 `YYYY-MM-DD` 提交，服务端统一归一为上海时区当天结束时刻入库
 - 本接口不再接收续费天数；季度、半年、整年、补偿延期等均归一为新的服务到期时间
 
-### 5.6 更新租户状态
+### 5.8 冻结租户
 
-- **PATCH** `/tenants/{id}`
-- **描述**：冻结或解冻指定租户
+- **POST** `/tenants/{id}/freeze`
+- **描述**：冻结指定租户。该接口是明确动作接口，不占用 `PATCH /tenants/{id}` 的资源部分更新语义。
 
-**契约类型：** 请求：`PatchTenantStatusRequest`；响应：`TenantStatusMutationResponse`
+**契约类型：** 请求：`FreezeTenantRequest`；响应：`TenantStatusMutationResponse`
 
 **业务规则：**
 
-- `freeze` 时状态变为 `paused`
-- `unfreeze` 时状态恢复为 `active`
+- 冻结原因必填
+- 冻结后租户状态变为 `paused`
 
-### 5.7 创建租户批量状态变更批次
+### 5.9 解冻租户
+
+- **POST** `/tenants/{id}/unfreeze`
+- **描述**：解冻指定租户。该接口是明确动作接口，不占用 `PATCH /tenants/{id}` 的资源部分更新语义。
+
+**契约类型：** 请求：无 Body；响应：`TenantStatusMutationResponse`
+
+**业务规则：**
+
+- 解冻后租户状态恢复为 `active`
+- 解冻后清空 `freezeReason`
+
+### 5.10 创建租户批量状态变更批次
 
 - **POST** `/tenants/status-change-batches`
 - **描述**：批量冻结多个租户
 
 **契约类型：** 请求：`CreateTenantStatusChangeBatchRequest`；响应：`TenantBatchActionResponse`
 
-### 5.8 获取组织架构成员列表
+### 5.11 获取组织架构成员列表
 
 - **GET** `/tenants/members`
 - **描述**：跨租户查看所有成员
 
 **契约类型：** 请求：`TenantMemberListQuery`；响应：`PaginatedResponse<TenantMemberItem>`
 
-### 5.9 获取资质审核队列
+### 5.12 获取资质审核队列
 
 - **GET** `/tenants/certifications`
 - **说明**：该队列仅展示仍在审核流中的记录，即 `pending_initial_review / pending_secondary_review / pending_confirmation`
 
 **契约类型：** 响应：`TenantCertificationRecordItem[]`
 
-### 5.10 创建资质审核决议
+### 5.13 创建资质审核决议
 
 - **POST** `/tenants/certifications/{id}/review-decisions`
 - **说明**：在指定资质记录下创建一条审核决议，并推进资质审核状态流转
@@ -286,24 +318,21 @@
 - `pending_confirmation` + `approve` -> `approved`
 - 任一待处理状态 + `reject` -> `rejected`
 
-### 5.11 获取租户支付渠道配置列表
+### 5.14 获取租户支付渠道配置列表
 
 - **GET** `/tenants/payment-configs`
 - **描述**：平台侧分页获取租户支付渠道配置列表，用于状态筛选、关键词搜索与兜底巡检
 
 **契约类型：** 响应：`PaginatedResponse<TenantPaymentConfigListItem>`
 
-**请求参数（Query）：** 支持 `page`、`pageSize`、`keyword`、`status`、`tenantStatus`
-
 **补充说明：**
 
 - `keyword` 可匹配租户名称、租户 ID 以及当前渠道主标识（对 `lakala` 即商户号）
-- `status` 使用闭集 `TenantPaymentConfigStatus`
 - 列表默认只返回已有支付渠道配置记录；`not_configured` 仅在单租户单渠道详情查询时作为虚拟态返回
 - 支付渠道闭集当前包含 `lakala`、`shouqianba`、`pingan_bank`
 - `shouqianba`、`pingan_bank` 已可查询配置快照；真实线上收款网关接入前不能切换为生效渠道
 
-### 5.12 获取单租户单渠道配置详情
+### 5.15 获取单租户单渠道配置详情
 
 - **GET** `/tenants/{id}/payment-configs/{channel}`
 - **描述**：查看单个租户指定支付渠道的配置快照；租户存在但该渠道未配置时返回 `status=not_configured`
@@ -315,14 +344,14 @@
 - `channel` 支持 `lakala`、`shouqianba`、`pingan_bank`
 - `shouqianba`、`pingan_bank` 未配置时返回 `status=not_configured`，不因渠道名本身报错
 
-### 5.13 强制停用单租户单渠道配置
+### 5.16 强制停用单租户单渠道配置
 
 - **POST** `/tenants/{id}/payment-configs/{channel}/disable`
 - **描述**：平台兜底停用单租户指定渠道的线上收款配置，不清空该渠道已有配置内容
 
 **契约类型：** 响应：`TenantPaymentConfigSnapshot`
 
-### 5.14 切换单租户当前生效支付渠道
+### 5.17 切换单租户当前生效支付渠道
 
 - **POST** `/tenants/{id}/payment-configs/{channel}/activate`
 - **描述**：平台侧将指定渠道切为该租户当前生效支付渠道；后端先校验该渠道配置必须处于 `available`，且该渠道已有线上支付网关实现
@@ -335,7 +364,7 @@
 
 ---
 
-## 六、用户管理 Users（6 个端点）
+## 六、用户管理 Users（6 个）
 
 ### 契约约定
 
@@ -403,7 +432,7 @@
 
 ---
 
-## 七、订单管理 Orders（2 个端点）
+## 七、订单管理 Orders（2 个）
 
 > Admin 看到的是跨租户订单数据，与 Tenant 的 `/orders` 共用同一资源路径，后端通过 token 区分权限范围。
 > Admin 端仅提供查单与审计能力，不提供创建、导入、轮询、催款等运营动作。
@@ -429,7 +458,7 @@
 
 ---
 
-## 八、收款记录 Payments（2 个端点）
+## 八、收款记录 Payments（2 个）
 
 > 平台视角的跨租户收款流水汇总。
 
@@ -452,7 +481,7 @@
 
 ---
 
-## 九、财务对账 Reconciliation（3 个端点）
+## 九、财务对账 Reconciliation（3 个）
 
 ### 契约约定
 
@@ -481,7 +510,10 @@
 
 ---
 
-## 十、套餐计费 Billing - Packages（4 个端点）
+> [!IMPORTANT]
+> 以下“远景规划”章节当前未在 `apps/api/src` 提供对应 Admin controller，不作为当前联调、Swagger 或 contracts 事实源。落地前必须先按 `api-contract-governance` 重新确认业务语义、闭集枚举、DTO / Swagger 与共享 contracts。
+
+## 十、套餐计费 Billing - Packages（远景规划，未落地）
 
 ### 契约约定
 
@@ -514,7 +546,7 @@
 
 ---
 
-## 十一、合同管理 Billing - Contracts（5 个端点）
+## 十一、合同管理 Billing - Contracts（远景规划，未落地）
 
 ### 契约约定
 
@@ -572,7 +604,7 @@
 
 ---
 
-## 十二、账单发票 Billing - Invoices（3 个端点）
+## 十二、账单发票 Billing - Invoices（远景规划，未落地）
 
 ### 契约约定
 
@@ -610,7 +642,7 @@
 
 ---
 
-## 十三、服务商管理 Service Providers（4 个端点）
+## 十三、服务商管理 Service Providers（远景规划，未落地）
 
 > Admin 负责平台级服务商接入管理，Tenant 端负责业务级服务商协作。
 
@@ -651,7 +683,7 @@
 
 ---
 
-## 十四、系统公告 Notices（4 个端点）
+## 十四、系统公告 Notices（远景规划，未落地）
 
 > Admin 是公告的发布方，Tenant 是接收方。
 
@@ -693,7 +725,7 @@
 
 ---
 
-## 十五、工单管理 Tickets（5 个端点）
+## 十五、工单管理 Tickets（远景规划，未落地）
 
 ### 契约约定
 
@@ -739,7 +771,7 @@
 
 ---
 
-## 十六、角色管理 Security - Roles（4 个端点）
+## 十六、角色管理 Security - Roles（远景规划，未落地）
 
 ### 契约约定
 
@@ -785,11 +817,11 @@
 
 ---
 
-## 十七、操作日志 Security - Audit Logs（1 个端点）
+## 十七、操作日志 Security - Audit Logs（远景规划，未落地）
 
 ### 契约约定
 
-- `targetType` 与 `result` 的闭集值分别来自 `AuditTargetType`、`AuditResult`
+- `targetType` 与 `result` 的枚举值分别来自 `AuditTargetType`、`AuditResult`
 
 ### 17.1 获取操作日志列表
 
@@ -800,7 +832,7 @@
 
 ---
 
-## 十八、安全设置 Security - Settings（8 个端点）
+## 十八、安全设置 Security - Settings（远景规划，未落地）
 
 ### 18.1 获取安全策略列表
 
@@ -852,7 +884,7 @@
 
 ---
 
-## 十九、告警规则 Ops - Alert Rules（5 个端点）
+## 十九、告警规则 Ops - Alert Rules（远景规划，未落地）
 
 ### 19.1 获取告警规则列表
 
@@ -886,7 +918,7 @@
 
 ---
 
-## 二十、系统配置 Ops - System Config（5 个端点）
+## 二十、系统配置 Ops - System Config（远景规划，未落地）
 
 ### 20.1 获取全局配置列表
 
@@ -932,7 +964,7 @@
 | 创建/管理用户            | Tenant 端用户列表同步更新                                                  |
 | 查看/兜底支付渠道配置    | Tenant 端 `GET /settings/payment-configs/{channel}` 的状态由平台兜底可见   |
 | 固定角色与权限树只读接口 | Tenant `GET /settings/roles`、`GET /settings/permissions` 只读返回固定枚举 |
-| 发布公告                 | Tenant 端 `GET /notifications` 接收                                        |
+| 发布公告（远景规划）     | Tenant 端 `GET /notifications` 接收公告已落地；Admin `/notices/*` 发布管理仍属规划能力 |
 | 跨租户订单/流水查看      | 数据来源于各 Tenant 的订单和支付                                           |
 
 ### 与 H5 端的关联

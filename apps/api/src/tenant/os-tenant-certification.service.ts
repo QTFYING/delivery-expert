@@ -9,8 +9,8 @@ import type {
   TenantCertificationReviewDecisionResponse,
 } from '@shou/types/contracts';
 import { ReviewActionEnum } from '@shou/types/enums';
-import dayjs from 'dayjs';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
+import { formatDateTime } from '../common/validators';
 import { PrismaService } from '../prisma/prisma.service';
 import { fromPrismaCertificationStatus, getNextCertificationStatus, toPrismaCertificationStatus } from './mapping/tenant.mapper';
 import { createTenantAuditLog } from './tenant.shared';
@@ -41,7 +41,7 @@ export class OsTenantCertificationService {
       id: item.id,
       tenant: item.tenant.name,
       type: item.type,
-      submitAt: dayjs(item.submitAt).format('YYYY-MM-DD HH:mm:ss'),
+      submitAt: formatDateTime(item.submitAt),
       status: fromPrismaCertificationStatus(item.status),
       comment: item.comment ?? undefined,
     }));

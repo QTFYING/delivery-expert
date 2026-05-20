@@ -79,10 +79,10 @@ export function toTenantOrder(order: OrderRowBase): TenantOrderItem {
     status: fromPrismaOrderStatus(order.status),
     payType: fromPrismaOrderPayType(order.payType),
     prints: order.prints,
-    lastPrintedAt: order.lastPrintedAt?.toISOString(),
+    lastPrintedAt: formatDateTime(order.lastPrintedAt),
     printFailedCount: order.printFailedCount,
-    lastFailedAt: order.lastFailedAt?.toISOString(),
-    orderTime: order.orderTime.toISOString(),
+    lastFailedAt: formatDateTime(order.lastFailedAt),
+    orderTime: formatDateTime(order.orderTime),
     lineItems: order.lineItems.map((item) => ({
       itemId: String(item.id),
       skuId: item.skuId,
@@ -96,7 +96,7 @@ export function toTenantOrder(order: OrderRowBase): TenantOrderItem {
     customerFieldValues: toCustomerFieldValues(order.customerFieldValues ?? null),
     voided: order.voided,
     voidReason: order.voidReason ?? undefined,
-    voidedAt: order.voidedAt?.toISOString(),
+    voidedAt: formatDateTime(order.voidedAt),
   };
 }
 
@@ -150,9 +150,9 @@ export function toAdminOrder(order: OrderRowBase & { tenant: { name: string } })
     paid: toMoneyNumber(order.paid),
     status: fromPrismaOrderStatus(order.status),
     payType: fromPrismaOrderPayType(order.payType),
-    orderTime: order.orderTime.toISOString(),
+    orderTime: formatDateTime(order.orderTime),
     voided: order.voided,
     voidReason: order.voidReason ?? undefined,
-    voidedAt: order.voidedAt?.toISOString(),
+    voidedAt: formatDateTime(order.voidedAt),
   };
 }

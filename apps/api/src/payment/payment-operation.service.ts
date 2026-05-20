@@ -1,9 +1,9 @@
 import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
-  type Prisma,
   PaymentMethodEnum as PrismaPaymentMethodEnum,
   PaymentOrderStatusEnum as PrismaPaymentOrderStatusEnum,
   PaymentRecordStatusEnum as PrismaPaymentRecordStatusEnum,
+  type Prisma,
 } from '@prisma/client';
 
 import type {
@@ -229,7 +229,7 @@ export class PaymentOperationService {
 
   /**
    * 仅允许 H5 协议约定的线下支付闭集进入后续处理。
-   * 非闭集值直接按业务参数错误返回。
+   * 非枚举值直接按业务参数错误返回。
    */
   private parseOfflinePaymentMethod(value: string): OfflinePaymentMethod {
     if (value === OfflinePaymentMethodEnum.CASH) return OfflinePaymentMethodEnum.CASH;

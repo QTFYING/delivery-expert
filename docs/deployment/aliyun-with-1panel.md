@@ -3,7 +3,7 @@
 > 日期：2026-05-14
 > 适用范围：单机 ECS、1Panel 托管 PostgreSQL / Redis / OpenResty，Docker Compose 仅运行 `api` 与 `import-worker`
 
-本文档是通用部署与运维手册，不承载某一次具体数据库迁移的 SQL 和专项执行细节。数据库迁移规则见 [database-migration-guide.md](./database-migration-guide.md)；某次专项升级见 `docs/deployment/migrations/*.md`。
+本文档是通用部署与运维手册，不承载某一次具体数据库迁移的 SQL 和过程性执行记录。
 
 ## 1. 目标形态
 
@@ -272,13 +272,16 @@ docker compose up -d --build import-worker
 
 如果本次发布包含数据库结构变更，不要直接 `docker compose up -d --build`。
 
-请改走：
+请按下面顺序执行：
 
-1. 阅读 [database-migration-guide.md](./database-migration-guide.md)
-2. 找到对应专项迁移文档
-3. 先执行数据库迁移
-4. 再更新 `api`
-5. 最后恢复 `import-worker`
+1. 确认当前生产代码基线和目标版本。
+2. 备份生产数据库。
+3. 停止 `import-worker`，必要时同时停止 `api`。
+4. 执行本次发布对应且已评审的迁移 SQL。
+5. 校验表结构、枚举和关键数据。
+6. 更新并启动 `api`。
+7. 验证登录、订单列表、导入、支付等关键链路。
+8. 恢复 `import-worker`。
 
 ## 16. 验证
 

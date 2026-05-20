@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Ip, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Ip, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiExtraModels, ApiOkResponse, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { PaymentChannelEnum, UserRoleEnum, type PaymentChannel } from '@shou/types/enums';
 import type {
@@ -7,7 +7,8 @@ import type {
   CreateTenantRequest,
   CreateTenantStatusChangeBatchRequest,
   CreateTenantRenewalRequest,
-  PatchTenantStatusRequest,
+  FreezeTenantRequest,
+  PatchTenantBaseInfoRequest,
   TenantPaymentConfigListItem,
   TenantPaymentConfigSnapshot,
   TenantBatchActionResponse,
@@ -18,6 +19,7 @@ import type {
   TenantRecordItem,
   TenantRenewalResponse,
   TenantStatusMutationResponse,
+  UpdateTenantBaseInfoRequest,
 } from '@shou/types/contracts';
 import type { PaginatedResponse } from '@shou/types/common';
 import { CurrentUser, JwtPayload } from '../auth/decorators/current-user.decorator';
@@ -29,12 +31,14 @@ import { CreateTenantAuditDecisionDto } from './dto/create-tenant-audit-decision
 import { CreateOsTenantDto } from './dto/create-os-tenant.dto';
 import { CreateTenantRenewalDto } from './dto/create-tenant-renewal.dto';
 import { CreateTenantStatusChangeBatchDto } from './dto/create-tenant-status-change-batch.dto';
+import { FreezeTenantDto } from './dto/freeze-tenant.dto';
+import { UpdateTenantBaseInfoDto } from './dto/update-tenant-base-info.dto';
 import { ListTenantMembersQueryDto } from './dto/list-tenant-members.query.dto';
 import { ListTenantsQueryDto } from './dto/list-tenants.query.dto';
 import { OsTenantLifecycleService } from './os-tenant-lifecycle.service';
 import { OsTenantPaymentConfigService } from './os-tenant-payment-config.service';
 import { OsTenantQueryService } from './os-tenant-query.service';
-import { PatchTenantStatusDto } from './dto/patch-tenant-status.dto';
+import { PatchTenantBaseInfoDto } from './dto/patch-tenant-base-info.dto';
 import { ListTenantPaymentConfigsQueryDto } from './dto/list-tenant-payment-configs.query.dto';
 import { TenantPaymentConfigSnapshotSwagger } from '../settings/settings.swagger';
 import {
@@ -88,6 +92,36 @@ export class OsTenantController {
     return this.osTenantLifecycleService.createAdminTenant(currentUser, request as CreateTenantRequest, ip);
   }
 
+  // 更新租户主体资料。
+  @ApiOperation({ summary: '编辑租户主体资料' })
+  @ApiParam({ name: 'id', description: '租户 ID' })
+  @ApiOkResponse({ description: '编辑成功', schema: { type: 'null' } })
+  @Put(':id')
+  @Roles(UserRoleEnum.OS_SUPER_ADMIN)
+  async updateTenantBaseInfo(
+    @CurrentUser() currentUser: JwtPayload,
+    @Param('id') tenantId: string,
+    @Body() request: UpdateTenantBaseInfoDto,
+    @Ip() ip: string,
+  ): Promise<null> {
+    return this.osTenantLifecycleService.updateTenantBaseInfo(currentUser, tenantId, request as UpdateTenantBaseInfoRequest, ip);
+  }
+
+  // 局部更新租户主体资料，不处理状态动作、账号资料和支付渠道切换。
+  @ApiOperation({ summary: '局部编辑租户主体资料' })
+  @ApiParam({ name: 'id', description: '租户 ID' })
+  @ApiOkResponse({ description: '编辑成功', schema: { type: 'null' } })
+  @Patch(':id')
+  @Roles(UserRoleEnum.OS_SUPER_ADMIN)
+  async patchTenantBaseInfo(
+    @CurrentUser() currentUser: JwtPayload,
+    @Param('id') tenantId: string,
+    @Body() request: PatchTenantBaseInfoDto,
+    @Ip() ip: string,
+  ): Promise<null> {
+    return this.osTenantLifecycleService.patchTenantBaseInfo(currentUser, tenantId, request as PatchTenantBaseInfoRequest, ip);
+  }
+
   // 创建租户审核决议。
   @ApiOperation({ summary: '创建租户审核决议' })
   @ApiParam({ name: 'id', description: '租户 ID' })
@@ -131,19 +165,33 @@ export class OsTenantController {
     return this.osTenantLifecycleService.createTenantRenewal(currentUser, tenantId, request as CreateTenantRenewalRequest, ip);
   }
 
-  // 更新租户状态。
-  @ApiOperation({ summary: '更新租户状态' })
+  // 冻结指定租户。
+  @ApiOperation({ summary: '冻结租户' })
   @ApiParam({ name: 'id', description: '租户 ID' })
   @ApiOkResponse({ type: TenantStatusMutationResponseSwagger })
-  @Patch(':id')
+  @Post(':id/freeze')
   @Roles(UserRoleEnum.OS_SUPER_ADMIN)
-  async patchStatus(
+  async freezeTenant(
     @CurrentUser() currentUser: JwtPayload,
     @Param('id') tenantId: string,
-    @Body() request: PatchTenantStatusDto,
+    @Body() request: FreezeTenantDto,
     @Ip() ip: string,
   ): Promise<TenantStatusMutationResponse> {
-    return this.osTenantLifecycleService.patchTenantStatus(currentUser, tenantId, request as PatchTenantStatusRequest, ip);
+    return this.osTenantLifecycleService.freezeTenant(currentUser, tenantId, request as FreezeTenantRequest, ip);
+  }
+
+  // 解冻指定租户。
+  @ApiOperation({ summary: '解冻租户' })
+  @ApiParam({ name: 'id', description: '租户 ID' })
+  @ApiOkResponse({ type: TenantStatusMutationResponseSwagger })
+  @Post(':id/unfreeze')
+  @Roles(UserRoleEnum.OS_SUPER_ADMIN)
+  async unfreezeTenant(
+    @CurrentUser() currentUser: JwtPayload,
+    @Param('id') tenantId: string,
+    @Ip() ip: string,
+  ): Promise<TenantStatusMutationResponse> {
+    return this.osTenantLifecycleService.unfreezeTenant(currentUser, tenantId, ip);
   }
 
   // 创建租户批量状态变更批次。

@@ -50,18 +50,6 @@ export const ReviewActionEnum = {
 export type ReviewAction = EnumValue<typeof ReviewActionEnum>;
 
 /**
- * 冻结动作
- */
-export const FreezeActionEnum = {
-  /** 冻结 */
-  FREEZE: 'freeze',
-  /** 解冻 */
-  UNFREEZE: 'unfreeze',
-} as const;
-
-export type FreezeAction = EnumValue<typeof FreezeActionEnum>;
-
-/**
  * 租户员工精简状态
  */
 export const UserSimpleStatusEnum = {

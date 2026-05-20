@@ -224,13 +224,13 @@ export class AdminOrderListResponseSwagger extends PaginatedResponseMetaSwagger 
 }
 
 export class OrderPrintRecordResponseSwagger implements OrderPrintRecordResponseContract {
-  @ApiPropertyOptional({ description: '请求号', example: 'print-batch-20260411-001' })
+  @ApiPropertyOptional({ description: '请求号', example: 'print-order-20260411-001' })
   requestId?: string;
 
-  @ApiProperty({ description: '提交总数', example: 10 })
+  @ApiProperty({ description: '提交总数；打印成功回执每次只确认单张订单', example: 1 })
   totalCount!: number;
 
-  @ApiProperty({ description: '成功累计打印次数的订单数', example: 10 })
+  @ApiProperty({ description: '成功累计打印次数的订单数；成功场景为 1', example: 1 })
   successCount!: number;
 
   @ApiProperty({ description: '确认时间', example: '2026-04-11T10:00:00.000Z' })

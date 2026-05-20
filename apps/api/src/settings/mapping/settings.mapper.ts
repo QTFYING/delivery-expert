@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { TenantGeneralSettings as TenantGeneralSettingsModel, UserRoleEnum as PrismaUserRoleEnum, UserStatusEnum } from '@prisma/client';
 import type { TenantGeneralSettings, TenantSettingsUser, UpdateTenantGeneralSettingsRequest } from '@shou/types/contracts';
 import { TenantRoleEnum, UserSimpleStatusEnum, type TenantRole } from '@shou/types/enums';
-import dayjs from 'dayjs';
+import { formatDateTime } from '../../common/validators';
 
 const TENANT_ROLE_TO_PRISMA: Record<TenantRole, PrismaUserRoleEnum> = {
   [TenantRoleEnum.OWNER]: PrismaUserRoleEnum.TENANT_OWNER,
@@ -35,7 +35,7 @@ export function toTenantSettingsUser(user: {
     role: fromPrismaTenantRole(user.role),
     phone: user.phone ?? '',
     status: fromPrismaTenantUserStatus(user.status),
-    lastLogin: user.loginAt ? dayjs(user.loginAt).format('YYYY-MM-DD HH:mm:ss') : '',
+    lastLogin: formatDateTime(user.loginAt) ?? '',
   };
 }
 

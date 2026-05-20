@@ -1,5 +1,5 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, UserRoleEnum } from '@prisma/client';
 import type { TenantListQuery, TenantMemberListQuery } from '@shou/types/contracts';
 import { SortOrderEnum, TenantSideEnum, TenantSortFieldEnum } from '@shou/types/enums';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
@@ -16,7 +16,20 @@ export function buildTenantListWhere(query: TenantListQuery): Prisma.TenantWhere
   }
   if (query.keyword?.trim()) {
     const keyword = query.keyword.trim();
-    where.OR = [{ id: keyword }, { name: { contains: keyword, mode: 'insensitive' } }, { adminName: { contains: keyword, mode: 'insensitive' } }];
+    where.OR = [
+      { id: keyword },
+      { name: { contains: keyword, mode: 'insensitive' } },
+      { adminName: { contains: keyword, mode: 'insensitive' } },
+      {
+        users: {
+          some: {
+            deletedAt: null,
+            role: UserRoleEnum.TENANT_OWNER,
+            OR: [{ realName: { contains: keyword, mode: 'insensitive' } }, { account: { contains: keyword, mode: 'insensitive' } }],
+          },
+        },
+      },
+    ];
   }
 
   return where;
@@ -32,7 +45,7 @@ export function buildTenantOrderBy(query: TenantListQuery): Prisma.TenantOrderBy
     case TenantSortFieldEnum.STATUS:
       return [{ status: sortOrder }];
     case TenantSortFieldEnum.DUE_IN_DAYS:
-      return [{ serviceExpireAt: sortOrder }];
+      return [{ serviceExpireAt: { sort: sortOrder, nulls: 'last' } }];
     default:
       return [{ createdAt: 'desc' }];
   }

@@ -90,6 +90,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      TZ: UTC
+      PGTZ: UTC
+    command: ['postgres', '-c', 'timezone=UTC']
     volumes:
       - postgres-data:/var/lib/postgresql/data
     restart: always
@@ -115,6 +118,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
       NODE_ENV: production
       PORT: 3000
+      TZ: UTC
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
       IMPORT_JOB_WORKER_ENABLED: 'false'
       IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS: ${IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS:-900}
@@ -144,6 +148,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
       NODE_ENV: production
       PORT: 3000
+      TZ: UTC
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
       IMPORT_JOB_WORKER_ENABLED: 'true'
       IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS: ${IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS:-900}
@@ -179,6 +184,7 @@ volumes:
 - 这是全 Docker Compose 场景专用文件，不覆盖当前根目录 `docker-compose.yml`。
 - `DATABASE_URL` 使用 Compose 服务名 `postgres`。
 - `REDIS_URL` 使用 Compose 服务名 `redis`。
+- PostgreSQL、API 与 Worker 均固定 `TZ=UTC`；数据库事件时间字段使用 `timestamptz(3)`。
 - 前端静态资源挂载到 Nginx 容器目录。
 - 以上 `nginx` 服务示例与根目录 [nginx.conf](../../nginx.conf) 成对使用。
 

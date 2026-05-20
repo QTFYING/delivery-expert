@@ -7,8 +7,8 @@ import type {
   UpdatePrintingConfigRequest,
   UpdatePrintingConfigResponse,
 } from '@shou/types/contracts';
-import dayjs from 'dayjs';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
+import { formatDateTime } from '../common/validators';
 import { PrismaService } from '../prisma/prisma.service';
 import { createAuditLog, getOperatorDisplayName, getTenantSideId } from './settings.shared';
 
@@ -42,7 +42,7 @@ export class SettingsPrintingService {
 
         if (template.printerTemplate) {
           item.configVersion = template.printerTemplate.configVersion;
-          item.updatedAt = dayjs(template.printerTemplate.updatedAt).format('YYYY-MM-DD HH:mm:ss');
+          item.updatedAt = formatDateTime(template.printerTemplate.updatedAt);
           item.updatedBy = template.printerTemplate.updatedBy ?? undefined;
           item.remark = template.printerTemplate.remark ?? undefined;
         }
@@ -69,7 +69,7 @@ export class SettingsPrintingService {
       hasCustomConfig: true,
       configVersion: template.printerTemplate.configVersion,
       config: template.printerTemplate.config as Record<string, unknown>,
-      updatedAt: dayjs(template.printerTemplate.updatedAt).format('YYYY-MM-DD HH:mm:ss'),
+      updatedAt: formatDateTime(template.printerTemplate.updatedAt),
       updatedBy: template.printerTemplate.updatedBy ?? undefined,
       remark: template.printerTemplate.remark ?? undefined,
     };

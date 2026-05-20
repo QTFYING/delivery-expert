@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   AuditResultEnum as PrismaAuditResultEnum,
   AuditTargetTypeEnum as PrismaAuditTargetTypeEnum,
@@ -13,12 +13,12 @@ import type {
 import { PrintRecordResultEnum } from '@shou/types/enums';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
 import { isUniqueConflict } from '../common/prisma-errors';
-import { formatDateTime, normalizeIdArray, normalizeOptionalText, normalizeText } from '../common/validators';
+import { formatDateTime, normalizeOptionalText, normalizeText } from '../common/validators';
 import { ID_CONFIG } from '../id-generator/id-generator.constants';
 import { IdGeneratorService } from '../id-generator/id-generator.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { fromPrismaPrintRecordResult } from './mapping/order-enum.mapper';
-import { assertAllOrdersOwned, getOrderActorName, getOrderTenantId } from './order.shared';
+import { getOrderActorName, getOrderTenantId } from './order.shared';
 
 @Injectable()
 export class OrderPrintService {
@@ -27,10 +27,10 @@ export class OrderPrintService {
     private readonly idGen: IdGeneratorService,
   ) {}
 
-  // 提交打印成功回执，并按批次累计订单打印次数
+  // 提交单订单打印成功回执，并按 requestId 保证重复提交幂等
   async createPrintRecord(currentUser: JwtPayload, request: OrderPrintRecordRequest): Promise<OrderPrintRecordResponse> {
     const tenantId = getOrderTenantId(currentUser);
-    const orderIds = normalizeIdArray(request.orderIds, 'orderIds');
+    const orderId = this.resolveSinglePrintOrderId(request);
     const requestId = normalizeOptionalText(request.requestId);
     const remark = normalizeOptionalText(request.remark);
 
@@ -42,34 +42,44 @@ export class OrderPrintService {
         if (fromPrismaPrintRecordResult(existing.result) !== PrintRecordResultEnum.SUCCESS) {
           throw new ConflictException('requestId 已被其他打印事件占用');
         }
-        return this.buildExistingPrintRecordResponse(tenantId, existing);
+        if (existing.orderId !== orderId) {
+          throw new ConflictException('requestId 已被其他订单的打印成功事件占用');
+        }
+        return this.buildExistingPrintRecordResponse(existing);
       }
     }
 
-    await assertAllOrdersOwned(this.prisma, tenantId, orderIds);
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, tenantId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!order) {
+      throw new NotFoundException('订单不存在');
+    }
+
     const operatorName = await getOrderActorName(this.prisma, currentUser.userId);
     const printedAt = new Date();
-    const recordIds = await Promise.all(orderIds.map(() => this.idGen.nextDailyId(ID_CONFIG.ORDER_PRINT.prefix, ID_CONFIG.ORDER_PRINT.digits)));
+    const recordId = await this.idGen.nextDailyId(ID_CONFIG.ORDER_PRINT.prefix, ID_CONFIG.ORDER_PRINT.digits);
 
     try {
       return await this.prisma.$transaction(async (tx) => {
-        await tx.orderPrintRecord.createMany({
-          data: orderIds.map((orderId, index) => ({
-            id: recordIds[index],
+        await tx.orderPrintRecord.create({
+          data: {
+            id: recordId,
             tenantId,
             orderId,
             operatorId: currentUser.userId,
             operatorName,
             result: PrismaPrintRecordResultEnum.SUCCESS,
-            requestId: index === 0 ? (requestId ?? null) : null,
+            requestId: requestId ?? null,
             printedAt,
             remark: remark ?? null,
             createdAt: printedAt,
-          })),
+          },
         });
 
         const updated = await tx.order.updateMany({
-          where: { tenantId, id: { in: orderIds }, deletedAt: null },
+          where: { tenantId, id: orderId, deletedAt: null },
           data: {
             prints: { increment: 1 },
             lastPrintedAt: printedAt,
@@ -78,7 +88,7 @@ export class OrderPrintService {
 
         return {
           requestId,
-          totalCount: orderIds.length,
+          totalCount: 1,
           successCount: updated.count,
           confirmedAt: this.formatRequiredDateTime(printedAt),
           remark,
@@ -93,11 +103,43 @@ export class OrderPrintService {
           if (fromPrismaPrintRecordResult(existing.result) !== PrintRecordResultEnum.SUCCESS) {
             throw new ConflictException('requestId 已被其他打印事件占用');
           }
-          return this.buildExistingPrintRecordResponse(tenantId, existing);
+          if (existing.orderId !== orderId) {
+            throw new ConflictException('requestId 已被其他订单的打印成功事件占用');
+          }
+          return this.buildExistingPrintRecordResponse(existing);
         }
       }
       throw error;
     }
+  }
+
+  // 将新字段 orderId 与旧字段 orderIds 归一为单个订单 ID，并阻断伪批量入参
+  private resolveSinglePrintOrderId(request: OrderPrintRecordRequest): string {
+    const orderId = normalizeOptionalText(request.orderId);
+    if (request.orderIds !== undefined) {
+      if (!Array.isArray(request.orderIds)) {
+        throw new BadRequestException('orderIds 必须是数组');
+      }
+      if (request.orderIds.length !== 1) {
+        throw new BadRequestException('orderIds 仅兼容单订单回执，长度必须为 1');
+      }
+
+      const legacyOrderId = normalizeOptionalText(request.orderIds[0]);
+      if (!legacyOrderId) {
+        throw new BadRequestException('orderIds[0] 不能为空');
+      }
+      if (orderId && orderId !== legacyOrderId) {
+        throw new BadRequestException('orderId 与 orderIds[0] 必须一致');
+      }
+
+      return orderId ?? legacyOrderId;
+    }
+
+    if (!orderId) {
+      throw new BadRequestException('orderId 不能为空');
+    }
+
+    return orderId;
   }
 
   // 上报单订单打印失败记录，并写入失败审计
@@ -195,33 +237,12 @@ export class OrderPrintService {
     }
   }
 
-  // 将已存在的成功打印批次回放为接口响应，保证幂等返回稳定
-  private async buildExistingPrintRecordResponse(
-    tenantId: string,
-    existing: {
-      requestId: string | null;
-      printedAt: Date;
-      createdAt: Date;
-      operatorId: string | null;
-      remark: string | null;
-    },
-  ): Promise<OrderPrintRecordResponse> {
-    const totalCount = await this.prisma.orderPrintRecord.count({
-      where: {
-        tenantId,
-        result: PrismaPrintRecordResultEnum.SUCCESS,
-        printedAt: existing.printedAt,
-        createdAt: existing.createdAt,
-        operatorId: existing.operatorId,
-        remark: existing.remark,
-      },
-    });
-
-    const resolvedCount = totalCount > 0 ? totalCount : 1;
+  // 将已存在的成功打印事件回放为接口响应，保证单订单回执幂等返回稳定
+  private buildExistingPrintRecordResponse(existing: { requestId: string | null; printedAt: Date; remark: string | null }): OrderPrintRecordResponse {
     return {
       requestId: existing.requestId ?? undefined,
-      totalCount: resolvedCount,
-      successCount: resolvedCount,
+      totalCount: 1,
+      successCount: 1,
       confirmedAt: this.formatRequiredDateTime(existing.printedAt),
       remark: existing.remark ?? undefined,
     };

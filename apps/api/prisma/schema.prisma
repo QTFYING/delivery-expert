@@ -159,14 +159,14 @@ model Tenant {
   status               TenantStatusEnum          @default(ACTIVE)
   rejectReason         String?                   @db.VarChar(255)
   freezeReason         String?                   @db.VarChar(255)
-  serviceExpireAt      DateTime?
+  serviceExpireAt      DateTime?                 @db.Timestamptz(3)
   maxCreditDays        Int                       @default(30)
   creditReminderDays   Int                       @default(3)
   activePaymentChannel PaymentChannelEnum?
   importRevision       Int                       @default(0)
-  createdAt            DateTime                  @default(now())
-  updatedAt            DateTime                  @updatedAt
-  deletedAt            DateTime?
+  createdAt            DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime                  @updatedAt @db.Timestamptz(3)
+  deletedAt            DateTime?                 @db.Timestamptz(3)
 
   users                User[]
   generalSettings      TenantGeneralSettings?
@@ -198,10 +198,10 @@ model User {
   scope                 String?        @db.VarChar(100)
   status                UserStatusEnum @default(ACTIVE)
   requiresPasswordReset Boolean        @default(false)
-  loginAt               DateTime?
-  createdAt             DateTime       @default(now())
-  updatedAt             DateTime       @updatedAt
-  deletedAt             DateTime?
+  loginAt               DateTime?      @db.Timestamptz(3)
+  createdAt             DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime       @updatedAt @db.Timestamptz(3)
+  deletedAt             DateTime?      @db.Timestamptz(3)
 
   tenant            Tenant?            @relation(fields: [tenantId], references: [id])
   orderPrintRecords OrderPrintRecord[] @relation("OrderPrintRecordOperator")
@@ -221,8 +221,8 @@ model TenantGeneralSettings {
   notifyFinance    Boolean?
   creditRemindDays Int?
   dailyReportPush  Boolean?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(3)
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -246,10 +246,10 @@ model TenantPaymentConfig {
   status          TenantPaymentConfigStoredStatusEnum @default(PENDING_VALIDATION)
   configJson      Json                                @default("{}")
   invalidReason   String?                             @db.VarChar(255)
-  lastValidatedAt DateTime?
+  lastValidatedAt DateTime?                           @db.Timestamptz(3)
   updatedBy       String?                             @db.VarChar(50)
-  createdAt       DateTime                            @default(now())
-  updatedAt       DateTime                            @updatedAt
+  createdAt       DateTime                            @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime                            @updatedAt @db.Timestamptz(3)
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -265,9 +265,9 @@ model ImportTemplate {
   isDefault      Boolean   @default(false)
   defaultFields  Json      @default("[]")
   customerFields Json      @default("[]")
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  deletedAt      DateTime?
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(3)
+  deletedAt      DateTime? @db.Timestamptz(3)
 
   tenant          Tenant           @relation(fields: [tenantId], references: [id])
   printerTemplate PrinterTemplate?
@@ -286,8 +286,8 @@ model PrinterTemplate {
   configVersion    Int      @default(1)
   remark           String?  @db.VarChar(255)
   updatedBy        String?  @db.VarChar(50)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(3)
 
   tenant         Tenant         @relation(fields: [tenantId], references: [id])
   importTemplate ImportTemplate @relation(fields: [importTemplateId], references: [id])
@@ -310,12 +310,12 @@ model ImportJob {
   failedCount      Int                           @default(0)
   failedOrders     Json?                         @default("[]")
   conflictDetails  Json?                         @default("[]")
-  startedAt        DateTime?
-  heartbeatAt      DateTime?
-  completedAt      DateTime?
+  startedAt        DateTime?                     @db.Timestamptz(3)
+  heartbeatAt      DateTime?                     @db.Timestamptz(3)
+  completedAt      DateTime?                     @db.Timestamptz(3)
   lastError        String?                       @db.VarChar(500)
-  createdAt        DateTime                      @default(now())
-  updatedAt        DateTime                      @updatedAt
+  createdAt        DateTime                      @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime                      @updatedAt @db.Timestamptz(3)
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
@@ -340,18 +340,18 @@ model Order {
   status              OrderStatusEnum  @default(PENDING)
   payType             OrderPayTypeEnum @default(CASH)
   prints              Int              @default(0)
-  lastPrintedAt       DateTime?
+  lastPrintedAt       DateTime?        @db.Timestamptz(3)
   printFailedCount    Int              @default(0)
-  lastFailedAt        DateTime?
+  lastFailedAt        DateTime?        @db.Timestamptz(3)
   creditDays          Int?
-  creditDueDate       DateTime?
-  orderTime           DateTime
+  creditDueDate       DateTime?        @db.Timestamptz(3)
+  orderTime           DateTime         @db.Timestamptz(3)
   voided              Boolean          @default(false)
   voidReason          String?          @db.VarChar(255)
-  voidedAt            DateTime?
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
-  deletedAt           DateTime?
+  voidedAt            DateTime?        @db.Timestamptz(3)
+  createdAt           DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime         @updatedAt @db.Timestamptz(3)
+  deletedAt           DateTime?        @db.Timestamptz(3)
 
   tenant               Tenant                @relation(fields: [tenantId], references: [id])
   mappingTemplate      ImportTemplate?       @relation(fields: [mappingTemplateId], references: [id])
@@ -398,9 +398,9 @@ model Payment {
   net            Decimal                 @default(0.00) @db.Decimal(12, 2)
   status         PaymentRecordStatusEnum @default(SUCCESS)
   gatewayTradeNo String?                 @unique @db.VarChar(100)
-  paidAt         DateTime
-  createdAt      DateTime                @default(now())
-  updatedAt      DateTime                @updatedAt
+  paidAt         DateTime                @db.Timestamptz(3)
+  createdAt      DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime                @updatedAt @db.Timestamptz(3)
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
   order  Order  @relation(fields: [orderId], references: [id])
@@ -421,15 +421,15 @@ model PaymentOrder {
   statusMessage      String?                @db.VarChar(255)
   offlineRemark      String?                @db.VarChar(255)
   cashVerifyStatus   CashVerifyStatusEnum?
-  offlineSubmittedAt DateTime?
-  cashVerifiedAt     DateTime?
+  offlineSubmittedAt DateTime?              @db.Timestamptz(3)
+  cashVerifiedAt     DateTime?              @db.Timestamptz(3)
   gatewayTradeNo     String?                @unique @db.VarChar(100)
-  lastInitiatedAt    DateTime?
+  lastInitiatedAt    DateTime?              @db.Timestamptz(3)
   cashierUrl         String?                @db.Text
-  cashierExpiresAt   DateTime?
-  paidAt             DateTime?
-  createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @updatedAt
+  cashierExpiresAt   DateTime?              @db.Timestamptz(3)
+  paidAt             DateTime?              @db.Timestamptz(3)
+  createdAt          DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime               @updatedAt @db.Timestamptz(3)
 
   tenant        Tenant                @relation(fields: [tenantId], references: [id])
   order         Order                 @relation(fields: [orderId], references: [id])
@@ -455,10 +455,10 @@ model PaymentWebhookEvent {
   headers           Json?                         @default("{}")
   payload           Json?                         @default("{}")
   normalized        Json?                         @default("{}")
-  receivedAt        DateTime                      @default(now())
-  processedAt       DateTime?
-  createdAt         DateTime                      @default(now())
-  updatedAt         DateTime                      @updatedAt
+  receivedAt        DateTime                      @default(now()) @db.Timestamptz(3)
+  processedAt       DateTime?                     @db.Timestamptz(3)
+  createdAt         DateTime                      @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime                      @updatedAt @db.Timestamptz(3)
 
   tenant       Tenant?       @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   order        Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
@@ -481,10 +481,10 @@ model OrderPrintRecord {
   operatorName  String?               @db.VarChar(50)
   result        PrintRecordResultEnum
   failureReason String?               @db.VarChar(500)
-  printedAt     DateTime              @default(now())
+  printedAt     DateTime              @default(now()) @db.Timestamptz(3)
   requestId     String?               @db.VarChar(100)
   remark        String?               @db.VarChar(255)
-  createdAt     DateTime              @default(now())
+  createdAt     DateTime              @default(now()) @db.Timestamptz(3)
 
   tenant   Tenant @relation(fields: [tenantId], references: [id])
   order    Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -504,8 +504,8 @@ model OrderReminder {
   operatorId String?                 @db.Uuid
   channels   String[]
   status     OrderReminderStatusEnum @default(SENT)
-  sentAt     DateTime                @default(now())
-  createdAt  DateTime                @default(now())
+  sentAt     DateTime                @default(now()) @db.Timestamptz(3)
+  createdAt  DateTime                @default(now()) @db.Timestamptz(3)
 
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   order    Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -523,13 +523,13 @@ model Notice {
   planVersion String?           @db.VarChar(100)
   audience    String?           @db.VarChar(100)
   timing      PublishTimingEnum @default(IMMEDIATE)
-  scheduledAt DateTime?
+  scheduledAt DateTime?         @db.Timestamptz(3)
   reminder    Boolean           @default(false)
   isDraft     Boolean           @default(true)
   status      NoticeStatusEnum  @default(DRAFT)
-  publishAt   DateTime?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  publishAt   DateTime?         @db.Timestamptz(3)
+  createdAt   DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime          @updatedAt @db.Timestamptz(3)
 
   reads NoticeRead[]
 
@@ -541,7 +541,7 @@ model NoticeRead {
   tenantId String    @db.VarChar(10)
   userId   String    @db.Uuid
   isRead   Boolean   @default(false)
-  readAt   DateTime?
+  readAt   DateTime? @db.Timestamptz(3)
 
   notice Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -564,10 +564,10 @@ model TenantCertification {
   status       TenantCertificationStatusEnum @default(PENDING_INITIAL_REVIEW)
   comment      String?                       @db.VarChar(255)
   rejectReason String?                       @db.VarChar(255)
-  submitAt     DateTime                      @default(now())
-  reviewedAt   DateTime?
-  createdAt    DateTime                      @default(now())
-  updatedAt    DateTime                      @updatedAt
+  submitAt     DateTime                      @default(now()) @db.Timestamptz(3)
+  reviewedAt   DateTime?                     @db.Timestamptz(3)
+  createdAt    DateTime                      @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime                      @updatedAt @db.Timestamptz(3)
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -585,7 +585,7 @@ model AuditLog {
   tenantId   String?             @db.VarChar(10)
   result     AuditResultEnum     @default(SUCCESS)
   ip         String?             @db.VarChar(64)
-  time       DateTime            @default(now())
+  time       DateTime            @default(now()) @db.Timestamptz(3)
 
   tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
 

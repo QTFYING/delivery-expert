@@ -4,7 +4,7 @@
 > 涉及业务语义、字段含义、状态机与对外结构时，以上游 `docs/api/*.md -> packages/types/src/enums -> packages/types/src/contracts` 为准。
 > `apps/api/prisma/schema.prisma` 是当前可执行基准，本文只做人工可读同步。
 > 确认日期：2026-05-08
-> 闭集枚举事实源统一维护在 `packages/types/src/enums`。
+> 业务枚举闭集事实源统一维护在 `packages/types/src/enums`。
 
 ---
 
@@ -42,6 +42,7 @@
 - 黑盒扩展配置统一使用 `Json`。
 - 闭集字段的实际值以上游枚举事实源为准。
 - `deletedAt` 仅出现在当前 schema 明确声明软删的表中。
+- 事件时间字段在 Prisma 中使用 `DateTime @db.Timestamptz(3)`，API 以 ISO 8601 UTC 字符串投影；`IdSequence.dateKey` 是业务日期键，保留 `@db.Date`。
 
 ## 3. 枚举摘要
 

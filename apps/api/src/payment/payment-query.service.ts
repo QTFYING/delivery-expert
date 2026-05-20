@@ -26,7 +26,7 @@ import dayjs from 'dayjs';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { decimal, toDecimalNumber, toMoneyNumber } from '../common/money';
-import { normalizePage, normalizePageSize } from '../common/validators';
+import { formatDateTime, normalizePage, normalizePageSize } from '../common/validators';
 import { PrismaService } from '../prisma/prisma.service';
 
 import {
@@ -85,7 +85,7 @@ export class PaymentQueryService {
       amount: toMoneyNumber(order.totalAmount),
       paidAmount: toMoneyNumber(order.paid),
       summary: buildPaymentOrderSummary(order.lineItems),
-      date: dayjs(order.orderTime).format('YYYY-MM-DD HH:mm:ss'),
+      date: formatDateTime(order.orderTime),
       status: paymentWindowState.status,
       statusMessage: paymentWindowState.statusMessage,
       servicePhone: order.tenant.contactPhone,
@@ -142,11 +142,7 @@ export class PaymentQueryService {
       status: paymentWindowState.status,
       statusMessage: paymentWindowState.statusMessage,
       paidAmount: paymentWindowState.status === PaymentOrderStatusEnum.PAID ? toMoneyNumber(order.paid) : undefined,
-      paidAt: latestPayment?.paidAt
-        ? dayjs(latestPayment.paidAt).format('YYYY-MM-DD HH:mm:ss')
-        : currentPaymentOrder?.paidAt
-          ? dayjs(currentPaymentOrder.paidAt).format('YYYY-MM-DD HH:mm:ss')
-          : undefined,
+      paidAt: formatDateTime(latestPayment?.paidAt ?? currentPaymentOrder?.paidAt),
       selectedPaymentMethod: currentPaymentOrder ? (fromPrismaPaymentMethod(currentPaymentOrder.paymentMethod) ?? undefined) : undefined,
       paymentAction: paymentWindowState.paymentAction,
     };
@@ -195,7 +191,7 @@ export class PaymentQueryService {
         fee: toMoneyNumber(item.fee),
         net: toMoneyNumber(item.net),
         status: fromPrismaPaymentRecordStatus(item.status),
-        paidAt: dayjs(item.paidAt).format('YYYY-MM-DD HH:mm:ss'),
+        paidAt: formatDateTime(item.paidAt),
       })),
       total,
       page,
@@ -468,7 +464,7 @@ export class PaymentQueryService {
         channel: item.channel,
         fee: toMoneyNumber(item.fee),
         net: toMoneyNumber(item.net),
-        time: dayjs(item.paidAt).format('YYYY-MM-DD HH:mm:ss'),
+        time: formatDateTime(item.paidAt),
         status: fromPrismaPaymentRecordStatus(item.status),
       })),
       total,

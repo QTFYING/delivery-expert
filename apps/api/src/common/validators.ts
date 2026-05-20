@@ -1,5 +1,4 @@
 import { BadRequestException } from '@nestjs/common';
-import dayjs from 'dayjs';
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 200;
@@ -122,5 +121,5 @@ export function assertPasswordStrength(value: string): string {
 export function formatDateTime(value: Date): string;
 export function formatDateTime(value: Date | null | undefined): string | undefined;
 export function formatDateTime(value: Date | null | undefined): string | undefined {
-  return value ? dayjs(value).format('YYYY-MM-DD HH:mm:ss') : undefined;
+  return value ? value.toISOString() : undefined;
 }

@@ -29,20 +29,20 @@ import {
 import dayjs from 'dayjs';
 import Decimal from 'decimal.js';
 
-export const DEFAULT_TENANT_CHANNEL = 'lakala';
-
-const PRISMA_PAYMENT_CHANNEL_TO_CONTRACT: Record<PrismaPaymentChannelEnum, string> = {
+const PRISMA_PAYMENT_CHANNEL_TO_CONTRACT: Record<PrismaPaymentChannelEnum, (typeof PaymentChannelEnum)[keyof typeof PaymentChannelEnum]> = {
   [PrismaPaymentChannelEnum.LAKALA]: PaymentChannelEnum.LAKALA,
   [PrismaPaymentChannelEnum.SHOUQIANBA]: PaymentChannelEnum.SHOUQIANBA,
   [PrismaPaymentChannelEnum.PINGAN_BANK]: PaymentChannelEnum.PINGAN_BANK,
 };
 
-export function resolveDueInDays(serviceExpireAt: Date | null): number {
-  if (!serviceExpireAt) return 0;
-  return Math.max(dayjs(serviceExpireAt).endOf('day').diff(dayjs().startOf('day'), 'day'), 0);
+export function resolveDueInDays(serviceExpireAt: Date | null): number | null {
+  if (!serviceExpireAt) return null;
+  return dayjs(serviceExpireAt).endOf('day').diff(dayjs().startOf('day'), 'day');
 }
 
-export function fromPrismaPaymentChannel(channel: PrismaPaymentChannelEnum | null): string | null {
+export function fromPrismaPaymentChannel(
+  channel: PrismaPaymentChannelEnum | null,
+): (typeof PaymentChannelEnum)[keyof typeof PaymentChannelEnum] | null {
   return channel ? PRISMA_PAYMENT_CHANNEL_TO_CONTRACT[channel] : null;
 }
 
@@ -223,44 +223,49 @@ export function getNextCertificationStatus(currentStatus: TenantCertificationSta
   return nextStatus;
 }
 
-export function toTenantRecordItem(
-  tenant: {
+export function toTenantRecordItem(tenant: {
+  id: string;
+  name: string;
+  softwareVersion: PrismaTenantSoftwareVersionEnum;
+  adminName: string | null;
+  address: string | null;
+  licenseNo: string | null;
+  activePaymentChannel: PrismaPaymentChannelEnum | null;
+  status: PrismaTenantStatusEnum;
+  rejectReason: string | null;
+  freezeReason: string | null;
+  serviceExpireAt: Date | null;
+  updatedAt: Date;
+  users: Array<{
     id: string;
-    name: string;
-    softwareVersion: PrismaTenantSoftwareVersionEnum;
-    adminName: string | null;
-    address: string | null;
-    status: PrismaTenantStatusEnum;
-    rejectReason: string | null;
-    freezeReason: string | null;
-    serviceExpireAt: Date | null;
-    updatedAt: Date;
-    users: Array<{ id: string; loginAt: Date | null }>;
-    payments: Array<{ amount: Prisma.Decimal }>;
-    paymentOrders: Array<{ channel: PrismaPaymentChannelEnum | null }>;
-  },
-  channelOverride?: string[],
-): TenantRecordItem {
+    account: string;
+    realName: string;
+    role: PrismaUserRoleEnum;
+    loginAt: Date | null;
+    createdAt: Date;
+  }>;
+  payments: Array<{ amount: Prisma.Decimal }>;
+}): TenantRecordItem {
   const monthlyFlow = tenant.payments.reduce((sum, item) => sum.plus(item.amount.toString()), new Decimal(0));
+  const owner = tenant.users
+    .filter((item) => item.role === PrismaUserRoleEnum.TENANT_OWNER)
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
   const lastActiveAt = tenant.users
     .map((item) => item.loginAt)
     .filter((value): value is Date => Boolean(value))
     .sort((a, b) => b.getTime() - a.getTime())[0];
-
-  const channels = channelOverride?.length
-    ? channelOverride
-    : Array.from(new Set(tenant.paymentOrders.map((item) => fromPrismaPaymentChannel(item.channel)).filter((item): item is string => Boolean(item))));
 
   return {
     id: tenant.id,
     name: tenant.name,
     softwareName: resolveTenantSoftwareNameFromPrisma(tenant.softwareVersion),
     softwareVersion: fromPrismaTenantSoftwareVersion(tenant.softwareVersion),
-    admin: tenant.adminName ?? '',
+    ownerName: owner?.realName || tenant.adminName || '',
+    ownerAccount: owner?.account ?? null,
     address: tenant.address ?? '',
-    merchants: 1,
+    licenseNo: tenant.licenseNo ?? '',
     users: tenant.users.length,
-    channels: channels.length > 0 ? channels : [DEFAULT_TENANT_CHANNEL],
+    activePaymentChannel: fromPrismaPaymentChannel(tenant.activePaymentChannel),
     monthlyFlow: Number(monthlyFlow.toFixed(2)),
     serviceExpireAt: tenant.serviceExpireAt?.toISOString() ?? null,
     dueInDays: resolveDueInDays(tenant.serviceExpireAt),
@@ -296,7 +301,7 @@ export function toTenantProfile(tenant: {
     address: tenant.address ?? '',
     licenseNo: tenant.licenseNo ?? '',
     contactPhone: tenant.contactPhone,
-    adminName: tenant.adminName,
+    ownerName: tenant.adminName,
     status: fromPrismaTenantStatus(tenant.status),
     rejectReason: tenant.rejectReason,
     freezeReason: tenant.freezeReason,

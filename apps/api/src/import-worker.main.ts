@@ -1,12 +1,15 @@
 import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { LocalizedConsoleLogger } from './common/logger/localized-console.logger';
 import { ImportWorkerModule } from './import/import-worker.module';
 
 async function bootstrap() {
   const logger = new Logger('ImportWorker');
   const app = await NestFactory.createApplicationContext(ImportWorkerModule, {
-    logger: ['log', 'error', 'warn'],
+    logger: new LocalizedConsoleLogger('ImportWorker', {
+      logLevels: ['log', 'error', 'warn'],
+    }),
   });
 
   logger.log('导入任务 Worker 已启动');

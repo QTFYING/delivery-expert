@@ -62,8 +62,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const userRole = fromPrismaUserRole(user.role);
     if (user.tenantId) {
       this.assertTenantAvailable(user.tenant, userRole);
-      this.assertTenantPasswordResetAccessAllowed(req, user.requiresPasswordReset);
     }
+    this.assertPasswordResetAccessAllowed(req, user.requiresPasswordReset);
 
     await this.authSessions.touchAuthSession(sessionId, user.id);
 
@@ -102,7 +102,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   // 在首次改密阶段 仅允许访问最小认证接口
-  private assertTenantPasswordResetAccessAllowed(req: Request, requiresPasswordReset: boolean): void {
+  private assertPasswordResetAccessAllowed(req: Request, requiresPasswordReset: boolean): void {
     if (!requiresPasswordReset) {
       return;
     }

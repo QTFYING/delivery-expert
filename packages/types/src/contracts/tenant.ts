@@ -3,7 +3,7 @@ import type {
   AuditResult,
   AuditTargetType,
   AuthSourceTag,
-  FreezeAction,
+  PaymentChannel,
   ReviewAction,
   SortOrder,
   TenantCertificationStatus,
@@ -24,22 +24,24 @@ export interface TenantRecordItem {
   softwareName: string;
   /** 租户采购的软件版本级别 */
   softwareVersion: TenantSoftwareVersion;
-  /** 管理员姓名 */
-  admin: string;
+  /** 老板姓名 */
+  ownerName: string;
+  /** 老板登录账号，当前按手机号使用 */
+  ownerAccount: string | null;
   /** 联系地址 */
   address: string;
-  /** 商户数 */
-  merchants: number;
+  /** 统一社会信用代码 */
+  licenseNo: string;
   /** 账号数 */
   users: number;
-  /** 支付通道列表 */
-  channels: string[];
+  /** 当前生效支付渠道 */
+  activePaymentChannel: PaymentChannel | null;
   /** 本月流水 单位元 */
   monthlyFlow: number;
   /** 租户采购服务到期时间，作为到期事实字段 */
   serviceExpireAt: string | null;
-  /** 由 serviceExpireAt 派生的距到期天数，仅平台列表和风险视图返回 */
-  dueInDays: number;
+  /** 由 serviceExpireAt 派生的距到期天数；未配置服务到期时间时返回 null */
+  dueInDays: number | null;
   /** 最近活跃时间 */
   lastActiveAt: string;
   /** 租户状态 */
@@ -65,8 +67,8 @@ export interface TenantProfile {
   licenseNo: string;
   /** 联系电话 */
   contactPhone: string;
-  /** 管理员姓名 */
-  adminName: string | null;
+  /** 老板姓名 */
+  ownerName: string | null;
   /** 租户状态 */
   status: TenantStatus;
   /** 驳回原因 */
@@ -293,22 +295,46 @@ export interface CreateTenantRequest {
   name: string;
   /** 租户采购的软件版本级别 */
   softwareVersion: TenantSoftwareVersion;
-  /** 管理员姓名 */
-  admin: string;
+  /** 老板姓名 */
+  ownerName: string;
   /** 联系地址 */
   address: string;
   /** 营业执照号 */
   licenseNo: string;
   /** 初始支付通道 */
   channel: string;
-  /** 租户采购服务到期时间 */
+  /** 租户采购服务到期日期，前端按 YYYY-MM-DD 提交 */
   serviceExpireAt: string;
-  /** 首个老板登录账号 */
+  /** 首个老板登录账号，当前按手机号使用 */
   ownerAccount: string;
-  /** 首个老板手机号 */
-  ownerPhone: string;
   /** 首个老板初始密码；不传则由服务端回退默认密码 */
   ownerInitialPassword?: string;
+}
+
+export interface UpdateTenantBaseInfoRequest {
+  /** 租户名称 */
+  name: string;
+  /** 联系地址 */
+  address: string;
+  /** 统一社会信用代码 */
+  licenseNo: string;
+  /** 租户采购的软件版本级别 */
+  softwareVersion: TenantSoftwareVersion;
+  /** 租户采购服务到期日期，前端按 YYYY-MM-DD 提交 */
+  serviceExpireAt: string;
+}
+
+export interface PatchTenantBaseInfoRequest {
+  /** 租户名称 */
+  name?: string;
+  /** 联系地址 */
+  address?: string;
+  /** 统一社会信用代码 */
+  licenseNo?: string;
+  /** 租户采购的软件版本级别 */
+  softwareVersion?: TenantSoftwareVersion;
+  /** 租户采购服务到期日期，前端按 YYYY-MM-DD 提交 */
+  serviceExpireAt?: string;
 }
 
 export interface CreateTenantAuditDecisionRequest {
@@ -343,7 +369,7 @@ export interface CreateTenantAuditBatchRequest {
 export interface CreateTenantRenewalRequest {
   /** 续费后生效的软件版本级别 */
   softwareVersion: TenantSoftwareVersion;
-  /** 续费后生效的服务到期时间 */
+  /** 续费后生效的服务到期日期，前端按 YYYY-MM-DD 提交 */
   serviceExpireAt: string;
   /** 续费金额 */
   amount: number;
@@ -366,11 +392,9 @@ export interface TenantRenewalResponse {
   renewedAt: string;
 }
 
-export interface PatchTenantStatusRequest {
-  /** 状态变更动作 */
-  action: FreezeAction;
-  /** 冻结或解冻原因 */
-  reason?: string;
+export interface FreezeTenantRequest {
+  /** 冻结原因 */
+  reason: string;
 }
 
 export interface TenantStatusMutationResponse {

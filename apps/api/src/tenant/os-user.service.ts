@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import {
-  AuditTargetTypeEnum as PrismaAuditTargetTypeEnum,
   Prisma,
+  AuditTargetTypeEnum as PrismaAuditTargetTypeEnum,
   UserRoleEnum as PrismaUserRoleEnum,
   UserStatusEnum as PrismaUserStatusEnum,
 } from '@prisma/client';
@@ -16,9 +16,8 @@ import type {
 } from '@shou/types/contracts';
 import { TenantSideEnum, UserStatusEnum, type UserRole } from '@shou/types/enums';
 import * as bcrypt from 'bcrypt';
-import dayjs from 'dayjs';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
-import { normalizePage, normalizePageSize, normalizeText } from '../common/validators';
+import { formatDateTime, normalizePage, normalizePageSize, normalizeText } from '../common/validators';
 import { PrismaService } from '../prisma/prisma.service';
 import { resolveUserRoleForUpsert, toPrismaUserRole, toPrismaUserStatus, toUserRecordItem } from './mapping/tenant.mapper';
 import { createTenantAuditLog } from './tenant.shared';
@@ -69,7 +68,7 @@ export class OsUserService {
     return {
       list: users.map((item) => ({
         ...toUserRecordItem(item),
-        loginAt: item.loginAt ? dayjs(item.loginAt).format('YYYY-MM-DD HH:mm:ss') : '',
+        loginAt: formatDateTime(item.loginAt) ?? '',
       })),
       total,
       page,

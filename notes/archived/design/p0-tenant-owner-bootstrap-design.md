@@ -305,7 +305,7 @@ Tenant 端不需要为本方案新增页面。
 - `packageName`：必填，长度不超过 100
 - `admin`：必填，长度不超过 50
 - `region`：必填，长度不超过 100
-- `channel`：P0 继续只允许现有闭集值
+- `channel`：P0 继续只允许现有枚举值
 - `dueInDays`：必填，正整数
 - `ownerAccount`：必填，长度不超过 50，全局唯一
 - `ownerPhone`：建议必填，长度不超过 20

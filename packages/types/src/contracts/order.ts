@@ -470,8 +470,10 @@ export interface OrderExportQuery extends OrderListQuery {
 }
 
 export interface OrderPrintRecordRequest {
-  /** 订单 ID 列表 */
-  orderIds: string[];
+  /** 推荐使用：本次实际打印成功的单张订单 ID */
+  orderId?: string;
+  /** @deprecated 兼容旧前端；若传入，长度必须为 1 */
+  orderIds?: string[];
   /** 打印请求 ID */
   requestId?: string;
   /** 备注 */

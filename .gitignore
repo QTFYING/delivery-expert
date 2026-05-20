@@ -48,3 +48,6 @@ logs/
 
 # Alias
 static_alias
+
+#MCP
+.dbhub/

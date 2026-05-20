@@ -10,6 +10,7 @@ import type { ConsoleInfoResponse, DashboardMetricItem, LoginRiskEventItem, Plat
 import { UserStatusEnum } from '@shou/types/enums';
 import dayjs from 'dayjs';
 import { JwtPayload } from '../auth/decorators/current-user.decorator';
+import { formatDateTime } from '../common/validators';
 import { PrismaService } from '../prisma/prisma.service';
 import { fromPrismaUserStatus } from '../tenant/mapping/tenant.mapper';
 import { formatAmount, resolveAuditRiskLevel, toMoney } from './mapping/platform.mapper';
@@ -279,7 +280,7 @@ export class PlatformService {
         account: user.account,
         tenant: user.tenant?.name ?? '平台',
         event: status === UserStatusEnum.LOCKED ? '账号处于锁定状态' : '账号已被停用',
-        time: dayjs(user.updatedAt).format('YYYY-MM-DD HH:mm:ss'),
+        time: formatDateTime(user.updatedAt),
         level: status === UserStatusEnum.LOCKED ? '高' : '中',
       };
     });
@@ -288,7 +289,7 @@ export class PlatformService {
       account: log.target,
       tenant: log.tenant?.name ?? '平台',
       event: log.action,
-      time: dayjs(log.time).format('YYYY-MM-DD HH:mm:ss'),
+      time: formatDateTime(log.time),
       level: resolveAuditRiskLevel(log.action),
     }));
 

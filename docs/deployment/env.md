@@ -27,6 +27,7 @@
 | `CORS_ORIGINS`                                    | 是   | 允许跨域访问的前端来源，多个用英文逗号分隔                        |
 | `PORT`                                            | 否   | API 监听端口，默认 `3000`                                         |
 | `NODE_ENV`                                        | 是   | `development` 或 `production`                                     |
+| `TZ`                                              | 是   | 固定为 `UTC`，API / Worker 运行环境统一使用 UTC                   |
 | `AUTH_COOKIE_SECURE`                              | 是   | HTTPS 环境为 `true`，本地 HTTP 为 `false`                         |
 | `IMPORT_JOB_WORKER_ENABLED`                       | 是   | API 进程为 `false`，Worker 进程为 `true`                          |
 | `IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS`            | 否   | 租户级活动正式导入任务占位 TTL，单位秒，默认 `900`                |
@@ -72,6 +73,7 @@ JWT_SECRET=replace-with-local-secret
 CORS_ORIGINS=http://localhost:5173,http://localhost:5001,http://localhost:5002,http://localhost:5003
 PORT=3000
 NODE_ENV=development
+TZ=UTC
 AUTH_COOKIE_SECURE=false
 IMPORT_JOB_WORKER_ENABLED=false
 IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS=900
@@ -89,6 +91,7 @@ JWT_SECRET=<本机开发密钥>
 CORS_ORIGINS=http://localhost:5173,http://localhost:5001,http://localhost:5002,http://localhost:5003
 PORT=3000
 NODE_ENV=development
+TZ=UTC
 AUTH_COOKIE_SECURE=false
 IMPORT_JOB_WORKER_ENABLED=false
 IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS=900
@@ -111,6 +114,7 @@ DATABASE_URL=postgresql://<PostgreSQL用户名>:<PostgreSQL密码>@host.docker.i
 REDIS_URL=redis://:<Redis密码>@host.docker.internal:6379
 JWT_SECRET=<生产随机密钥>
 CORS_ORIGINS=https://mp.shoudanba.cn,https://www.shoudanba.cn,https://h5.shoudanba.cn
+TZ=UTC
 AUTH_COOKIE_SECURE=true
 IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS=900
 IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS=60
@@ -128,6 +132,7 @@ LAKALA_NOTIFY_URL=https://api.shoudanba.cn/api/payment/webhook/lakala
 - `host.docker.internal` 由 compose 中的 `extra_hosts: host-gateway` 映射到宿主机。
 - API / Worker 容器访问的是宿主机上 1Panel 托管的 PostgreSQL / Redis。
 - `CORS_ORIGINS` 只填写前端来源域名，不填写 `api` 域名。
+- 1Panel 托管 PostgreSQL 需将实例时区设为 `UTC`；执行 `SHOW timezone;` 应返回 `UTC`。
 
 ## 拉卡拉生产联调模板
 
@@ -165,6 +170,7 @@ DATABASE_URL=postgresql://shou_user:<PostgreSQL强密码>@postgres:5432/shou_db?
 REDIS_URL=redis://:<Redis强密码>@redis:6379
 JWT_SECRET=<生产随机密钥>
 CORS_ORIGINS=https://mp.shoudanba.cn,https://www.shoudanba.cn,https://h5.shoudanba.cn
+TZ=UTC
 AUTH_COOKIE_SECURE=true
 IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS=900
 IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS=60
@@ -181,6 +187,7 @@ LAKALA_NOTIFY_URL=https://api.shoudanba.cn/api/payment/webhook/lakala
 - 该场景需要另建 `docker-compose.full.yml`。
 - `DATABASE_URL` 中的主机名应使用 Compose 服务名 `postgres`。
 - `REDIS_URL` 中的主机名应使用 Compose 服务名 `redis`。
+- 全 Docker Compose 场景的 PostgreSQL 容器通过 `timezone=UTC`、`PGTZ=UTC` 固定数据库会话时区。
 
 ## 常见错误
 

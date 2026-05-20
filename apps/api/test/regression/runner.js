@@ -361,24 +361,111 @@ async function main() {
     });
 
     const printRequestId = `print-regression-${Date.now()}`;
-    await apiRequest(results, 'Print Record Create', {
+    await apiRequest(results, 'Print Record Create With orderId', {
       method: 'POST',
       url: `${baseUrl}/orders/print-records`,
       token: ownerSession.token,
       body: {
-        orderIds: [orderId],
+        orderId,
         requestId: printRequestId,
         remark: '联调打印成功',
       },
     });
 
-    await apiRequest(results, 'Print Record Replay', {
+    await apiRequest(results, 'Print Record Replay With orderId', {
+      method: 'POST',
+      url: `${baseUrl}/orders/print-records`,
+      token: ownerSession.token,
+      body: {
+        orderId,
+        requestId: printRequestId,
+        remark: '联调打印成功',
+      },
+    });
+
+    const legacyPrintRequestId = `print-legacy-regression-${Date.now()}`;
+    await apiRequest(results, 'Print Record Legacy orderIds[0]', {
       method: 'POST',
       url: `${baseUrl}/orders/print-records`,
       token: ownerSession.token,
       body: {
         orderIds: [orderId],
-        requestId: printRequestId,
+        requestId: legacyPrintRequestId,
+        remark: '联调打印成功',
+      },
+    });
+
+    await expectHttpFailure(
+      results,
+      'Print Record Reject Multi orderIds',
+      {
+        method: 'POST',
+        url: `${baseUrl}/orders/print-records`,
+        token: ownerSession.token,
+        body: {
+          orderIds: [orderId, creditOrderId],
+          requestId: `print-reject-multi-${Date.now()}`,
+          remark: '不允许伪批量打印回执',
+        },
+      },
+      400,
+    );
+
+    await expectHttpFailure(
+      results,
+      'Print Record Reject Mismatched orderId orderIds',
+      {
+        method: 'POST',
+        url: `${baseUrl}/orders/print-records`,
+        token: ownerSession.token,
+        body: {
+          orderId,
+          orderIds: [creditOrderId],
+          requestId: `print-reject-mismatch-${Date.now()}`,
+          remark: '不允许字段不一致',
+        },
+      },
+      400,
+    );
+
+    await expectHttpFailure(
+      results,
+      'Print Record Reject Missing Order Id',
+      {
+        method: 'POST',
+        url: `${baseUrl}/orders/print-records`,
+        token: ownerSession.token,
+        body: {
+          requestId: `print-reject-missing-${Date.now()}`,
+          remark: '缺少订单 ID',
+        },
+      },
+      400,
+    );
+
+    await expectHttpFailure(
+      results,
+      'Print Record Reject Reused requestId For Another Order',
+      {
+        method: 'POST',
+        url: `${baseUrl}/orders/print-records`,
+        token: ownerSession.token,
+        body: {
+          orderId: creditOrderId,
+          requestId: printRequestId,
+          remark: '同 requestId 不允许换订单',
+        },
+      },
+      409,
+    );
+
+    await apiRequest(results, 'Print Record Replay Legacy orderIds[0]', {
+      method: 'POST',
+      url: `${baseUrl}/orders/print-records`,
+      token: ownerSession.token,
+      body: {
+        orderIds: [orderId],
+        requestId: legacyPrintRequestId,
         remark: '联调打印成功',
       },
     });
@@ -411,8 +498,8 @@ async function main() {
       url: `${baseUrl}/orders/${orderId}/print-records`,
       token: ownerSession.token,
     });
-    if (orderPrintRecords.data.summary.successCount !== 1) {
-      throw new Error(`订单打印历史成功次数异常，预期 1，实际 ${orderPrintRecords.data.summary.successCount}`);
+    if (orderPrintRecords.data.summary.successCount !== 2) {
+      throw new Error(`订单打印历史成功次数异常，预期 2，实际 ${orderPrintRecords.data.summary.successCount}`);
     }
     if (orderPrintRecords.data.summary.failedCount !== 1) {
       throw new Error(`订单打印历史失败次数异常，预期 1，实际 ${orderPrintRecords.data.summary.failedCount}`);
@@ -447,8 +534,8 @@ async function main() {
       url: `${baseUrl}/orders/${orderId}`,
       token: ownerSession.token,
     });
-    if (orderDetailAfterPrint.data.prints !== 1) {
-      throw new Error(`订单打印次数异常，预期 1，实际 ${orderDetailAfterPrint.data.prints}`);
+    if (orderDetailAfterPrint.data.prints !== 2) {
+      throw new Error(`订单打印次数异常，预期 2，实际 ${orderDetailAfterPrint.data.prints}`);
     }
     if (orderDetailAfterPrint.data.printFailedCount !== 1) {
       throw new Error(`订单打印失败次数异常，预期 1，实际 ${orderDetailAfterPrint.data.printFailedCount}`);

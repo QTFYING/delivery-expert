@@ -9,8 +9,8 @@
 
 > [!NOTE]
 > **全局规范指引**
-> 关于统一下发的 `code/data/message` 响应体包装、全局 `Http Status` 说明、环境变量指引以及 UTC 时区要求，在此文档内不再赘述，请统一参阅大本营 **[api-architecture-overview.md]** 的第二章。
-> 本档负责描述 H5 支付页的业务语义、页面状态、交互约束与支付协作规则；闭集值以 `packages/types/src/enums` 为准，请求/响应结构、`nullable`、示例与状态字段结构以 Swagger 与共享 `contracts` 为准。
+> 关于统一下发的 `code/data/message` 响应体包装、全局 `Http Status` 说明、环境变量指引以及 UTC 时间传输要求，在此文档内不再赘述，请统一参阅总览 **[api-architecture-overview.md]** 的第二章。
+> 本档负责描述 H5 支付页的业务语义、页面状态、交互约束与支付协作规则；枚举值以 `packages/types/src/enums` 为准，请求/响应结构、`nullable`、示例与状态字段结构以 Swagger 与共享 `contracts` 为准。
 > 本档不再维护第二份闭集定义，也不维护与 Swagger 完全同构的结构镜像。
 
 ---
@@ -24,7 +24,7 @@
 | 3   | POST   | `/pay/:token/offline-payment` | 线下备注登记（现金/其他方式） |
 | 4   | GET    | `/pay/:token/status`          | 查询订单当前 H5 收款状态      |
 
-共计 **4** 个端点。
+共计 **4** 个接口。
 
 > 说明：`orders.qrCodeToken` 的业务语义等同 `h5EntryToken`。它是订单级公开路由标识，用于将送货单二维码路由到对应订单 H5 页面，不承载收货人身份鉴权，也不是支付单标识。本文中的 `token` 均指该 H5 入口令牌。
 
@@ -234,23 +234,24 @@ H5 前端                      后端                        拉卡拉收银台
 
 ---
 
----
+## H5 收款语义边界
 
-## 类型定义汇总
+本章只保留 H5 页面必须理解的业务语义。业务枚举闭集以 `packages/types/src/enums` 为准，请求/响应结构、字段可选性、`nullable` 与示例以 Swagger 和共享 `contracts` 为准；本文不维护 UI 颜色、按钮文案、完整 enum 表或响应结构镜像。
 
-### PaymentOrderStatus（H5 订单收款状态）
+### 核心字段语义
 
-统一使用共享闭集 `PaymentOrderStatus`。业务含义如下：
+- `token` / `h5EntryToken`：H5 入口令牌，业务语义等同订单上的 `qrCodeToken`，只用于打开 `/pay/:token` 对应订单公开页面；它不是用户身份凭证，也不是支付网关单号。
+- `status`：H5 订单收款状态，表达待支付、支付中、待核销、已完成、已过期五类业务语义；具体稳定英文值以 `PaymentOrderStatus` 为准。
+- `payableAmount`：服务端计算后的本次应付金额，H5 端不得自行改价或提交任意支付金额。
+- `paymentAction.canInitiate`：服务端对“是否允许发起新的在线支付或线下登记”的裁决，前端只能按该裁决展示入口。
+- `paymentAction.canResume`：服务端对“是否存在可继续查看或跳回的在线支付尝试”的裁决，不代表可以新建支付单。
+- `paymentAction.expiresAt`：当前支付动作或订单支付有效期的服务端时间边界，前端只用于展示和倒计时。
+- `cashierUrl`：在线支付发起成功后返回的动态收银台地址，只用于本次跳转，不应缓存为长期入口。
+- `offlinePayment`：当前订单是否存在待核销线下登记的业务投影；核销动作只发生在 Tenant 财务端。
 
-| 状态                   | 中文   | 说明                                             | H5 页面展示                |
-| ---------------------- | ------ | ------------------------------------------------ | -------------------------- |
-| `unpaid`               | 待支付 | 初始状态，等待用户去支付                         | 蓝色面板，"去支付"按钮可点 |
-| `paying`               | 支付中 | 已通过 `/initiate` 发起跳转，等待网关异步回调    | 黄色面板，展示"支付确认中" |
-| `pending_verification` | 待核销 | 线下现金支付已登记，等待 Tenant 财务核销         | 橙色面板，"订单待核销"     |
-| `paid`                 | 已完成 | 支付成功或已通过其他方式确认全款                 | 绿色面板，"订单已完成"     |
-| `expired`              | 已过期 | 上一轮在线支付尝试失效，或订单超过商户支付有效期 | 灰色面板，无法进行交互动作 |
+### 状态补充说明
 
-> 补充说明：`expired` 不等于一定允许重新支付。若只是上一轮在线支付尝试失效，且订单仍在租户支付有效期内，则允许再次调用 `POST /pay/:token/initiate`；若 `expired` 来自订单超过商户支付有效期，则 `paymentAction.canInitiate=false`，`POST /pay/:token/initiate` 与 `POST /pay/:token/offline-payment` 都会返回 `1005`。
+`expired` 不等于一定允许重新支付。若只是上一轮在线支付尝试失效，且订单仍在租户支付有效期内，则允许再次调用 `POST /pay/:token/initiate`；若 `expired` 来自订单超过商户支付有效期，则 `paymentAction.canInitiate=false`，`POST /pay/:token/initiate` 与 `POST /pay/:token/offline-payment` 都会返回 `1005`。
 
 ### 状态流转图
 
@@ -280,21 +281,12 @@ H5 前端                      后端                        拉卡拉收银台
 unpaid 或 paying 在超过租户支付有效期后，会投影为 expired
 ```
 
-### PaymentMethod（支付方式）
+### 支付方式语义
 
-统一使用共享闭集 `PaymentMethod`。
-
-| 值           | 中文           | 说明                                  |
-| ------------ | -------------- | ------------------------------------- |
-| `online`     | 在线支付       | 拉卡拉在线支付                        |
-| `cash`       | 现金支付       | 需填写备注，Tenant 财务核销后完成     |
-| `other_paid` | 其他方式已支付 | 仅作为线下备注登记，Tenant 确认后完成 |
-
-### OfflinePaymentMethod（线下支付方式）
-
-统一使用共享闭集 `OfflinePaymentMethod` 与 `CashVerifyStatus`。
-
-### OfflinePaymentInfo（线下支付详情）
+- 在线支付由 `POST /pay/:token/initiate` 发起，成功后 H5 只负责跳转 `cashierUrl` 并轮询状态；网关回调、入账与状态推进由后端完成。
+- 现金登记表示用户选择线下现金支付，订单进入待核销语义，必须由 Tenant 财务核实后才算完成收款。
+- 其他方式已付只作为线下备注登记，不绕过 Tenant 财务确认；它不代表 H5 端可以直接把订单置为已完成。
+- 线下登记的具体枚举值以 `OfflinePaymentMethod`、`PaymentMethod` 与 `CashVerifyStatus` 为准，本文不复制完整类型定义。
 
 ## 跨项目关联
 
