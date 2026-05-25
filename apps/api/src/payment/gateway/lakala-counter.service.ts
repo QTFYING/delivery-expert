@@ -47,8 +47,8 @@ export class LakalaCounterService {
   ) {}
 
   /**
-   * 调用拉卡拉聚合收银台建单接口，并返回前端应跳转的 `counter_url`。
-   * 该调用带硬超时控制，避免第三方网络抖动无限拖住本地支付发起流程。
+   * 调用拉卡拉聚合收银台建单接口，并返回前端应跳转的 `counter_url`
+   * 该调用带硬超时控制，避免第三方网络抖动无限拖住本地支付发起流程
    */
   async requestCashierUrl(
     orderId: string,
@@ -101,8 +101,8 @@ export class LakalaCounterService {
   }
 
   /**
-   * 组装聚合收银台建单请求。
-   * 这里不传旧预下单里的 `account_type=ALIPAY`，避免把用户固定限制到单一支付渠道。
+   * 组装聚合收银台建单请求
+   * 这里不传旧预下单里的 `account_type=ALIPAY`，避免把用户固定限制到单一支付渠道
    */
   private buildCounterCreateRequestBody(
     orderId: string,
@@ -145,8 +145,8 @@ export class LakalaCounterService {
   }
 
   /**
-   * 从拉卡拉建单响应里读取可跳转的收银台地址。
-   * 当前只消费已跑通建单响应中的核心 URL 字段，不在这里扩展回调报文字段兼容。
+   * 从拉卡拉建单响应里读取可跳转的收银台地址
+   * 当前只消费已跑通建单响应中的核心 URL 字段，不在这里扩展回调报文字段兼容
    */
   private readCashierUrlFromResponse(responseText: string): string {
     const responseData = parseLakalaJsonResponse(responseText);

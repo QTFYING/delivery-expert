@@ -7,9 +7,14 @@ const {
   resolveImportJobFinalStatus,
   shouldStartImportJobImmediately,
 } = require('../../dist/import/import-job.worker.helpers');
+const { nextProgressForFailure, nextProgressForOutcome } = require('../../dist/import/import-job-runner.helpers');
 const { buildPreviewSummary, normalizePreviewOrder, uniqueDuplicateOrders } = require('../../dist/import/import.normalizer');
 const { toImportOrderCreateInput } = require('../../dist/import/import-job-order.persistence');
+const { DEFAULT_TEMPLATE_FIELDS } = require('../../dist/import/import-template.fields');
+const { ImportTemplateService } = require('../../dist/import/import-template.service');
 const { readDate, readMoney, readPayType, readString } = require('../../dist/import/mapping/import.mapper');
+const { toLineItemCreateInput, toAdminOrder, toTenantOrder } = require('../../dist/order/mapping/order.mapper');
+const { normalizeOrderLineItem } = require('../../dist/order/order.validation');
 const { deriveOrderStatus, resolveCreditOrderStatus } = require('../../dist/order/order.domain');
 const {
   PAYMENT_PAYING_EXPIRE_MINUTES,
@@ -62,6 +67,16 @@ const PaymentMethodEnum = {
   CASH: 'cash',
   OTHER_PAID: 'other_paid',
 };
+
+const defaultFieldLabelMap = new Map(DEFAULT_TEMPLATE_FIELDS.map((field) => [field.key, field.label]));
+
+function decimalLike(value) {
+  return {
+    toString: () => String(value),
+    toFixed: (scale) => Number(value).toFixed(scale),
+    toDecimalPlaces: () => decimalLike(value),
+  };
+}
 
 function run(name, fn) {
   try {
@@ -174,6 +189,29 @@ run('导入预检摘要统计覆盖有效、无效与重复订单去重', () => 
   );
 });
 
+run('正式导入进度记录使用清晰冲突与失败原因', () => {
+  const progress = {
+    processedCount: 0,
+    successCount: 0,
+    skippedCount: 0,
+    overwrittenCount: 0,
+    failedOrders: [],
+    conflictDetails: [],
+  };
+  const order = { index: 1, sourceOrderNo: 'SO-CONFLICT-001' };
+
+  const skipped = nextProgressForOutcome(progress, order, {
+    type: 'skipped',
+    existingOrderId: 'O202605190001',
+    reason: '源订单号已存在，当前冲突策略为“跳过”，本订单未导入',
+  });
+  assert.equal(skipped.skippedCount, 1);
+  assert.equal(skipped.conflictDetails[0].reason, '源订单号已存在，当前冲突策略为“跳过”，本订单未导入');
+
+  const failed = nextProgressForFailure(progress, order, '系统处理订单时异常，请联系管理员并提供导入任务 ID：JOB-001');
+  assert.equal(failed.failedOrders[0].reason, '系统处理订单时异常，请联系管理员并提供导入任务 ID：JOB-001');
+});
+
 run('导入预检允许 0 元订单且正式导入落为已结清', () => {
   const valueRequiredMap = new Map([
     ['sourceOrderNo', true],
@@ -192,14 +230,17 @@ run('导入预检允许 0 元订单且正式导入落为已结清', () => {
       customerPhone: '13800138000',
       customerAddress: '深圳市南山区',
       totalAmount: 0,
-      orderTime: '2026-04-15T09:30:00.000Z',
+      orderTime: '2026-04-15 09:30:00',
       payType: OrderPayTypeEnum.CASH,
       customerFieldValues: {},
       lineItems: [{ skuName: '赠品', unit: '件', quantity: 0, unitPrice: 0, lineAmount: 0 }],
     },
     1,
     '1',
-    new Set(),
+    new Map(),
+    new Map(),
+    new Map(),
+    defaultFieldLabelMap,
     valueRequiredMap,
   );
 
@@ -218,14 +259,17 @@ run('导入预检允许 0 元订单且正式导入落为已结清', () => {
       customerPhone: '13800138000',
       customerAddress: '深圳市南山区',
       totalAmount: -1,
-      orderTime: '2026-04-15T09:30:00.000Z',
+      orderTime: '2026-04-15 09:30:00',
       payType: OrderPayTypeEnum.CASH,
       customerFieldValues: {},
       lineItems: [{ skuName: '商品', unit: '件', quantity: 1, unitPrice: 1, lineAmount: 1 }],
     },
     2,
     '1',
-    new Set(),
+    new Map(),
+    new Map(),
+    new Map(),
+    defaultFieldLabelMap,
     valueRequiredMap,
   );
 
@@ -252,14 +296,17 @@ run('导入预检允许空客户电话且正式导入落为 NULL', () => {
       customerPhone: '',
       customerAddress: '深圳市南山区',
       totalAmount: 1,
-      orderTime: '2026-04-15T09:30:00.000Z',
+      orderTime: '2026-04-15 09:30:00',
       payType: OrderPayTypeEnum.CASH,
       customerFieldValues: {},
       lineItems: [{ skuName: '商品', unit: '件', quantity: 1, unitPrice: 1, lineAmount: 1 }],
     },
     1,
     '1',
-    new Set(),
+    new Map(),
+    new Map(),
+    new Map(),
+    defaultFieldLabelMap,
     valueRequiredMap,
   );
 
@@ -268,6 +315,310 @@ run('导入预检允许空客户电话且正式导入落为 NULL', () => {
 
   const createInput = toImportOrderCreateInput('T000000001', normalized.value);
   assert.equal(createInput.customerPhone, null);
+});
+
+run('正式导入订单明细保留包装规格和行级自定义字段', () => {
+  const createInput = toImportOrderCreateInput('T000000001', {
+    sourceOrderNo: 'SO-LINE-PERSIST-001',
+    groupKey: 'SO-LINE-PERSIST-001',
+    mappingTemplateId: '1',
+    customer: '落库客户',
+    customerPhone: null,
+    customerAddress: '深圳市南山区',
+    totalAmount: 97,
+    orderTime: '2026-04-15 09:30:00',
+    payType: OrderPayTypeEnum.CASH,
+    customerFieldValues: {},
+    lineItems: [
+      {
+        skuName: '桶面',
+        skuSpec: '153g',
+        unit: '箱',
+        quantity: 1,
+        packSpec: '24桶',
+        unitPrice: 97,
+        lineAmount: 97,
+        customerFieldValues: { cf2: '批次A' },
+      },
+    ],
+  });
+
+  assert.equal(createInput.lineItems.create[0].packSpec, '24桶');
+  assert.deepEqual(createInput.lineItems.create[0].customerFieldValues, { cf2: '批次A' });
+});
+
+run('订单明细读写映射保留包装规格和行级自定义字段', () => {
+  const normalized = normalizeOrderLineItem({
+    skuName: ' 桶面 ',
+    skuSpec: ' 153g ',
+    unit: ' 箱 ',
+    quantity: 1,
+    packSpec: ' 24桶 ',
+    unitPrice: 97,
+    lineAmount: 97,
+    customerFieldValues: { cf2: '批次A' },
+  });
+  const createInput = toLineItemCreateInput(normalized);
+
+  assert.equal(normalized.packSpec, '24桶');
+  assert.deepEqual(normalized.customerFieldValues, { cf2: '批次A' });
+  assert.equal(createInput.packSpec, '24桶');
+  assert.deepEqual(createInput.customerFieldValues, { cf2: '批次A' });
+
+  const orderRow = {
+    id: 'O202605190001',
+    sourceOrderNo: 'SO-DETAIL-001',
+    groupKey: 'SO-DETAIL-001',
+    mappingTemplateId: 1n,
+    qrCodeToken: 'token',
+    customer: '详情客户',
+    customerPhone: null,
+    customerAddress: '深圳市南山区',
+    totalAmount: decimalLike(97),
+    paid: decimalLike(0),
+    customerFieldValues: {},
+    status: 'PENDING',
+    payType: 'CASH',
+    prints: 0,
+    lastPrintedAt: null,
+    printFailedCount: 0,
+    lastFailedAt: null,
+    orderTime: new Date('2026-04-15 09:30:00'),
+    voided: false,
+    voidReason: null,
+    voidedAt: null,
+    lineItems: [
+      {
+        id: 1n,
+        skuId: 'SKU-001',
+        skuName: '桶面',
+        skuSpec: '153g',
+        unit: '箱',
+        quantity: decimalLike(1),
+        packSpec: '24桶',
+        unitPrice: decimalLike(97),
+        lineAmount: decimalLike(97),
+        customerFieldValues: { cf2: '批次A' },
+      },
+    ],
+  };
+
+  assert.equal(toTenantOrder(orderRow).lineItems[0].packSpec, '24桶');
+  assert.deepEqual(toTenantOrder(orderRow).lineItems[0].customerFieldValues, { cf2: '批次A' });
+  assert.equal(toAdminOrder({ ...orderRow, tenant: { name: '测试租户' } }).lineItems[0].packSpec, '24桶');
+  assert.deepEqual(toAdminOrder({ ...orderRow, tenant: { name: '测试租户' } }).lineItems[0].customerFieldValues, { cf2: '批次A' });
+});
+
+run('导入预检商品行字段错误使用模板中文名', () => {
+  const valueRequiredMap = new Map([
+    ['sourceOrderNo', true],
+    ['customer', true],
+    ['customerAddress', true],
+    ['totalAmount', true],
+    ['orderTime', true],
+    ['payType', true],
+    ['packSpec', true],
+  ]);
+  const normalized = normalizePreviewOrder(
+    {
+      sourceOrderNo: 'SO-LINE-001',
+      customer: '行字段客户',
+      customerAddress: '深圳市南山区',
+      totalAmount: 1,
+      orderTime: '2026-04-15 09:30:00',
+      payType: OrderPayTypeEnum.CASH,
+      customerFieldValues: {},
+      lineItems: [{ skuName: '商品', unit: '箱', quantity: 1, unitPrice: 1, lineAmount: 1 }],
+    },
+    1,
+    '1',
+    new Map(),
+    new Map(),
+    new Map(),
+    defaultFieldLabelMap,
+    valueRequiredMap,
+  );
+
+  assert.equal('error' in normalized, true);
+  assert.equal(normalized.error[0].field, 'lineItems[0].packSpec');
+  assert.equal(normalized.error[0].reason, '第 1 条商品明细：包装规格不能为空');
+});
+
+run('导入预检商品行自定义字段校验区分字段位置并使用中文名', () => {
+  const lineField = {
+    label: '商品批次',
+    key: 'cf2',
+    mapStr: '批次',
+    isRequired: false,
+    isValueRequired: true,
+    type: 'line',
+  };
+  const listField = {
+    label: '客户编码',
+    key: 'cf1',
+    mapStr: '客户编码',
+    isRequired: false,
+    isValueRequired: false,
+    type: 'list',
+  };
+  const lineCustomerFieldMap = new Map([[lineField.key, lineField]]);
+  const allCustomerFieldMap = new Map([
+    [lineField.key, lineField],
+    [listField.key, listField],
+  ]);
+
+  const missing = normalizePreviewOrder(
+    {
+      sourceOrderNo: 'SO-CUSTOM-LINE-001',
+      customer: '自定义字段客户',
+      customerAddress: '深圳市南山区',
+      totalAmount: 1,
+      orderTime: '2026-04-15 09:30:00',
+      payType: OrderPayTypeEnum.CASH,
+      customerFieldValues: {},
+      lineItems: [{ skuName: '商品', unit: '箱', quantity: 1, unitPrice: 1, lineAmount: 1 }],
+    },
+    1,
+    '1',
+    new Map(),
+    lineCustomerFieldMap,
+    allCustomerFieldMap,
+    defaultFieldLabelMap,
+    new Map([
+      ['sourceOrderNo', true],
+      ['customer', true],
+      ['customerAddress', true],
+      ['totalAmount', true],
+      ['orderTime', true],
+      ['payType', true],
+    ]),
+  );
+
+  assert.equal('error' in missing, true);
+  assert.equal(missing.error[0].field, 'lineItems[0].customerFieldValues.cf2');
+  assert.equal(missing.error[0].reason, '商品行自定义字段「商品批次」不能为空');
+
+  const wrongScope = normalizePreviewOrder(
+    {
+      sourceOrderNo: 'SO-CUSTOM-LINE-002',
+      customer: '自定义字段客户',
+      customerAddress: '深圳市南山区',
+      totalAmount: 1,
+      orderTime: '2026-04-15 09:30:00',
+      payType: OrderPayTypeEnum.CASH,
+      customerFieldValues: {},
+      lineItems: [
+        {
+          skuName: '商品',
+          unit: '箱',
+          quantity: 1,
+          unitPrice: 1,
+          lineAmount: 1,
+          customerFieldValues: { cf1: 'C001', cf2: 'B001' },
+        },
+      ],
+    },
+    2,
+    '1',
+    new Map([[listField.key, listField]]),
+    lineCustomerFieldMap,
+    allCustomerFieldMap,
+    defaultFieldLabelMap,
+    new Map([
+      ['sourceOrderNo', true],
+      ['customer', true],
+      ['customerAddress', true],
+      ['totalAmount', true],
+      ['orderTime', true],
+      ['payType', true],
+    ]),
+  );
+
+  assert.equal('error' in wrongScope, true);
+  assert.equal(wrongScope.error[0].field, 'lineItems[0].customerFieldValues.cf1');
+  assert.equal(wrongScope.error[0].reason, '自定义字段「客户编码」属于订单级字段，应放在 customerFieldValues');
+
+  const legacyKey = normalizePreviewOrder(
+    {
+      sourceOrderNo: 'SO-CUSTOM-LINE-003',
+      customer: '自定义字段客户',
+      customerAddress: '深圳市南山区',
+      totalAmount: 1,
+      orderTime: '2026-04-15 09:30:00',
+      payType: OrderPayTypeEnum.CASH,
+      customerFieldValues: {},
+      lineItems: [
+        {
+          skuName: '商品',
+          unit: '箱',
+          quantity: 1,
+          unitPrice: 1,
+          lineAmount: 1,
+          customerFieldValues: { customerKey2: 'B001', cf2: 'B001' },
+        },
+      ],
+    },
+    3,
+    '1',
+    new Map([[listField.key, listField]]),
+    lineCustomerFieldMap,
+    allCustomerFieldMap,
+    defaultFieldLabelMap,
+    new Map([
+      ['sourceOrderNo', true],
+      ['customer', true],
+      ['customerAddress', true],
+      ['totalAmount', true],
+      ['orderTime', true],
+      ['payType', true],
+    ]),
+  );
+
+  assert.equal('error' in legacyKey, true);
+  assert.equal(legacyKey.error[0].field, 'lineItems[0].customerFieldValues.customerKey2');
+  assert.equal(legacyKey.error[0].reason, '自定义字段 key 不存在：customerKey2，请使用当前导入模板返回的 customerFields[].key');
+});
+
+run('导入模板维护错误提示面向业务字段', () => {
+  const service = new ImportTemplateService({});
+
+  assert.throws(
+    () =>
+      service.normalizeCreateTemplatePayload({
+        name: '错误模板',
+        isDefault: false,
+        defaultFields: DEFAULT_TEMPLATE_FIELDS.slice(0, 13),
+        customerFields: [],
+      }),
+    /系统默认字段必须完整提交，共 14 项，请刷新模板后重试/,
+  );
+
+  assert.throws(
+    () =>
+      service.normalizeCreateTemplatePayload({
+        name: '错误模板',
+        isDefault: false,
+        defaultFields: DEFAULT_TEMPLATE_FIELDS.map((field) =>
+          field.key === 'sourceOrderNo' ? { ...field, label: '订单编号' } : { ...field, mapStr: field.isRequired ? field.label : '' },
+        ),
+        customerFields: [],
+      }),
+    /系统字段「源订单号」不允许修改显示名/,
+  );
+
+  assert.throws(
+    () =>
+      service.normalizeCreateTemplatePayload({
+        name: '错误模板',
+        isDefault: false,
+        defaultFields: DEFAULT_TEMPLATE_FIELDS.map((field) => ({ ...field, mapStr: field.isRequired ? field.label : '' })),
+        customerFields: [
+          { label: '客户编码', mapStr: '客户编码' },
+          { label: ' 客户编码 ', mapStr: '客户编码2' },
+        ],
+      }),
+    /自定义字段名称重复：「客户编码」/,
+  );
 });
 
 run('订单状态推导覆盖现金、账期、部分支付、全额支付与作废场景', () => {

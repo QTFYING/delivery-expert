@@ -47,8 +47,10 @@ export function normalizeOrderLineItem(item: OrderLineItem): OrderLineItem {
     skuSpec: item.skuSpec?.trim() ? cut(item.skuSpec.trim(), 100) : undefined,
     unit: normalizeText(item.unit, 'unit', 20),
     quantity: toDecimalNumber(quantity, 3),
+    packSpec: item.packSpec?.trim() ? cut(item.packSpec.trim(), 50) : undefined,
     unitPrice: toMoneyNumber(unitPrice),
     lineAmount: toMoneyNumber(lineAmount),
+    customerFieldValues: item.customerFieldValues,
   };
 }
 

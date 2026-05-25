@@ -52,7 +52,7 @@ export function nextProgressForOutcome(current: ImportJobProgress, order: Prepar
   return next;
 }
 
-export function nextProgressForFailure(current: ImportJobProgress, order: PreparedImportOrder, error: unknown): ImportJobProgress {
+export function nextProgressForFailure(current: ImportJobProgress, order: PreparedImportOrder, reason: string): ImportJobProgress {
   return {
     processedCount: current.processedCount + 1,
     successCount: current.successCount,
@@ -63,7 +63,7 @@ export function nextProgressForFailure(current: ImportJobProgress, order: Prepar
       {
         index: order.index,
         sourceOrderNo: order.sourceOrderNo,
-        reason: error instanceof Error ? error.message : '导入处理失败',
+        reason,
       },
     ],
     conflictDetails: [...current.conflictDetails],

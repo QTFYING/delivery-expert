@@ -144,7 +144,7 @@ export class PlatformOverviewService {
     };
   }
 
-  // 构建租户健康度视图，服务到期风险仅由 serviceExpireAt 派生。
+  // 构建租户健康度视图，服务到期风险仅由 serviceExpireAt 派生
   private async buildTenantHealthItems(): Promise<TenantHealthItem[]> {
     const activeSince = dayjs().subtract(ACTIVE_USER_WINDOW_DAYS, 'day').startOf('day').toDate();
 

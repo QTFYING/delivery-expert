@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-/** 通用分页响应元信息。 */
+/** 通用分页响应元信息 */
 export abstract class PaginatedResponseMetaSwagger {
   @ApiProperty({ description: '总数', example: 20 })
   total!: number;

@@ -41,7 +41,7 @@ export class OrderPrintController {
     private readonly orderPrintQueryService: OrderPrintQueryService,
   ) {}
 
-  // 提交打印成功回执，记录实际打印成功的订单集合。
+  // 提交打印成功回执，记录实际打印成功的订单集合
   @ApiOperation({ summary: '创建打印回执' })
   @ApiOkResponse({ type: OrderPrintRecordResponseSwagger })
   @Post('print-records')
@@ -50,7 +50,7 @@ export class OrderPrintController {
     return this.orderPrintService.createPrintRecord(currentUser, request as OrderPrintRecordRequest);
   }
 
-  // 获取租户级跨订单打印追溯列表，仅提供只读审计视图。
+  // 获取租户级跨订单打印追溯列表，仅提供只读审计视图
   @ApiOperation({ summary: '跨订单打印事件追溯' })
   @ApiOkResponse({ type: TenantPrintRecordsResponseSwagger })
   @Get('print-records')
@@ -62,7 +62,7 @@ export class OrderPrintController {
     return this.orderPrintQueryService.getTenantPrintRecords(currentUser, query);
   }
 
-  // 上报单订单打印失败记录，不影响订单打印成功计数。
+  // 上报单订单打印失败记录，不影响订单打印成功计数
   @ApiOperation({ summary: '上报打印失败记录' })
   @ApiParam({ name: 'id', description: '订单 ID' })
   @ApiOkResponse({ type: CreateOrderPrintFailureResponseSwagger })
@@ -76,7 +76,7 @@ export class OrderPrintController {
     return this.orderPrintService.createPrintFailure(currentUser, id, request as CreateOrderPrintFailureRequest);
   }
 
-  // 获取单订单打印历史，返回成功与失败事件时间线。
+  // 获取单订单打印历史，返回成功与失败事件时间线
   @ApiOperation({ summary: '获取单订单打印历史' })
   @ApiParam({ name: 'id', description: '订单 ID' })
   @ApiOkResponse({ type: OrderPrintRecordsResponseSwagger })

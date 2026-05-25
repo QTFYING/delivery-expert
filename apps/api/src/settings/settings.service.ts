@@ -64,7 +64,7 @@ const PERMISSION_TREE: PermissionNode[] = [
 export class SettingsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // 获取租户通用配置，返回平台默认值与租户覆盖值的合并结果。
+  // 获取租户通用配置，返回平台默认值与租户覆盖值的合并结果
   async getGeneralSettings(currentUser: JwtPayload): Promise<TenantGeneralSettings> {
     const tenantId = getTenantSideId(currentUser);
 
@@ -78,7 +78,7 @@ export class SettingsService {
     return mergeGeneralSettings(defaults, override);
   }
 
-  // 仅更新租户通知与业务偏好覆盖层，不修改企业主体资料。
+  // 仅更新租户通知与业务偏好覆盖层，不修改企业主体资料
   async updateGeneralSettings(currentUser: JwtPayload, request: UpdateTenantGeneralSettingsRequest, ip?: string): Promise<TenantGeneralSettings> {
     const tenantId = getTenantSideId(currentUser);
     const data = toTenantOverrideUpdate(request);
@@ -106,12 +106,12 @@ export class SettingsService {
     return result;
   }
 
-  // 返回当前固定权限树，供租户角色配置页展示。
+  // 返回当前固定权限树，供租户角色配置页展示
   getPermissions(): PermissionNode[] {
     return PERMISSION_TREE;
   }
 
-  // 查询当前租户审计日志，按登录态 tenantId 强制隔离。
+  // 查询当前租户审计日志，按登录态 tenantId 强制隔离
   async getAuditLogs(currentUser: JwtPayload, query: TenantAuditLogQuery | ListAuditLogsQueryDto): Promise<TenantAuditLogListResponse> {
     const tenantId = getTenantSideId(currentUser);
     const page = normalizePage(query.page);
@@ -160,7 +160,7 @@ export class SettingsService {
     };
   }
 
-  // 读取平台默认通用配置，缺省项回退到内置常量。
+  // 读取平台默认通用配置，缺省项回退到内置常量
   private async getPlatformGeneralSettingsDefaults(): Promise<TenantGeneralSettings> {
     const configs = await this.prisma.systemConfig.findMany({
       where: { group: GENERAL_SETTINGS_CONFIG_GROUP },

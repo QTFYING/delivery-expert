@@ -43,18 +43,18 @@ export class PaymentWindowService {
     });
   }
 
-  /** 基于订单时间和租户当前有效期，统一裁决订单是否超过支付窗口 */
+  /** 基于订单进入系统时间和租户当前有效期，统一裁决订单是否超过支付窗口 */
   async resolveOrderPaymentWindow(
     input: {
       tenantId: string;
-      orderTime: Date;
+      createdAt: Date;
       now?: Date;
     },
     client: PaymentWindowClient = this.prisma,
   ): Promise<PaymentWindowDecision> {
     const qrCodeExpiryDays = await this.getTenantQrCodeExpiryDays(input.tenantId, client);
     return this.resolvePaymentWindow({
-      orderTime: input.orderTime,
+      windowStartedAt: input.createdAt,
       qrCodeExpiryDays,
       now: input.now,
     });
@@ -67,7 +67,7 @@ export class PaymentWindowService {
   async assertOrderWithinPaymentWindow(
     input: {
       tenantId: string;
-      orderTime: Date;
+      createdAt: Date;
       now?: Date;
     },
     client: PaymentWindowClient = this.prisma,
@@ -94,13 +94,13 @@ export class PaymentWindowService {
     return Math.max(1, Math.floor(rawValue));
   }
 
-  /** 基于已知有效期天数计算支付窗口边界和超期提示 */
-  resolvePaymentWindow(input: { orderTime: Date; qrCodeExpiryDays: number; now?: Date }): PaymentWindowDecision {
+  /** 基于订单进入系统时间计算支付窗口边界和超期提示 */
+  resolvePaymentWindow(input: { windowStartedAt: Date; qrCodeExpiryDays: number; now?: Date }): PaymentWindowDecision {
     const now = input.now ?? new Date();
     const qrCodeExpiryDays = this.resolveQrCodeExpiryDays({
       tenantOverrideDays: input.qrCodeExpiryDays,
     });
-    const payableUntilAt = dayjs(input.orderTime).add(qrCodeExpiryDays, 'day').toDate();
+    const payableUntilAt = dayjs(input.windowStartedAt).add(qrCodeExpiryDays, 'day').toDate();
     const isExpired = now.getTime() >= payableUntilAt.getTime();
 
     return {

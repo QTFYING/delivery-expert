@@ -148,6 +148,7 @@ function buildImportTemplatePayload() {
       { label: '规格', key: 'skuSpec', mapStr: '商品规格', isRequired: false, isValueRequired: false, type: 'line' },
       { label: '单位', key: 'unit', mapStr: '单位', isRequired: false, isValueRequired: false, type: 'line' },
       { label: '数量', key: 'quantity', mapStr: '数量', isRequired: false, isValueRequired: false, type: 'line' },
+      { label: '包装规格', key: 'packSpec', mapStr: '包装规格', isRequired: false, isValueRequired: false, type: 'line' },
       { label: '单价', key: 'unitPrice', mapStr: '单价', isRequired: false, isValueRequired: false, type: 'line' },
       { label: '金额', key: 'lineAmount', mapStr: '商品金额', isRequired: false, isValueRequired: false, type: 'line' },
     ],

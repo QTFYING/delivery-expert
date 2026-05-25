@@ -33,7 +33,13 @@ export class LakalaGatewayProvider implements PaymentGatewayProvider {
 
   // 创建聚合收银台支付单，并隐藏拉卡拉建单报文、签名和响应字段差异
   async createCounterPayment(input: CreateCounterPaymentInput): Promise<CreateCounterPaymentResult> {
-    const result = await this.counterService.requestCashierUrl(input.orderId, input.orderDescription, input.gatewayTradeNo, input.amount, input.config);
+    const result = await this.counterService.requestCashierUrl(
+      input.orderId,
+      input.orderDescription,
+      input.gatewayTradeNo,
+      input.amount,
+      input.config,
+    );
 
     return {
       gatewayTradeNo: input.gatewayTradeNo,

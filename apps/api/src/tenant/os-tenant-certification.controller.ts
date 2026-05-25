@@ -22,7 +22,7 @@ import { TenantCertificationRecordItemSwagger, TenantCertificationReviewDecision
 export class OsTenantCertificationController {
   constructor(private readonly osTenantCertificationService: OsTenantCertificationService) {}
 
-  // 获取资质审核队列。
+  // 获取资质审核队列
   @ApiOperation({ summary: '获取资质审核队列' })
   @ApiOkResponse({ type: [TenantCertificationRecordItemSwagger] })
   @Get('certifications')
@@ -31,7 +31,7 @@ export class OsTenantCertificationController {
     return this.osTenantCertificationService.getCertificationQueue();
   }
 
-  // 创建资质审核决议。
+  // 创建资质审核决议
   @ApiOperation({ summary: '创建资质审核决议' })
   @ApiParam({ name: 'id', description: '资质记录 ID' })
   @ApiOkResponse({ type: TenantCertificationReviewDecisionResponseSwagger })

@@ -27,15 +27,15 @@ export class ImportTemplateController {
   @ApiOperation({
     summary: '获取系统默认映射模板',
     description:
-      '返回系统内置的 13 个标准字段，前 7 个为订单头字段（type: list），后 6 个为订单明细字段（type: line）。\n' +
+      '返回系统内置的 14 个标准字段，前 7 个为订单头字段（type: list），后 7 个为订单明细字段（type: line）。\n' +
       '- isRequired：控制模板创建/更新时 mapStr 是否必填；也用于前端 UI 展示（红星）\n' +
       '- isValueRequired：服务端 /preview 是否强制该列必须有值。前端可省略不传，服务端以系统定义为权威\n' +
       '- 订单明细 lineItems 至少需要 1 条，否则预检失败\n' +
-      '创建/更新模板时：defaultFields 必须完整包含 13 个字段，label/isRequired 不可改写；mapStr 允许重复，不再做全局去重。',
+      '创建/更新模板时：defaultFields 必须完整包含 14 个字段，label/isRequired 不可改写；mapStr 允许重复，不再做全局去重。',
   })
   @ApiOkResponse({
     type: [OrderImportTemplateFieldSwagger],
-    description: '系统默认字段列表（共 13 项）',
+    description: '系统默认字段列表（共 14 项）',
     schema: {
       type: 'array',
       example: [
@@ -57,6 +57,7 @@ export class ImportTemplateController {
         { label: '规格', key: 'skuSpec', mapStr: '', isRequired: false, isValueRequired: false, type: 'line' },
         { label: '单位', key: 'unit', mapStr: '', isRequired: false, isValueRequired: false, type: 'line' },
         { label: '数量', key: 'quantity', mapStr: '', isRequired: false, isValueRequired: false, type: 'line' },
+        { label: '包装规格', key: 'packSpec', mapStr: '', isRequired: false, isValueRequired: false, type: 'line' },
         { label: '单价', key: 'unitPrice', mapStr: '', isRequired: false, isValueRequired: false, type: 'line' },
         { label: '金额', key: 'lineAmount', mapStr: '', isRequired: false, isValueRequired: false, type: 'line' },
       ],

@@ -19,25 +19,25 @@
 
 ## 核心变量
 
-| 变量                                              | 必填 | 说明                                                              |
-| ------------------------------------------------- | ---- | ----------------------------------------------------------------- |
-| `DATABASE_URL`                                    | 是   | Prisma PostgreSQL 连接串                                          |
-| `REDIS_URL`                                       | 是   | Redis 连接串                                                      |
-| `JWT_SECRET`                                      | 是   | JWT 签名密钥                                                      |
-| `CORS_ORIGINS`                                    | 是   | 允许跨域访问的前端来源，多个用英文逗号分隔                        |
-| `PORT`                                            | 否   | API 监听端口，默认 `3000`                                         |
-| `NODE_ENV`                                        | 是   | `development` 或 `production`                                     |
-| `TZ`                                              | 是   | 固定为 `UTC`，API / Worker 运行环境统一使用 UTC                   |
-| `AUTH_COOKIE_SECURE`                              | 是   | HTTPS 环境为 `true`，本地 HTTP 为 `false`                         |
-| `IMPORT_JOB_WORKER_ENABLED`                       | 是   | API 进程为 `false`，Worker 进程为 `true`                          |
-| `IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS`            | 否   | 租户级活动正式导入任务占位 TTL，单位秒，默认 `900`                |
-| `IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS` | 否   | 租户级活动正式导入任务续期间隔，单位秒，默认 `60`，且必须小于 TTL |
+| 变量                                              | 必填 | 说明                                                                |
+| ------------------------------------------------- | ---- | ------------------------------------------------------------------- |
+| `DATABASE_URL`                                    | 是   | Prisma PostgreSQL 连接串                                            |
+| `REDIS_URL`                                       | 是   | Redis 连接串                                                        |
+| `JWT_SECRET`                                      | 是   | JWT 签名密钥                                                        |
+| `CORS_ORIGINS`                                    | 是   | 允许跨域访问的前端来源，多个用英文逗号分隔                          |
+| `PORT`                                            | 否   | API 监听端口，默认 `3000`                                           |
+| `NODE_ENV`                                        | 是   | `development` 或 `production`                                       |
+| `TZ`                                              | 是   | 固定为 `UTC`，API / Worker 运行环境统一使用 UTC                     |
+| `AUTH_COOKIE_SECURE`                              | 是   | HTTPS 环境为 `true`，本地 HTTP 为 `false`                           |
+| `IMPORT_JOB_WORKER_ENABLED`                       | 是   | API 进程为 `false`，Worker 进程为 `true`                            |
+| `IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS`            | 否   | 租户级活动正式导入任务占位 TTL，单位秒，默认 `900`                  |
+| `IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS` | 否   | 租户级活动正式导入任务续期间隔，单位秒，默认 `60`，且必须小于 TTL   |
 | `LAKALA_BASE_URL`                                 | 否   | 拉卡拉网关基础地址；启用拉卡拉时填写，默认 `https://api.lakala.com` |
-| `LAKALA_APP_ID`                                   | 否   | 拉卡拉应用 ID；启用拉卡拉时必填                                  |
-| `LAKALA_SERIAL_NO`                                | 否   | 拉卡拉证书序列号；启用拉卡拉时必填                              |
-| `LAKALA_PRIVATE_KEY`                              | 否   | 拉卡拉商户私钥；启用拉卡拉时必填                                |
-| `LAKALA_PLATFORM_PUBLIC_KEY`                      | 否   | 拉卡拉平台公钥；启用拉卡拉时必填                                |
-| `LAKALA_NOTIFY_URL`                               | 否   | 拉卡拉异步通知地址；启用拉卡拉时必填                            |
+| `LAKALA_APP_ID`                                   | 否   | 拉卡拉应用 ID；启用拉卡拉时必填                                     |
+| `LAKALA_SERIAL_NO`                                | 否   | 拉卡拉证书序列号；启用拉卡拉时必填                                  |
+| `LAKALA_PRIVATE_KEY`                              | 否   | 拉卡拉商户私钥；启用拉卡拉时必填                                    |
+| `LAKALA_PLATFORM_PUBLIC_KEY`                      | 否   | 拉卡拉平台公钥；启用拉卡拉时必填                                    |
+| `LAKALA_NOTIFY_URL`                               | 否   | 拉卡拉异步通知地址；启用拉卡拉时必填                                |
 
 ## JWT_SECRET 生成
 

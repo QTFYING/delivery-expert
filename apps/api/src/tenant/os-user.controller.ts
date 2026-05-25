@@ -29,7 +29,7 @@ import { CreateUserPasswordResetResponseSwagger, UserListResponseSwagger, UserRe
 export class OsUserController {
   constructor(private readonly osUserService: OsUserService) {}
 
-  // 获取平台用户列表。
+  // 获取平台用户列表
   @ApiOperation({ summary: '获取平台用户列表' })
   @ApiOkResponse({ type: UserListResponseSwagger })
   @Get()
@@ -38,7 +38,7 @@ export class OsUserController {
     return this.osUserService.getAdminUsers(query as UserListQuery);
   }
 
-  // 创建平台用户。
+  // 创建平台用户
   @ApiOperation({ summary: '创建平台用户' })
   @ApiOkResponse({ type: UserRecordItemSwagger })
   @Post()
@@ -47,7 +47,7 @@ export class OsUserController {
     return this.osUserService.createAdminUser(currentUser, request as UserUpsertRequest, ip);
   }
 
-  // 更新平台用户。
+  // 更新平台用户
   @ApiOperation({ summary: '更新平台用户' })
   @ApiParam({ name: 'id', description: '用户 ID', format: 'uuid' })
   @ApiOkResponse({ type: UserRecordItemSwagger })
@@ -62,7 +62,7 @@ export class OsUserController {
     return this.osUserService.updateAdminUser(currentUser, userId, request as UserUpsertRequest, ip);
   }
 
-  // 删除平台用户。
+  // 删除平台用户
   @ApiOperation({ summary: '删除平台用户' })
   @ApiParam({ name: 'id', description: '用户 ID', format: 'uuid' })
   @ApiOkResponse({ description: '删除成功', schema: { type: 'null' } })
@@ -72,7 +72,7 @@ export class OsUserController {
     return this.osUserService.deleteAdminUser(currentUser, userId, ip);
   }
 
-  // 更新平台用户状态。
+  // 更新平台用户状态
   @ApiOperation({ summary: '更新平台用户状态' })
   @ApiParam({ name: 'id', description: '用户 ID', format: 'uuid' })
   @ApiOkResponse({ type: UserRecordItemSwagger })
@@ -87,7 +87,7 @@ export class OsUserController {
     return this.osUserService.patchAdminUserStatus(currentUser, userId, request as UserStatusUpdateRequest, ip);
   }
 
-  // 重置平台用户密码。
+  // 重置平台用户密码
   @ApiOperation({ summary: '创建密码重置记录' })
   @ApiParam({ name: 'id', description: '用户 ID', format: 'uuid' })
   @ApiOkResponse({ type: CreateUserPasswordResetResponseSwagger })

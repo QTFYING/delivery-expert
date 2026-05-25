@@ -956,16 +956,16 @@
 
 ### 与 Tenant 端的关联
 
-| Admin 操作               | 关联的 Tenant 端                                                           |
-| ------------------------ | -------------------------------------------------------------------------- |
-| 创建租户 + 审核通过      | Tenant 端可登录使用                                                        |
-| 冻结租户                 | Tenant 端登录后提示被冻结                                                  |
-| 续费租户                 | Tenant 端套餐和有效期更新                                                  |
-| 创建/管理用户            | Tenant 端用户列表同步更新                                                  |
-| 查看/兜底支付渠道配置    | Tenant 端 `GET /settings/payment-configs/{channel}` 的状态由平台兜底可见   |
-| 固定角色与权限树只读接口 | Tenant `GET /settings/roles`、`GET /settings/permissions` 只读返回固定枚举 |
+| Admin 操作               | 关联的 Tenant 端                                                                       |
+| ------------------------ | -------------------------------------------------------------------------------------- |
+| 创建租户 + 审核通过      | Tenant 端可登录使用                                                                    |
+| 冻结租户                 | Tenant 端登录后提示被冻结                                                              |
+| 续费租户                 | Tenant 端套餐和有效期更新                                                              |
+| 创建/管理用户            | Tenant 端用户列表同步更新                                                              |
+| 查看/兜底支付渠道配置    | Tenant 端 `GET /settings/payment-configs/{channel}` 的状态由平台兜底可见               |
+| 固定角色与权限树只读接口 | Tenant `GET /settings/roles`、`GET /settings/permissions` 只读返回固定枚举             |
 | 发布公告（远景规划）     | Tenant 端 `GET /notifications` 接收公告已落地；Admin `/notices/*` 发布管理仍属规划能力 |
-| 跨租户订单/流水查看      | 数据来源于各 Tenant 的订单和支付                                           |
+| 跨租户订单/流水查看      | 数据来源于各 Tenant 的订单和支付                                                       |
 
 ### 与 H5 端的关联
 

@@ -20,7 +20,7 @@ export class TenantCertificationService {
     private readonly idGen: IdGeneratorService,
   ) {}
 
-  // 提交当前租户的资质材料。
+  // 提交当前租户的资质材料
   async submitCertification(
     currentUser: JwtPayload,
     request: TenantCertificationSubmitRequest,
@@ -57,7 +57,7 @@ export class TenantCertificationService {
     };
   }
 
-  // 获取当前租户最近一次资质状态。
+  // 获取当前租户最近一次资质状态
   async getCertificationStatus(currentUser: JwtPayload): Promise<TenantCertificationStatusResult> {
     const tenantId = this.requireTenantId(currentUser);
     const latest = await this.prisma.tenantCertification.findFirst({
@@ -86,7 +86,7 @@ export class TenantCertificationService {
     };
   }
 
-  // 校验当前登录态属于租户侧并返回 tenantId。
+  // 校验当前登录态属于租户侧并返回 tenantId
   private requireTenantId(currentUser: JwtPayload): string {
     if (!currentUser.tenantId) {
       throw new ForbiddenException('当前登录态不属于租户侧');

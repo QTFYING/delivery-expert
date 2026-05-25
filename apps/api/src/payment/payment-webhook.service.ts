@@ -52,8 +52,8 @@ export class PaymentWebhookService {
   ) {}
 
   /**
-   * 按当前已验签并成功入账的聚合收银台 JSON 回调结构处理拉卡拉通知。
-   * 成功入账先通过 paymentOrder 条件更新抢占结算权，再写流水和累计订单金额，避免依赖唯一键异常作为幂等主路径。
+   * 按当前已验签并成功入账的聚合收银台 JSON 回调结构处理拉卡拉通知
+   * 成功入账先通过 paymentOrder 条件更新抢占结算权，再写流水和累计订单金额，避免依赖唯一键异常作为幂等主路径
    */
   async handleLakalaWebhook(webhookRequest: LakalaWebhookRequest, context: LakalaWebhookContext) {
     const auditEvent = await this.auditService.createLakalaEvent({
@@ -233,8 +233,8 @@ export class PaymentWebhookService {
         const net = amount.minus(fee);
 
         /**
-         * 抢占本次在线支付单的唯一结算权。
-         * 并发重复成功回调只有一个能把 PAYING 改为 PAID，其余请求会在下方幂等返回。
+         * 抢占本次在线支付单的唯一结算权
+         * 并发重复成功回调只有一个能把 PAYING 改为 PAID，其余请求会在下方幂等返回
          */
         const claimedPaymentOrder = await tx.paymentOrder.updateMany({
           where: {
@@ -247,8 +247,8 @@ export class PaymentWebhookService {
         });
 
         /**
-         * 未抢到结算权说明支付单已被其他回调处理。
-         * 这里直接应答 SUCCESS，避免拉卡拉继续重试同一通知。
+         * 未抢到结算权说明支付单已被其他回调处理
+         * 这里直接应答 SUCCESS，避免拉卡拉继续重试同一通知
          */
         if (claimedPaymentOrder.count === 0) {
           this.logger.log(`[AUDIT] 拉卡拉 Webhook 幂等命中，支付单已被处理: gatewayTradeNo=${gatewayTradeNo}`);
@@ -260,8 +260,8 @@ export class PaymentWebhookService {
         }
 
         /**
-         * 抢占成功后才写入 payments 流水。
-         * 这条流水代表已确认入账事实，后续订单实收累计继续复用统一 ledger 逻辑。
+         * 抢占成功后才写入 payments 流水
+         * 这条流水代表已确认入账事实，后续订单实收累计继续复用统一 ledger 逻辑
          */
         await this.ledgerService.createPaymentRecord(tx, {
           tenantId: order.tenantId,
@@ -277,8 +277,8 @@ export class PaymentWebhookService {
         });
 
         /**
-         * 统一累计订单实收金额与订单状态。
-         * 这里不能回退到局部 read-modify-write，避免并发入账覆盖 orders.paid。
+         * 统一累计订单实收金额与订单状态
+         * 这里不能回退到局部 read-modify-write，避免并发入账覆盖 orders.paid
          */
         await this.ledgerService.applyOrderPaidAmountWithRetry(tx, {
           orderId: order.id,

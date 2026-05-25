@@ -17,7 +17,7 @@ import { TenantProfileSwagger } from './tenant.swagger';
 export class TenantSelfController {
   constructor(private readonly tenantService: TenantService) {}
 
-  // 获取当前登录态所属租户的主体资料；用户资料仍由 /auth/me 表达。
+  // 获取当前登录态所属租户的主体资料；用户资料仍由 /auth/me 表达
   @ApiOperation({ summary: '获取当前租户主体资料' })
   @ApiOkResponse({ type: TenantProfileSwagger })
   @Get('profile')

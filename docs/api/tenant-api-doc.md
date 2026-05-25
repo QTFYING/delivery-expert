@@ -36,7 +36,7 @@
 
 | 角色              | 中文名 | 说明                               |
 | ----------------- | ------ | ---------------------------------- |
-| `TENANT_OWNER`    | 管理员   | 全部权限，包含员工配置与财务全览   |
+| `TENANT_OWNER`    | 管理员 | 全部权限，包含员工配置与财务全览   |
 | `TENANT_OPERATOR` | 打单员 | 处理订单导入、打印、发货及催款操作 |
 | `TENANT_FINANCE`  | 财务   | 负责现金线下核销、对账单审计处理   |
 | `TENANT_VIEWER`   | 访客   | 只读，用于审计与只读查看流水       |
@@ -152,7 +152,7 @@
 
 - 详情会返回完整 `lineItems`
 - 详情响应必须显式返回 `qrCodeToken`
-- `customerFieldValues` 为映射模板自定义字段值快照
+- `customerFieldValues` 为映射模板 `type=list` 的订单级自定义字段值快照；商品明细行级自定义字段由 `lineItems[].customerFieldValues` 承载
 
 ### 3.3 创建订单
 
@@ -192,7 +192,7 @@
 - `isRequired`：为 `true` 的字段，在创建/更新模板时 `mapStr` 必须填写；为 `false` 时 `mapStr` 允许为空字符串
 - `isValueRequired`：服务端 `/preview` 校验开关。前端请求时可省略；服务端以本接口返回的系统定义为权威值，自动覆盖前端入参
 - `mapStr` 在同一模板内允许重复，不做去重校验
-- 固定返回 13 项系统字段，其中 7 项订单头字段与 6 项订单明细字段的 `key / type` 为稳定值
+- 固定返回 14 项系统字段，其中 7 项订单头字段与 7 项订单明细字段的 `key / type` 为稳定值；订单明细字段新增 `packSpec`，表示销售单位内含规格，例如 `24桶`
 
 ### 3.7 导入-获取模板列表
 
@@ -203,11 +203,11 @@
 
 **业务规则：**
 
-- `defaultFields` 固定 13 项，字段 key 与 `GET /import/default-template` 保持一致
+- `defaultFields` 固定 14 项，字段 key 与 `GET /import/default-template` 保持一致
 - 其中 3 项订单头字段（`sourceOrderNo / customer / orderTime`）`isRequired=true`，模板创建/更新时 `mapStr` 必填
 - 其余 4 项订单头字段（`customerPhone / customerAddress / totalAmount / payType`）`isRequired=false`，`mapStr` 允许为空
 - 除 `customerPhone` 外的 6 项订单头字段均为 `isValueRequired=true`，服务端 `/preview` 会强制这些列有值；`customerPhone.isValueRequired=false`，缺失或空字符串会在正式导入时存为 `NULL`
-- 6 项订单明细字段均为 `isRequired=false`、`isValueRequired=false`，mapStr 与导入值都允许为空
+- 7 项订单明细字段均为 `isRequired=false`、`isValueRequired=false`，mapStr 与导入值都允许为空；其中 `packSpec` 表示销售单位内含规格，可与 `skuSpec / unit` 组合展示为 `1箱 = 153g * 24桶`
 - `isRequired` 控制模板 `mapStr` 必填；`isValueRequired` 控制 `/preview` 值必填，服务端以系统定义为权威
 - `customerFields` 为租户自定义字段，结构与默认字段一致
 - 当前模板列表只返回新结构，不再返回旧三段式 `sourceColumns / fields / mappings`
@@ -220,22 +220,21 @@
 
 **服务端规则：**
 
-- `defaultFields` 必须完整包含 13 个系统字段，且 `key / label / isRequired / type` 不能改写
+- `defaultFields` 必须完整包含 14 个系统字段，且 `key / label / isRequired / type` 不能改写
 - `isValueRequired` 为服务端权威字段：前端可省略，即使传入错值也会被服务端静默覆盖为系统定义值
 - `defaultFields[].mapStr` 仅在对应字段 `isRequired=true` 时必填；其余字段允许为空
 - `defaultFields + customerFields` 内 `mapStr` 允许重复，不做全局去重
-- `customerFields` 由前端提交 `label + mapStr + isValueRequired? + type?`，服务端统一补 `key=customerKey1...N` 后写入响应
+- 创建模板时，租户自定义字段 key 由服务端生成并随响应返回
 - `customerFields[].mapStr` 允许为空字符串
 - 所有 `customerFields[].isRequired` 均由服务端固定为 `false`
 - `customerFields[].isValueRequired` 未传时默认为 `false`；设为 `true` 时 `/preview` 会强制该列必须有值
 - `customerFields[].type` 未传时默认为 `list`
 - 同租户下模板名称唯一；服务端按去首尾空格后比较，大小写不敏感
-- 同一模板内 `defaultFields + customerFields` 的 `mapStr` 不允许重复
 - `customerFields[].label` 在同一模板内不允许重复
 
 **错误语义：**
 
-- `400`：请求结构不合法，例如缺失系统字段、字段映射为空、固定字段被篡改、模板内映射重复
+- `400`：请求结构不合法，例如缺失系统字段、必填系统字段 `mapStr` 为空、固定字段被篡改、自定义字段 `label` 重复
 - `409`：同租户下模板名称冲突
 
 ### 3.9 导入-更新模板
@@ -247,21 +246,21 @@
 **服务端规则：**
 
 - 更新时仍按整包模板校验，不支持局部跳过系统字段
-- `defaultFields` 必须完整包含 13 个系统字段，且 `key / label / isRequired / type` 不能改写
+- `defaultFields` 必须完整包含 14 个系统字段，且 `key / label / isRequired / type` 不能改写
 - `isValueRequired` 前端可省略；服务端以系统定义为权威值，传入值会被静默覆盖
 - `defaultFields[].mapStr` 仅在 `isRequired=true` 时必填，其余允许为空；`mapStr` 在模板内允许重复
 - 同租户下模板名称唯一；更新时排除当前模板自身
-- 同一模板内 `defaultFields + customerFields` 的 `mapStr` 不允许重复
+- 更新已有租户自定义字段时应保持原 key，新增字段由服务端分配新 key，未提交的旧字段视为删除
 - `customerFields[].label` 在同一模板内不允许重复
 
 **错误语义：**
 
-- `400`：请求结构不合法，例如缺失系统字段、字段映射为空、固定字段被篡改、模板内映射重复
+- `400`：请求结构不合法，例如缺失系统字段、必填系统字段 `mapStr` 为空、固定字段被篡改、自定义字段 `label` 重复
 - `404`：模板不存在，或模板不属于当前租户
 - `409`：同租户下模板名称冲突
 
 - 更新模板时按当前提交内容整体替换模板结构
-- `customerFields` 每次按当前提交数组重新编号
+- 租户自定义字段 key 用于关联历史订单自定义字段值，不应因排序调整重新编号
 - 相同租户下若本次更新设置 `isDefault=true`，则其他模板自动取消默认
 
 ### 3.10 导入-数据预检校验
@@ -280,11 +279,15 @@
 - 订单头字段校验由模板的 `isValueRequired` 驱动；默认 6 项订单头字段要求有值：`sourceOrderNo / customer / customerAddress / totalAmount / orderTime / payType`
 - `sourceOrderNo` 永远必填（作为订单唯一标识，不受模板配置影响）
 - `customerPhone` 为可选字段；前端不传、传 `null` 或传空字符串时，服务端不作为预检错误，正式导入落库为 `NULL`
+- `orderTime` 支持 `YYYY-MM-DD` 或 `YYYY-MM-DD HH:mm:ss`；仅传日期时按当天 `00:00:00` 归一化
 - `totalAmount` 允许为 `0`，但不允许为负数；`0` 元订单正式导入后视为无需收款，订单状态直接写为 `paid`，`paid=0`
-- `customerFieldValues` 中的 key 必须全部命中该模板的 `customerFields[].key`；若对应 `customerFields[].isValueRequired=true`，则该键的值不能为空
+- `orders[].customerFieldValues` 只承载导入模板 `type=list` 的自定义字段值；key 必须命中当前模板的 `customerFields[].key`，且字段类型必须为 `list`
+- `orders[].lineItems[].customerFieldValues` 只承载导入模板 `type=line` 的商品行级自定义字段值；key 必须命中当前模板的 `customerFields[].key`，且字段类型必须为 `line`
+- 未配置对应层级自定义字段时，对应的 `customerFieldValues` 可省略
+- 若 `customerFields[].isValueRequired=true`，`type=list` 字段要求每张订单有值，`type=line` 字段要求每条商品明细有值；预检错误文案应优先使用模板字段 `label`，例如 `商品行自定义字段「商品批次」不能为空`
 - `payType` 当前只允许 `cash / credit`
 - `lineItems` 至少需要 1 条（代表一个商品），否则预检失败
-- 明细字段（skuName/skuSpec/unit/quantity/unitPrice/lineAmount）默认均为可选；`quantity * unitPrice = lineAmount` 仅在三者同时提供时校验
+- 明细字段（skuName/skuSpec/unit/quantity/packSpec/unitPrice/lineAmount）默认均为可选；`quantity * unitPrice = lineAmount` 仅在三者同时提供时校验
 - `invalidOrders.length === 0` 时，前端才应继续触发正式导入
 - 服务端将预检结果缓存到 Redis，默认保留 15 分钟；超时未发起正式导入时，前端需要重新调用 `/import/preview`
 - 同一用户若已有预检请求正在执行，服务端应直接提示“预检进行中”，避免重复提交同一批数据

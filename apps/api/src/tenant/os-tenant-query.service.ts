@@ -11,7 +11,7 @@ import { buildTenantListWhere, buildTenantMemberWhere, buildTenantOrderBy } from
 export class OsTenantQueryService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // 获取 OS 侧租户列表。
+  // 获取 OS 侧租户列表
   async getTenants(query: TenantListQuery): Promise<PaginatedResponse<TenantRecordItem>> {
     const page = normalizePage(query.page);
     const pageSize = normalizePageSize(query.pageSize);
@@ -46,7 +46,7 @@ export class OsTenantQueryService {
     };
   }
 
-  // 获取 OS 侧组织架构成员列表。
+  // 获取 OS 侧组织架构成员列表
   async getTenantMembers(query: TenantMemberListQuery): Promise<PaginatedResponse<TenantMemberItem>> {
     const page = normalizePage(query.page);
     const pageSize = normalizePageSize(query.pageSize);

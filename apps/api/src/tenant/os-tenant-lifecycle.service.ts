@@ -115,7 +115,7 @@ export class OsTenantLifecycleService {
     return toTenantRecordItem(created);
   }
 
-  // 更新租户主体资料，不处理账号资料、状态动作和支付渠道切换。
+  // 更新租户主体资料，不处理账号资料、状态动作和支付渠道切换
   async updateTenantBaseInfo(currentUser: JwtPayload, tenantId: string, request: UpdateTenantBaseInfoRequest, ip?: string): Promise<null> {
     const tenant = await getTenantOrThrow(this.prisma, tenantId);
     const tenantName = normalizeText(request.name, 'name', 100);
@@ -148,7 +148,7 @@ export class OsTenantLifecycleService {
     return null;
   }
 
-  // 局部更新租户主体资料，只写入本次提交的字段。
+  // 局部更新租户主体资料，只写入本次提交的字段
   async patchTenantBaseInfo(currentUser: JwtPayload, tenantId: string, request: PatchTenantBaseInfoRequest, ip?: string): Promise<null> {
     const tenant = await getTenantOrThrow(this.prisma, tenantId);
     const data: {
@@ -290,7 +290,7 @@ export class OsTenantLifecycleService {
     };
   }
 
-  // 冻结单个租户，并记录冻结原因。
+  // 冻结单个租户，并记录冻结原因
   async freezeTenant(currentUser: JwtPayload, tenantId: string, request: FreezeTenantRequest, ip?: string): Promise<TenantStatusMutationResponse> {
     const tenant = await getTenantOrThrow(this.prisma, tenantId);
     const reason = normalizeText(request.reason, 'reason', 255);
@@ -319,7 +319,7 @@ export class OsTenantLifecycleService {
     };
   }
 
-  // 解冻单个租户，并清空冻结原因。
+  // 解冻单个租户，并清空冻结原因
   async unfreezeTenant(currentUser: JwtPayload, tenantId: string, ip?: string): Promise<TenantStatusMutationResponse> {
     const tenant = await getTenantOrThrow(this.prisma, tenantId);
 
@@ -398,7 +398,7 @@ export class OsTenantLifecycleService {
     }
   }
 
-  // 解析平台提交的服务到期日期，并归一为上海时区当天结束时刻。
+  // 解析平台提交的服务到期日期，并归一为上海时区当天结束时刻
   private parseServiceExpireAt(value: string): Date {
     const matched = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
     if (!matched) {
@@ -417,7 +417,7 @@ export class OsTenantLifecycleService {
     return normalized;
   }
 
-  // 查询用于平台租户列表和编辑返回的租户记录快照。
+  // 查询用于平台租户列表和编辑返回的租户记录快照
   private findTenantRecordById(client: Prisma.TransactionClient | PrismaService, tenantId: string) {
     return client.tenant.findUniqueOrThrow({
       where: { id: tenantId },
@@ -434,7 +434,7 @@ export class OsTenantLifecycleService {
     });
   }
 
-  // 归一化创建租户时提交的支付渠道字符串。
+  // 归一化创建租户时提交的支付渠道字符串
   private normalizePaymentChannel(channel: string): PaymentChannel {
     switch (channel) {
       case PaymentChannelEnum.LAKALA:
@@ -446,7 +446,7 @@ export class OsTenantLifecycleService {
     }
   }
 
-  // 解析创建租户时提交的首个生效支付渠道。
+  // 解析创建租户时提交的首个生效支付渠道
   private toPrismaPaymentChannel(channel: PaymentChannel): PrismaPaymentChannelEnum {
     switch (channel) {
       case PaymentChannelEnum.LAKALA:

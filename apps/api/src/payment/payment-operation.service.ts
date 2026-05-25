@@ -61,8 +61,8 @@ export class PaymentOperationService {
   }
 
   /**
-   * 面向公开 H5 入口登记线下支付。
-   * 现金和其他方式已付都只作为线下备注登记，待租户确认后再入账。
+   * 面向公开 H5 入口登记线下支付
+   * 现金和其他方式已付都只作为线下备注登记，待租户确认后再入账
    */
   async submitOfflinePayment(token: string, request: SubmitOfflinePaymentRequest): Promise<SubmitOfflinePaymentResponse> {
     const paymentMethod = this.parseOfflinePaymentMethod(request.paymentMethod);
@@ -77,7 +77,7 @@ export class PaymentOperationService {
     await this.assertOrderWithinPaymentWindow(
       {
         tenantId: order.tenantId,
-        orderTime: order.orderTime,
+        createdAt: order.createdAt,
       },
       this.prisma,
     );
@@ -97,7 +97,7 @@ export class PaymentOperationService {
         await this.assertOrderWithinPaymentWindow(
           {
             tenantId: currentOrder.tenantId,
-            orderTime: currentOrder.orderTime,
+            createdAt: currentOrder.createdAt,
           },
           tx,
         );
@@ -155,8 +155,8 @@ export class PaymentOperationService {
   }
 
   /**
-   * 由租户财务确认线下款项已到账，并以统一账务逻辑完成核销入账。
-   * 线下确认只允许处理仍处于 PENDING_VERIFICATION 的线下登记支付单。
+   * 由租户财务确认线下款项已到账，并以统一账务逻辑完成核销入账
+   * 线下确认只允许处理仍处于 PENDING_VERIFICATION 的线下登记支付单
    */
   async createCashVerification(currentUser: JwtPayload, orderId: string): Promise<CreateCashVerificationResponse> {
     const tenantId = getPaymentTenantId(currentUser);
@@ -228,8 +228,8 @@ export class PaymentOperationService {
   }
 
   /**
-   * 仅允许 H5 协议约定的线下支付闭集进入后续处理。
-   * 非枚举值直接按业务参数错误返回。
+   * 仅允许 H5 协议约定的线下支付闭集进入后续处理
+   * 非枚举值直接按业务参数错误返回
    */
   private parseOfflinePaymentMethod(value: string): OfflinePaymentMethod {
     if (value === OfflinePaymentMethodEnum.CASH) return OfflinePaymentMethodEnum.CASH;
@@ -244,7 +244,7 @@ export class PaymentOperationService {
   private async assertOrderWithinPaymentWindow(
     input: {
       tenantId: string;
-      orderTime: Date;
+      createdAt: Date;
     },
     client: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<void> {

@@ -26,7 +26,7 @@ const TODO_RENEWAL_WINDOW_DAYS = 7;
 export class PlatformService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // 获取平台控制台上下文，限定平台登录态访问。
+  // 获取平台控制台上下文，限定平台登录态访问
   async getConsoleInfo(currentUser: JwtPayload): Promise<ConsoleInfoResponse> {
     ensurePlatformScope(currentUser);
 
@@ -53,7 +53,7 @@ export class PlatformService {
     };
   }
 
-  // 统计平台核心指标，服务到期风险按 serviceExpireAt 时间窗口计算。
+  // 统计平台核心指标，服务到期风险按 serviceExpireAt 时间窗口计算
   async getMetrics(currentUser: JwtPayload): Promise<DashboardMetricItem[]> {
     ensurePlatformScope(currentUser);
 
@@ -148,7 +148,7 @@ export class PlatformService {
     ];
   }
 
-  // 汇总平台待办事项，续费待办只读取服务到期事实字段。
+  // 汇总平台待办事项，续费待办只读取服务到期事实字段
   async getTodos(currentUser: JwtPayload): Promise<PlatformTodoItem[]> {
     ensurePlatformScope(currentUser);
 
@@ -240,7 +240,7 @@ export class PlatformService {
     return todos;
   }
 
-  // 获取账号相关风险事件，供平台运营侧巡检使用。
+  // 获取账号相关风险事件，供平台运营侧巡检使用
   async getRiskEvents(currentUser: JwtPayload): Promise<LoginRiskEventItem[]> {
     ensurePlatformScope(currentUser);
 

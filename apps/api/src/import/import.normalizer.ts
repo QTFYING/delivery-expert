@@ -4,12 +4,25 @@ import type {
   OrderImportPreviewError,
   OrderImportPreviewOrder,
   OrderImportPreviewSummary,
+  OrderImportTemplateField,
   OrderLineItem,
 } from '@shou/types/contracts';
 import type { OrderPayType } from '@shou/types/enums';
 import Decimal from 'decimal.js';
 import { cut } from '../common/validators';
-import { readDate, readMoney, readPayType, readString } from './mapping/import.mapper';
+import { readLocalDateTime, readMoney, readPayType, readString } from './mapping/import.mapper';
+
+export type ImportCustomerFieldMap = Map<string, OrderImportTemplateField>;
+export type ImportFieldLabelMap = Map<string, string>;
+
+class ImportLineItemFieldError extends BadRequestException {
+  constructor(
+    readonly fieldKey: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
 
 export interface PreparedImportOrder {
   index: number;
@@ -30,7 +43,10 @@ export function normalizePreviewOrder(
   order: OrderImportPreviewOrder,
   index: number,
   templateId: string,
-  customerFieldKeySet: Set<string>,
+  listCustomerFieldMap: ImportCustomerFieldMap,
+  lineCustomerFieldMap: ImportCustomerFieldMap,
+  allCustomerFieldMap: ImportCustomerFieldMap,
+  fieldLabelMap: ImportFieldLabelMap,
   valueRequiredMap: Map<string, boolean>,
 ): { value: PreparedImportOrder } | { error: OrderImportPreviewError[] } {
   const errors: OrderImportPreviewError[] = [];
@@ -40,46 +56,69 @@ export function normalizePreviewOrder(
   const customerAddress = readString(order.customerAddress);
   const groupKey = readString(order.groupKey) ?? sourceOrderNo;
   const totalAmount = readMoney(order.totalAmount);
-  const orderTime = readDate(order.orderTime);
+  const orderTime = readLocalDateTime(order.orderTime);
   const payType = readPayType(order.payType);
+  const labelOf = (key: string): string => fieldLabelMap.get(key) ?? key;
+  const hasInputValue = (value: unknown): boolean => readString(value) !== undefined;
 
   if (!sourceOrderNo) {
-    errors.push({ index, field: 'sourceOrderNo', reason: '源订单号不能为空' });
+    errors.push({ index, field: 'sourceOrderNo', reason: `${labelOf('sourceOrderNo')}不能为空` });
   }
 
   const needValue = (key: string): boolean => valueRequiredMap.get(key) ?? false;
 
   if (needValue('customer') && !customer) {
-    errors.push({ index, sourceOrderNo, field: 'customer', reason: '客户名称不能为空' });
+    errors.push({ index, sourceOrderNo, field: 'customer', reason: `${labelOf('customer')}不能为空` });
   }
   if (needValue('customerAddress') && !customerAddress) {
-    errors.push({ index, sourceOrderNo, field: 'customerAddress', reason: '客户地址不能为空' });
+    errors.push({ index, sourceOrderNo, field: 'customerAddress', reason: `${labelOf('customerAddress')}不能为空` });
   }
   if (needValue('totalAmount') && totalAmount === undefined) {
-    errors.push({ index, sourceOrderNo, field: 'totalAmount', reason: '总金额不能为空' });
+    const reason = hasInputValue(order.totalAmount) ? `${labelOf('totalAmount')}必须是合法数字` : `${labelOf('totalAmount')}不能为空`;
+    errors.push({ index, sourceOrderNo, field: 'totalAmount', reason });
   } else if (totalAmount !== undefined && totalAmount.lt(0)) {
-    errors.push({ index, sourceOrderNo, field: 'totalAmount', reason: '总金额不能小于 0' });
+    errors.push({ index, sourceOrderNo, field: 'totalAmount', reason: `${labelOf('totalAmount')}不能小于 0` });
   }
   if (needValue('orderTime') && !orderTime) {
-    errors.push({ index, sourceOrderNo, field: 'orderTime', reason: '下单时间格式不正确' });
+    const reason = hasInputValue(order.orderTime)
+      ? `${labelOf('orderTime')}格式不正确，请使用 YYYY-MM-DD 或 YYYY-MM-DD HH:mm:ss`
+      : `${labelOf('orderTime')}不能为空`;
+    errors.push({ index, sourceOrderNo, field: 'orderTime', reason });
   }
   if (needValue('payType') && !payType) {
+    const reason = hasInputValue(order.payType)
+      ? `${labelOf('payType')}不正确，仅支持 cash（现款）或 credit（账期）`
+      : `${labelOf('payType')}不能为空`;
     errors.push({
       index,
       sourceOrderNo,
       field: 'payType',
-      reason: '结算方式不正确，仅支持 cash 或 credit',
+      reason,
     });
   }
 
-  const customerFieldValues = normalizeCustomerFieldValues(order.customerFieldValues, customerFieldKeySet, valueRequiredMap, index, sourceOrderNo);
+  const customerFieldValues = normalizeCustomerFieldValues(
+    order.customerFieldValues,
+    listCustomerFieldMap,
+    allCustomerFieldMap,
+    index,
+    sourceOrderNo,
+  );
   errors.push(...customerFieldValues.errors);
 
   const rawLineItems = order.lineItems ?? [];
   if (rawLineItems.length === 0) {
     errors.push({ index, sourceOrderNo, field: 'lineItems', reason: '订单明细至少需要一个商品' });
   }
-  const lineItems = normalizeLineItems(rawLineItems, index, valueRequiredMap, sourceOrderNo);
+  const lineItems = normalizeLineItems(
+    rawLineItems,
+    index,
+    valueRequiredMap,
+    lineCustomerFieldMap,
+    allCustomerFieldMap,
+    fieldLabelMap,
+    sourceOrderNo,
+  );
   errors.push(...lineItems.errors);
 
   if (errors.length > 0 || !sourceOrderNo || !customer || !customerAddress || !totalAmount || !orderTime || !payType) {
@@ -95,7 +134,7 @@ export function normalizePreviewOrder(
       customerPhone,
       customerAddress,
       totalAmount: Number(totalAmount.toFixed(2)),
-      orderTime: orderTime.toISOString(),
+      orderTime,
       payType,
       customerFieldValues: customerFieldValues.values,
       mappingTemplateId: templateId,
@@ -106,22 +145,198 @@ export function normalizePreviewOrder(
 
 export function normalizeCustomerFieldValues(
   value: Record<string, string> | undefined,
-  customerFieldKeySet: Set<string>,
-  valueRequiredMap: Map<string, boolean>,
+  listCustomerFieldMap: ImportCustomerFieldMap,
+  allCustomerFieldMap: ImportCustomerFieldMap,
   index: number,
   sourceOrderNo?: string,
 ): { values: Record<string, string>; errors: OrderImportPreviewError[] } {
-  const errors: OrderImportPreviewError[] = [];
-  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  return normalizeScopedCustomerFieldValues(value, listCustomerFieldMap, allCustomerFieldMap, {
+    index,
+    sourceOrderNo,
+    fieldPrefix: 'customerFieldValues',
+    requiredReasonPrefix: '订单自定义字段',
+    wrongScopeReason: (field) => `自定义字段「${getCustomerFieldLabel(field)}」属于商品行字段，应放在 lineItems[].customerFieldValues`,
+  });
+}
 
-  const values = Object.entries(source).reduce<Record<string, string>>((acc, [key, item]) => {
-    const resolved = readString(item);
-    if (!customerFieldKeySet.has(key)) {
+export function normalizeLineItems(
+  lineItems: OrderLineItem[],
+  index: number,
+  valueRequiredMap: Map<string, boolean>,
+  lineCustomerFieldMap: ImportCustomerFieldMap,
+  allCustomerFieldMap: ImportCustomerFieldMap,
+  fieldLabelMap: ImportFieldLabelMap,
+  sourceOrderNo?: string,
+): { values: OrderLineItem[]; errors: OrderImportPreviewError[] } {
+  const errors: OrderImportPreviewError[] = [];
+  const values: OrderLineItem[] = [];
+
+  lineItems.forEach((item, itemIndex) => {
+    try {
+      const customerFieldValues = normalizeLineCustomerFieldValues(
+        item.customerFieldValues,
+        lineCustomerFieldMap,
+        allCustomerFieldMap,
+        index,
+        itemIndex,
+        sourceOrderNo,
+      );
+      errors.push(...customerFieldValues.errors);
+      values.push({
+        ...normalizeLineItem(item, valueRequiredMap, fieldLabelMap),
+        customerFieldValues: Object.keys(customerFieldValues.values).length > 0 ? customerFieldValues.values : undefined,
+      });
+    } catch (error) {
+      const fieldKey = error instanceof ImportLineItemFieldError ? error.fieldKey : undefined;
+      const reason = error instanceof Error ? error.message : '订单明细格式不正确';
       errors.push({
         index,
         sourceOrderNo,
-        field: 'customerFieldValues',
-        reason: `自定义字段 key 不存在：${key}`,
+        field: fieldKey ? `lineItems[${itemIndex}].${fieldKey}` : `lineItems[${itemIndex}]`,
+        reason: `第 ${itemIndex + 1} 条商品明细：${reason}`,
+      });
+    }
+  });
+
+  return { values, errors };
+}
+
+export function normalizeLineCustomerFieldValues(
+  value: Record<string, string> | undefined,
+  lineCustomerFieldMap: ImportCustomerFieldMap,
+  allCustomerFieldMap: ImportCustomerFieldMap,
+  index: number,
+  itemIndex: number,
+  sourceOrderNo?: string,
+): { values: Record<string, string>; errors: OrderImportPreviewError[] } {
+  return normalizeScopedCustomerFieldValues(value, lineCustomerFieldMap, allCustomerFieldMap, {
+    index,
+    sourceOrderNo,
+    fieldPrefix: `lineItems[${itemIndex}].customerFieldValues`,
+    requiredReasonPrefix: '商品行自定义字段',
+    wrongScopeReason: (field) => `自定义字段「${getCustomerFieldLabel(field)}」属于订单级字段，应放在 customerFieldValues`,
+  });
+}
+
+export function normalizeLineItem(item: OrderLineItem, valueRequiredMap: Map<string, boolean>, fieldLabelMap: ImportFieldLabelMap): OrderLineItem {
+  const needValue = (key: string): boolean => valueRequiredMap.get(key) ?? false;
+  const labelOf = (key: string): string => fieldLabelMap.get(key) ?? key;
+
+  const readOptionalDecimal = (value: unknown, key: string, scale: number): Decimal | undefined => {
+    if (value === null || value === undefined || value === '') return undefined;
+    const numeric = typeof value === 'number' ? value : Number(String(value).replace(/,/g, '').trim());
+    if (!Number.isFinite(numeric)) {
+      throw new ImportLineItemFieldError(key, `${labelOf(key)}必须是合法数字`);
+    }
+    const parsed = new Decimal(String(numeric)).toDecimalPlaces(scale);
+    if (parsed.lt(0)) {
+      throw new ImportLineItemFieldError(key, `${labelOf(key)}必须大于等于 0`);
+    }
+    return parsed;
+  };
+
+  const quantity = readOptionalDecimal(item.quantity, 'quantity', 3);
+  const unitPrice = readOptionalDecimal(item.unitPrice, 'unitPrice', 2);
+  const lineAmount = readOptionalDecimal(item.lineAmount, 'lineAmount', 2);
+
+  if (needValue('quantity') && quantity === undefined) {
+    throw new ImportLineItemFieldError('quantity', `${labelOf('quantity')}不能为空`);
+  }
+  if (needValue('unitPrice') && unitPrice === undefined) {
+    throw new ImportLineItemFieldError('unitPrice', `${labelOf('unitPrice')}不能为空`);
+  }
+  if (needValue('lineAmount') && lineAmount === undefined) {
+    throw new ImportLineItemFieldError('lineAmount', `${labelOf('lineAmount')}不能为空`);
+  }
+
+  if (quantity !== undefined && unitPrice !== undefined && lineAmount !== undefined) {
+    const expected = quantity.mul(unitPrice).toDecimalPlaces(2);
+    if (!expected.equals(lineAmount)) {
+      throw new ImportLineItemFieldError('lineAmount', `${labelOf('lineAmount')}必须等于${labelOf('quantity')} * ${labelOf('unitPrice')}`);
+    }
+  }
+
+  const rawSkuName = item.skuName?.trim();
+  if (needValue('skuName') && !rawSkuName) {
+    throw new ImportLineItemFieldError('skuName', `${labelOf('skuName')}不能为空`);
+  }
+
+  const rawUnit = item.unit?.trim();
+  if (needValue('unit') && !rawUnit) {
+    throw new ImportLineItemFieldError('unit', `${labelOf('unit')}不能为空`);
+  }
+
+  const rawSkuSpec = item.skuSpec?.trim();
+  if (needValue('skuSpec') && !rawSkuSpec) {
+    throw new ImportLineItemFieldError('skuSpec', `${labelOf('skuSpec')}不能为空`);
+  }
+
+  const rawPackSpec = item.packSpec?.trim();
+  if (needValue('packSpec') && !rawPackSpec) {
+    throw new ImportLineItemFieldError('packSpec', `${labelOf('packSpec')}不能为空`);
+  }
+
+  return {
+    itemId: item.itemId,
+    skuId: item.skuId ?? null,
+    skuName: rawSkuName ? cut(rawSkuName, 200) : '',
+    skuSpec: rawSkuSpec ? cut(rawSkuSpec, 100) : undefined,
+    unit: rawUnit ? cut(rawUnit, 20) : '',
+    quantity: quantity !== undefined ? Number(quantity.toFixed(3)) : 0,
+    packSpec: rawPackSpec ? cut(rawPackSpec, 50) : undefined,
+    unitPrice: unitPrice !== undefined ? Number(unitPrice.toFixed(2)) : 0,
+    lineAmount: lineAmount !== undefined ? Number(lineAmount.toFixed(2)) : 0,
+  };
+}
+
+function normalizeScopedCustomerFieldValues(
+  value: Record<string, string> | undefined,
+  scopedFieldMap: ImportCustomerFieldMap,
+  allCustomerFieldMap: ImportCustomerFieldMap,
+  options: {
+    index: number;
+    sourceOrderNo?: string;
+    fieldPrefix: string;
+    requiredReasonPrefix: string;
+    wrongScopeReason: (field: OrderImportTemplateField) => string;
+  },
+): { values: Record<string, string>; errors: OrderImportPreviewError[] } {
+  const errors: OrderImportPreviewError[] = [];
+  if (value !== undefined && value !== null && (typeof value !== 'object' || Array.isArray(value))) {
+    return {
+      values: {},
+      errors: [
+        {
+          index: options.index,
+          sourceOrderNo: options.sourceOrderNo,
+          field: options.fieldPrefix,
+          reason: `${options.requiredReasonPrefix}必须按对象传递，例如 {"cf1":"字段值"}`,
+        },
+      ],
+    };
+  }
+
+  const source = value && typeof value === 'object' ? value : {};
+
+  const values = Object.entries(source).reduce<Record<string, string>>((acc, [key, item]) => {
+    const resolved = readString(item);
+    const anyField = allCustomerFieldMap.get(key);
+    if (!anyField) {
+      errors.push({
+        index: options.index,
+        sourceOrderNo: options.sourceOrderNo,
+        field: `${options.fieldPrefix}.${key}`,
+        reason: `自定义字段 key 不存在：${key}，请使用当前导入模板返回的 customerFields[].key`,
+      });
+      return acc;
+    }
+
+    if (!scopedFieldMap.has(key)) {
+      errors.push({
+        index: options.index,
+        sourceOrderNo: options.sourceOrderNo,
+        field: `${options.fieldPrefix}.${key}`,
+        reason: options.wrongScopeReason(anyField),
       });
       return acc;
     }
@@ -132,13 +347,13 @@ export function normalizeCustomerFieldValues(
     return acc;
   }, {});
 
-  customerFieldKeySet.forEach((key) => {
-    if ((valueRequiredMap.get(key) ?? false) && !values[key]) {
+  scopedFieldMap.forEach((field, key) => {
+    if ((field.isValueRequired ?? false) && !values[key]) {
       errors.push({
-        index,
-        sourceOrderNo,
-        field: `customerFieldValues.${key}`,
-        reason: `自定义字段 ${key} 不能为空`,
+        index: options.index,
+        sourceOrderNo: options.sourceOrderNo,
+        field: `${options.fieldPrefix}.${key}`,
+        reason: `${options.requiredReasonPrefix}「${getCustomerFieldLabel(field)}」不能为空`,
       });
     }
   });
@@ -146,93 +361,8 @@ export function normalizeCustomerFieldValues(
   return { values, errors };
 }
 
-export function normalizeLineItems(
-  lineItems: OrderLineItem[],
-  index: number,
-  valueRequiredMap: Map<string, boolean>,
-  sourceOrderNo?: string,
-): { values: OrderLineItem[]; errors: OrderImportPreviewError[] } {
-  const errors: OrderImportPreviewError[] = [];
-  const values: OrderLineItem[] = [];
-
-  lineItems.forEach((item, itemIndex) => {
-    try {
-      values.push(normalizeLineItem(item, valueRequiredMap));
-    } catch (error) {
-      errors.push({
-        index,
-        sourceOrderNo,
-        field: `lineItems[${itemIndex}]`,
-        reason: error instanceof Error ? error.message : '订单明细格式不正确',
-      });
-    }
-  });
-
-  return { values, errors };
-}
-
-export function normalizeLineItem(item: OrderLineItem, valueRequiredMap: Map<string, boolean>): OrderLineItem {
-  const needValue = (key: string): boolean => valueRequiredMap.get(key) ?? false;
-
-  const readOptionalDecimal = (value: unknown, label: string, scale: number): Decimal | undefined => {
-    if (value === null || value === undefined || value === '') return undefined;
-    const numeric = typeof value === 'number' ? value : Number(String(value).replace(/,/g, '').trim());
-    if (!Number.isFinite(numeric)) {
-      throw new BadRequestException(`${label} 必须是合法数字`);
-    }
-    const parsed = new Decimal(String(numeric)).toDecimalPlaces(scale);
-    if (parsed.lt(0)) {
-      throw new BadRequestException(`${label} 必须大于等于 0`);
-    }
-    return parsed;
-  };
-
-  const quantity = readOptionalDecimal(item.quantity, 'quantity', 3);
-  const unitPrice = readOptionalDecimal(item.unitPrice, 'unitPrice', 2);
-  const lineAmount = readOptionalDecimal(item.lineAmount, 'lineAmount', 2);
-
-  if (needValue('quantity') && quantity === undefined) {
-    throw new BadRequestException('quantity 不能为空');
-  }
-  if (needValue('unitPrice') && unitPrice === undefined) {
-    throw new BadRequestException('unitPrice 不能为空');
-  }
-  if (needValue('lineAmount') && lineAmount === undefined) {
-    throw new BadRequestException('lineAmount 不能为空');
-  }
-
-  if (quantity !== undefined && unitPrice !== undefined && lineAmount !== undefined) {
-    const expected = quantity.mul(unitPrice).toDecimalPlaces(2);
-    if (!expected.equals(lineAmount)) {
-      throw new BadRequestException('lineAmount 必须等于 quantity * unitPrice');
-    }
-  }
-
-  const rawSkuName = item.skuName?.trim();
-  if (needValue('skuName') && !rawSkuName) {
-    throw new BadRequestException('skuName 不能为空');
-  }
-
-  const rawUnit = item.unit?.trim();
-  if (needValue('unit') && !rawUnit) {
-    throw new BadRequestException('unit 不能为空');
-  }
-
-  const rawSkuSpec = item.skuSpec?.trim();
-  if (needValue('skuSpec') && !rawSkuSpec) {
-    throw new BadRequestException('skuSpec 不能为空');
-  }
-
-  return {
-    itemId: item.itemId,
-    skuId: item.skuId ?? null,
-    skuName: rawSkuName ? cut(rawSkuName, 200) : '',
-    skuSpec: rawSkuSpec ? cut(rawSkuSpec, 100) : undefined,
-    unit: rawUnit ? cut(rawUnit, 20) : '',
-    quantity: quantity !== undefined ? Number(quantity.toFixed(3)) : 0,
-    unitPrice: unitPrice !== undefined ? Number(unitPrice.toFixed(2)) : 0,
-    lineAmount: lineAmount !== undefined ? Number(lineAmount.toFixed(2)) : 0,
-  };
+function getCustomerFieldLabel(field: OrderImportTemplateField): string {
+  return readString(field.label) ?? field.key;
 }
 
 export function buildPreviewSummary(

@@ -80,7 +80,7 @@ export class OrderImportTemplateMutationResponseSwagger implements OrderImportTe
   updatedAt!: string;
 
   @ApiProperty({
-    description: '服务端生成的自定义字段列表（含 customerKeyN）',
+    description: '服务端生成的自定义字段列表（含 cfN）',
     type: [OrderImportTemplateFieldSwagger],
   })
   customerFields!: OrderImportTemplateFieldSwagger[];
@@ -105,7 +105,7 @@ export class OrderImportPreviewOrderSwagger implements OrderImportPreviewOrderCo
   @ApiProperty({ description: '订单总金额（元，允许为 0，不允许为负数）', example: 48 })
   totalAmount!: number;
 
-  @ApiProperty({ description: '下单时间', example: '2026-04-15T09:30:00.000Z' })
+  @ApiProperty({ description: '下单时间，支持 YYYY-MM-DD 或 YYYY-MM-DD HH:mm:ss', example: '2026-04-15' })
   orderTime!: string;
 
   @ApiProperty({
@@ -116,10 +116,10 @@ export class OrderImportPreviewOrderSwagger implements OrderImportPreviewOrderCo
   payType!: OrderImportPreviewOrderContract['payType'];
 
   @ApiProperty({
-    description: '模板自定义字段值',
+    description: '订单级模板自定义字段值，仅承载导入模板 type=list 的自定义字段',
     type: 'object',
     additionalProperties: { type: 'string' },
-    example: { customerKey1: 'MD001', customerKey2: '张三' },
+    example: { cf1: 'MD001' },
   })
   customerFieldValues!: Record<string, string>;
 
@@ -248,7 +248,7 @@ export class OrderImportJobConflictDetailSwagger implements OrderImportJobConfli
   })
   action!: OrderImportJobConflictDetailContract['action'];
 
-  @ApiProperty({ description: '处理原因', example: '命中重复订单，按 skip 跳过' })
+  @ApiProperty({ description: '处理原因', example: '源订单号已存在，当前冲突策略为“跳过”，本订单未导入' })
   reason!: string;
 }
 

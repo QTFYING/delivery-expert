@@ -74,7 +74,7 @@ export class OsTenantController {
     private readonly osTenantPaymentConfigService: OsTenantPaymentConfigService,
   ) {}
 
-  // 获取租户列表。
+  // 获取租户列表
   @ApiOperation({ summary: '获取租户列表' })
   @ApiOkResponse({ type: TenantListResponseSwagger })
   @Get()
@@ -83,7 +83,7 @@ export class OsTenantController {
     return this.osTenantQueryService.getTenants(query as TenantListQuery);
   }
 
-  // 创建租户。
+  // 创建租户
   @ApiOperation({ summary: '创建租户' })
   @ApiOkResponse({ type: TenantRecordItemSwagger })
   @Post()
@@ -92,7 +92,7 @@ export class OsTenantController {
     return this.osTenantLifecycleService.createAdminTenant(currentUser, request as CreateTenantRequest, ip);
   }
 
-  // 更新租户主体资料。
+  // 更新租户主体资料
   @ApiOperation({ summary: '编辑租户主体资料' })
   @ApiParam({ name: 'id', description: '租户 ID' })
   @ApiOkResponse({ description: '编辑成功', schema: { type: 'null' } })
@@ -107,7 +107,7 @@ export class OsTenantController {
     return this.osTenantLifecycleService.updateTenantBaseInfo(currentUser, tenantId, request as UpdateTenantBaseInfoRequest, ip);
   }
 
-  // 局部更新租户主体资料，不处理状态动作、账号资料和支付渠道切换。
+  // 局部更新租户主体资料，不处理状态动作、账号资料和支付渠道切换
   @ApiOperation({ summary: '局部编辑租户主体资料' })
   @ApiParam({ name: 'id', description: '租户 ID' })
   @ApiOkResponse({ description: '编辑成功', schema: { type: 'null' } })
@@ -122,7 +122,7 @@ export class OsTenantController {
     return this.osTenantLifecycleService.patchTenantBaseInfo(currentUser, tenantId, request as PatchTenantBaseInfoRequest, ip);
   }
 
-  // 创建租户审核决议。
+  // 创建租户审核决议
   @ApiOperation({ summary: '创建租户审核决议' })
   @ApiParam({ name: 'id', description: '租户 ID' })
   @ApiOkResponse({ type: TenantAuditDecisionResponseSwagger })
@@ -137,7 +137,7 @@ export class OsTenantController {
     return this.osTenantLifecycleService.createTenantAuditDecision(currentUser, tenantId, request as CreateTenantAuditDecisionRequest, ip);
   }
 
-  // 创建租户批量审核批次。
+  // 创建租户批量审核批次
   @ApiOperation({ summary: '创建租户批量审核批次' })
   @ApiOkResponse({ type: TenantBatchActionResponseSwagger })
   @Post('audit-batches')
@@ -150,7 +150,7 @@ export class OsTenantController {
     return this.osTenantLifecycleService.createTenantAuditBatch(currentUser, request as CreateTenantAuditBatchRequest, ip);
   }
 
-  // 创建租户续费记录。
+  // 创建租户续费记录
   @ApiOperation({ summary: '创建租户续费记录' })
   @ApiParam({ name: 'id', description: '租户 ID' })
   @ApiOkResponse({ type: TenantRenewalResponseSwagger })
@@ -165,7 +165,7 @@ export class OsTenantController {
     return this.osTenantLifecycleService.createTenantRenewal(currentUser, tenantId, request as CreateTenantRenewalRequest, ip);
   }
 
-  // 冻结指定租户。
+  // 冻结指定租户
   @ApiOperation({ summary: '冻结租户' })
   @ApiParam({ name: 'id', description: '租户 ID' })
   @ApiOkResponse({ type: TenantStatusMutationResponseSwagger })
@@ -180,7 +180,7 @@ export class OsTenantController {
     return this.osTenantLifecycleService.freezeTenant(currentUser, tenantId, request as FreezeTenantRequest, ip);
   }
 
-  // 解冻指定租户。
+  // 解冻指定租户
   @ApiOperation({ summary: '解冻租户' })
   @ApiParam({ name: 'id', description: '租户 ID' })
   @ApiOkResponse({ type: TenantStatusMutationResponseSwagger })
@@ -194,7 +194,7 @@ export class OsTenantController {
     return this.osTenantLifecycleService.unfreezeTenant(currentUser, tenantId, ip);
   }
 
-  // 创建租户批量状态变更批次。
+  // 创建租户批量状态变更批次
   @ApiOperation({ summary: '创建租户批量状态变更批次' })
   @ApiOkResponse({ type: TenantBatchActionResponseSwagger })
   @Post('status-change-batches')
@@ -207,7 +207,7 @@ export class OsTenantController {
     return this.osTenantLifecycleService.createTenantStatusChangeBatch(currentUser, request as CreateTenantStatusChangeBatchRequest, ip);
   }
 
-  // 获取组织架构成员列表。
+  // 获取组织架构成员列表
   @ApiOperation({ summary: '获取组织架构成员列表' })
   @ApiOkResponse({ type: TenantMemberListResponseSwagger })
   @Get('members')

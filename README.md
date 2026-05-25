@@ -80,19 +80,7 @@ pnpm install
 cp apps/api/.env.example apps/api/.env
 ```
 
-本地最小配置示例：
-
-```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/shou_db?schema=public
-REDIS_URL=redis://localhost:6379
-JWT_SECRET=replace-with-local-secret
-CORS_ORIGINS=http://localhost:5173,http://localhost:5001,http://localhost:5002,http://localhost:5003
-PORT=3000
-NODE_ENV=development
-TZ=UTC
-AUTH_COOKIE_SECURE=false
-IMPORT_JOB_WORKER_ENABLED=false
-```
+本地变量模板以 `apps/api/.env.example` 为准；不同部署场景的变量说明见 [docs/deployment/env.md](./docs/deployment/env.md)。README 不重复维护变量清单，避免多处示例漂移。
 
 ### 4. 同步数据库与生成 Prisma Client
 

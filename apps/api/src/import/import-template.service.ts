@@ -2,6 +2,8 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { Prisma } from '@prisma/client';
 import type {
   CreateOrderImportTemplateRequest,
+  OrderImportCustomerFieldCreateRequest,
+  OrderImportCustomerFieldUpdateRequest,
   OrderImportTemplate,
   OrderImportTemplateField,
   OrderImportTemplateMutationResponse,
@@ -12,6 +14,13 @@ import { normalizeText } from '../common/validators';
 import { PrismaService } from '../prisma/prisma.service';
 import { cloneDefaultTemplateFields, DEFAULT_TEMPLATE_FIELDS } from './import-template.fields';
 import { readString, toTemplate, toTemplateMutationResponse } from './mapping/import.mapper';
+
+const TEMPLATE_FIELD_TYPE_TEXT: Record<string, string> = {
+  list: '订单级字段',
+  line: '商品行字段',
+};
+
+const CUSTOMER_FIELD_KEY_PATTERN = /^cf\d+$/;
 
 @Injectable()
 export class ImportTemplateService {
@@ -36,7 +45,7 @@ export class ImportTemplateService {
   // 创建导入模板，固定系统字段定义并将前端提交的自定义字段编号后持久化
   async createImportTemplate(currentUser: JwtPayload, request: CreateOrderImportTemplateRequest): Promise<OrderImportTemplateMutationResponse> {
     const tenantId = this.requireTenantId(currentUser);
-    const normalized = this.normalizeTemplatePayload(request);
+    const normalized = this.normalizeCreateTemplatePayload(request);
     await this.ensureTemplateNameAvailable(tenantId, normalized.name);
 
     const created = await this.prisma.$transaction(async (tx) => {
@@ -70,16 +79,11 @@ export class ImportTemplateService {
     const tenantId = this.requireTenantId(currentUser);
     const existing = await this.getScopedTemplate(tenantId, templateId);
     const current = toTemplate(existing);
-    const normalized = this.normalizeTemplatePayload({
+    const normalized = this.normalizeUpdateTemplatePayload(current, {
       name: request.name ?? current.name,
       isDefault: request.isDefault ?? current.isDefault,
       defaultFields: request.defaultFields ?? current.defaultFields,
-      customerFields:
-        request.customerFields ??
-        current.customerFields.map((field) => ({
-          label: field.label,
-          mapStr: field.mapStr,
-        })),
+      customerFields: request.customerFields,
     });
     await this.ensureTemplateNameAvailable(tenantId, normalized.name, templateId);
 
@@ -116,19 +120,51 @@ export class ImportTemplateService {
     return template;
   }
 
-  // 规范化模板请求，校验系统字段完整性、固定语义和租户自定义字段结构
-  private normalizeTemplatePayload(
+  // 规范化新建模板请求，校验系统字段并为租户自定义字段生成 cfN key
+  private normalizeCreateTemplatePayload(
     payload: CreateOrderImportTemplateRequest,
   ): Pick<OrderImportTemplate, 'name' | 'isDefault' | 'defaultFields' | 'customerFields'> {
     const name = normalizeText(payload.name, 'name', 100);
-    const incomingDefaultFields = payload.defaultFields ?? [];
+    const defaultFields = this.normalizeDefaultFields(payload.defaultFields ?? []);
+    const customerFields = this.normalizeCreateCustomerFields(payload.customerFields ?? []);
+
+    return {
+      name,
+      isDefault: Boolean(payload.isDefault),
+      defaultFields,
+      customerFields,
+    };
+  }
+
+  // 规范化更新模板请求，已有自定义字段按 key 保持稳定，新增字段分配未使用的 cfN key
+  private normalizeUpdateTemplatePayload(
+    current: OrderImportTemplate,
+    payload: UpdateOrderImportTemplateRequest,
+  ): Pick<OrderImportTemplate, 'name' | 'isDefault' | 'defaultFields' | 'customerFields'> {
+    const name = normalizeText(payload.name ?? current.name, 'name', 100);
+    const defaultFields = this.normalizeDefaultFields(payload.defaultFields ?? current.defaultFields);
+    const customerFields =
+      payload.customerFields === undefined
+        ? current.customerFields
+        : this.normalizeUpdateCustomerFields(payload.customerFields, current.customerFields);
+
+    return {
+      name,
+      isDefault: Boolean(payload.isDefault ?? current.isDefault),
+      defaultFields,
+      customerFields,
+    };
+  }
+
+  // 规范化系统字段，固定 key、label、isRequired 和 type，仅允许按 isRequired 规则填写 mapStr
+  private normalizeDefaultFields(incomingDefaultFields: OrderImportTemplateField[]): OrderImportTemplateField[] {
     if (incomingDefaultFields.length !== DEFAULT_TEMPLATE_FIELDS.length) {
-      throw new BadRequestException(`defaultFields 必须完整包含 ${DEFAULT_TEMPLATE_FIELDS.length} 个系统字段`);
+      throw new BadRequestException(`系统默认字段必须完整提交，共 ${DEFAULT_TEMPLATE_FIELDS.length} 项，请刷新模板后重试`);
     }
 
     this.ensureNoDuplicate(
       incomingDefaultFields.map((field) => normalizeText(field.key, 'defaultFields.key', 50)),
-      'defaultFields.key',
+      '系统默认字段',
     );
 
     const defaultFieldMap = new Map<string, OrderImportTemplateField>(
@@ -138,17 +174,20 @@ export class ImportTemplateService {
     const defaultFields = DEFAULT_TEMPLATE_FIELDS.map((field) => {
       const input = defaultFieldMap.get(field.key);
       if (!input) {
-        throw new BadRequestException(`defaultFields 缺少系统字段：${field.key}（${field.label}）`);
+        throw new BadRequestException(`系统默认字段缺少「${field.label}」，请刷新模板后重试`);
       }
       if (input.label !== field.label) {
-        throw new BadRequestException(`系统字段 ${field.key} 的 label 固定为"${field.label}"，不允许修改`);
+        throw new BadRequestException(`系统字段「${field.label}」不允许修改显示名，请刷新模板后重试`);
       }
       if (input.isRequired !== field.isRequired) {
-        throw new BadRequestException(`系统字段 ${field.key} 的 isRequired 固定为 ${field.isRequired}，不允许修改`);
+        throw new BadRequestException(`系统字段「${field.label}」不允许修改映射必填配置，请刷新模板后重试`);
+      }
+      if ((input.type ?? 'list') !== field.type) {
+        throw new BadRequestException(`系统字段「${field.label}」必须保持为${this.describeFieldType(field.type)}，请刷新模板后重试`);
       }
       const mapStr = readString(input?.mapStr) ?? '';
       if (field.isRequired && !mapStr) {
-        throw new BadRequestException(`系统字段 ${field.key}（${field.label}）的 mapStr 不能为空`);
+        throw new BadRequestException(`系统字段「${field.label}」必须配置对应的 Excel 表头`);
       }
       return {
         label: field.label,
@@ -160,38 +199,98 @@ export class ImportTemplateService {
       };
     });
 
-    const unexpectedDefaultField = (payload.defaultFields ?? []).find(
+    const unexpectedDefaultField = incomingDefaultFields.find(
       (field: OrderImportTemplateField) => !DEFAULT_TEMPLATE_FIELDS.some((item) => item.key === field.key),
     );
     if (unexpectedDefaultField) {
-      throw new BadRequestException(`默认字段 key 非法：${unexpectedDefaultField.key}`);
+      throw new BadRequestException(`不支持的系统字段 key：${unexpectedDefaultField.key}，请刷新模板后重试`);
     }
 
-    const customerFields = (payload.customerFields ?? []).map((field, index): OrderImportTemplateField => {
-      const label = normalizeText(field.label, `customerFields[${index}].label`, 100);
-      const mapStr = readString(field.mapStr) ?? '';
+    return defaultFields;
+  }
 
-      return {
-        label,
-        key: `customerKey${index + 1}`,
-        mapStr,
-        isRequired: false,
-        isValueRequired: field.isValueRequired ?? false,
-        type: field.type ?? 'list',
-      };
+  // 新建模板时自定义字段 key 由服务端按提交顺序生成
+  private normalizeCreateCustomerFields(customerFields: OrderImportCustomerFieldCreateRequest[]): OrderImportTemplateField[] {
+    const normalized = customerFields.map((field, index) => this.normalizeCustomerField(field, index, `cf${index + 1}`));
+
+    this.ensureNoDuplicate(
+      normalized.map((field) => field.label),
+      '自定义字段名称',
+    );
+
+    return normalized;
+  }
+
+  // 更新模板时保留已有 key；未带 key 的新字段分配当前模板中未使用的下一个 cfN
+  private normalizeUpdateCustomerFields(
+    customerFields: OrderImportCustomerFieldUpdateRequest[],
+    currentCustomerFields: OrderImportTemplateField[],
+  ): OrderImportTemplateField[] {
+    const existingFieldMap = new Map(currentCustomerFields.map((field) => [field.key, field]));
+    const usedKeys = new Set(existingFieldMap.keys());
+    const submittedKeys = new Set<string>();
+    const normalized = customerFields.map((field, index) => {
+      if (field.key !== undefined) {
+        const key = normalizeText(field.key, `第 ${index + 1} 个自定义字段 key`, 50);
+        if (!CUSTOMER_FIELD_KEY_PATTERN.test(key)) {
+          throw new BadRequestException(`自定义字段「${field.label}」的 key 不合法，请使用当前模板返回的 cfN key`);
+        }
+        const existing = existingFieldMap.get(key);
+        if (!existing) {
+          throw new BadRequestException(`自定义字段「${field.label}」的 key 不属于当前模板`);
+        }
+        if (submittedKeys.has(key)) {
+          throw new BadRequestException(`自定义字段 key 重复：「${key}」`);
+        }
+        submittedKeys.add(key);
+        return this.normalizeCustomerField(field, index, key, existing);
+      }
+
+      const nextKey = this.nextCustomerFieldKey(usedKeys);
+      usedKeys.add(nextKey);
+      submittedKeys.add(nextKey);
+      return this.normalizeCustomerField(field, index, nextKey);
     });
 
     this.ensureNoDuplicate(
-      customerFields.map((field) => field.label),
-      'customerFields.label',
+      normalized.map((field) => field.label),
+      '自定义字段名称',
     );
 
+    return normalized;
+  }
+
+  // 规范化单个自定义字段，新增字段使用默认值，已有字段在字段未提交时沿用旧配置
+  private normalizeCustomerField(
+    field: OrderImportCustomerFieldCreateRequest | OrderImportCustomerFieldUpdateRequest,
+    index: number,
+    key: string,
+    existing?: OrderImportTemplateField,
+  ): OrderImportTemplateField {
+    const label = normalizeText(field.label, `第 ${index + 1} 个自定义字段名称`, 100);
+    const mapStr = field.mapStr === undefined ? (existing?.mapStr ?? '') : (readString(field.mapStr) ?? '');
+    const type = field.type ?? existing?.type ?? 'list';
+    if (!['list', 'line'].includes(type)) {
+      throw new BadRequestException(`自定义字段「${label}」的字段位置不正确，仅支持 list（订单级）或 line（商品行）`);
+    }
+
     return {
-      name,
-      isDefault: Boolean(payload.isDefault),
-      defaultFields,
-      customerFields,
+      label,
+      key,
+      mapStr,
+      isRequired: false,
+      isValueRequired: field.isValueRequired ?? existing?.isValueRequired ?? false,
+      type,
     };
+  }
+
+  // 基于当前模板已占用 key 分配下一个 cfN，避免排序调整影响已有字段 key
+  private nextCustomerFieldKey(usedKeys: Set<string>): string {
+    let index = 1;
+    while (usedKeys.has(`cf${index}`)) {
+      index += 1;
+    }
+    return `cf${index}`;
   }
 
   // 校验同一组值内不允许重复，按去首尾空格后的大小写不敏感值比较
@@ -200,10 +299,15 @@ export class ImportTemplateService {
     for (const value of values) {
       const normalized = value.trim().toLowerCase();
       if (seen.has(normalized)) {
-        throw new BadRequestException(`${label} 重复：${value}`);
+        throw new BadRequestException(`${label}重复：「${value}」`);
       }
       seen.add(normalized);
     }
+  }
+
+  // 将模板字段来源翻译为面向业务用户的说明，避免错误提示暴露内部 type 值
+  private describeFieldType(type: string | undefined): string {
+    return TEMPLATE_FIELD_TYPE_TEXT[type ?? 'list'] ?? String(type);
   }
 
   // 确保同一租户下模板名称唯一，更新时排除当前模板本身

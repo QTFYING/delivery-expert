@@ -34,7 +34,7 @@ export class ImportPreviewOrderDto {
   @IsDefined()
   totalAmount!: number | string;
 
-  @ApiProperty({ description: '下单时间', example: '2026-04-15 09:30:00' })
+  @ApiProperty({ description: '下单时间，支持 YYYY-MM-DD 或 YYYY-MM-DD HH:mm:ss', example: '2026-04-15' })
   @IsString()
   @IsNotEmpty()
   orderTime!: string;
@@ -45,13 +45,14 @@ export class ImportPreviewOrderDto {
   payType!: string;
 
   @ApiProperty({
-    description: '模板自定义字段值',
+    description: '订单级模板自定义字段值，仅承载导入模板 type=list 的自定义字段',
     type: 'object',
     additionalProperties: { type: 'string' },
-    example: { customerKey1: 'MD001', customerKey2: '张三' },
+    example: { cf1: 'MD001' },
   })
+  @IsOptional()
   @IsObject()
-  customerFieldValues!: Record<string, string>;
+  customerFieldValues?: Record<string, string>;
 
   @ApiProperty({ description: '订单明细', type: [OrderLineItemDto] })
   @IsArray()

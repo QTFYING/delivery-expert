@@ -12,6 +12,7 @@ export const DEFAULT_TEMPLATE_FIELDS: OrderImportTemplateField[] = [
   { label: '规格', key: 'skuSpec', mapStr: '', isRequired: false, isValueRequired: false, type: 'line' },
   { label: '单位', key: 'unit', mapStr: '', isRequired: false, isValueRequired: false, type: 'line' },
   { label: '数量', key: 'quantity', mapStr: '', isRequired: false, isValueRequired: false, type: 'line' },
+  { label: '包装规格', key: 'packSpec', mapStr: '', isRequired: false, isValueRequired: false, type: 'line' },
   { label: '单价', key: 'unitPrice', mapStr: '', isRequired: false, isValueRequired: false, type: 'line' },
   { label: '金额', key: 'lineAmount', mapStr: '', isRequired: false, isValueRequired: false, type: 'line' },
 ];

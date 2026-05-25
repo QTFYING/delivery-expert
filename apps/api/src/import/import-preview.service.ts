@@ -82,12 +82,26 @@ export class ImportPreviewService {
     [...template.defaultFields, ...template.customerFields].forEach((field) => {
       valueRequiredMap.set(field.key, field.isValueRequired ?? false);
     });
-    const customerFieldKeySet = new Set(template.customerFields.map((field) => field.key));
+    const fieldLabelMap = new Map([...template.defaultFields, ...template.customerFields].map((field) => [field.key, field.label]));
+    const allCustomerFieldMap = new Map(template.customerFields.map((field) => [field.key, field]));
+    const listCustomerFieldMap = new Map(
+      template.customerFields.filter((field) => (field.type ?? 'list') === 'list').map((field) => [field.key, field]),
+    );
+    const lineCustomerFieldMap = new Map(template.customerFields.filter((field) => field.type === 'line').map((field) => [field.key, field]));
     const invalidErrors: OrderImportPreviewError[] = [];
     const normalizedOrders: PreparedImportOrder[] = [];
 
     request.orders.forEach((order, index) => {
-      const prepared = normalizePreviewOrder(order, index + 1, String(template.id), customerFieldKeySet, valueRequiredMap);
+      const prepared = normalizePreviewOrder(
+        order,
+        index + 1,
+        String(template.id),
+        listCustomerFieldMap,
+        lineCustomerFieldMap,
+        allCustomerFieldMap,
+        fieldLabelMap,
+        valueRequiredMap,
+      );
       if ('error' in prepared) {
         invalidErrors.push(...prepared.error);
         return;

@@ -27,7 +27,7 @@ import { CreateOrderReceiptResponseSwagger, CreateOrderReminderResponseSwagger, 
 export class OrderFinanceController {
   constructor(private readonly orderFinanceService: OrderFinanceService) {}
 
-  // 获取账期订单列表，面向租户账期管理视图。
+  // 获取账期订单列表，面向租户账期管理视图
   @ApiOperation({ summary: '获取账期订单列表' })
   @ApiOkResponse({ type: CreditOrderListResponseSwagger })
   @Get('credit')
@@ -39,7 +39,7 @@ export class OrderFinanceController {
     return this.orderFinanceService.getCreditOrders(currentUser, query.page, query.pageSize);
   }
 
-  // 创建催款提醒记录，并由 finance service 收口通知渠道语义。
+  // 创建催款提醒记录，并由 finance service 收口通知渠道语义
   @ApiOperation({ summary: '创建催款提醒记录' })
   @ApiParam({ name: 'id', description: '订单 ID' })
   @ApiOkResponse({ type: CreateOrderReminderResponseSwagger })
@@ -53,7 +53,7 @@ export class OrderFinanceController {
     return this.orderFinanceService.createReminder(currentUser, id, request as CreateOrderReminderRequest);
   }
 
-  // 创建内部收款记录，保持金额与订单状态推进在 service 内处理。
+  // 创建内部收款记录，保持金额与订单状态推进在 service 内处理
   @ApiOperation({ summary: '创建内部收款记录' })
   @ApiParam({ name: 'id', description: '订单 ID' })
   @ApiOkResponse({ type: CreateOrderReceiptResponseSwagger })

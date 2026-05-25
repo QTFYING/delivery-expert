@@ -13,8 +13,10 @@ export function toLineItemCreateInput(item: OrderLineItem): Prisma.OrderItemCrea
     skuSpec: item.skuSpec,
     unit: item.unit,
     quantity: toPrismaDecimal(toDecimal(item.quantity, 'quantity', 3)),
+    packSpec: item.packSpec,
     unitPrice: toPrismaDecimal(toMoney(item.unitPrice, 'unitPrice', true)),
     lineAmount: toPrismaDecimal(toMoney(item.lineAmount, 'lineAmount', true)),
+    customerFieldValues: item.customerFieldValues as unknown as Prisma.InputJsonValue,
   };
 }
 
@@ -59,8 +61,10 @@ interface OrderRowBase {
     skuSpec: string | null;
     unit: string;
     quantity: Prisma.Decimal;
+    packSpec: string | null;
     unitPrice: Prisma.Decimal;
     lineAmount: Prisma.Decimal;
+    customerFieldValues: Prisma.JsonValue | null;
   }>;
 }
 
@@ -90,8 +94,10 @@ export function toTenantOrder(order: OrderRowBase): TenantOrderItem {
       skuSpec: item.skuSpec ?? undefined,
       unit: item.unit,
       quantity: toDecimalNumber(item.quantity, 3),
+      packSpec: item.packSpec ?? undefined,
       unitPrice: toMoneyNumber(item.unitPrice),
       lineAmount: toMoneyNumber(item.lineAmount),
+      customerFieldValues: toCustomerFieldValues(item.customerFieldValues ?? null),
     })),
     customerFieldValues: toCustomerFieldValues(order.customerFieldValues ?? null),
     voided: order.voided,
@@ -143,8 +149,10 @@ export function toAdminOrder(order: OrderRowBase & { tenant: { name: string } })
       skuSpec: item.skuSpec ?? undefined,
       unit: item.unit,
       quantity: toDecimalNumber(item.quantity, 3),
+      packSpec: item.packSpec ?? undefined,
       unitPrice: toMoneyNumber(item.unitPrice),
       lineAmount: toMoneyNumber(item.lineAmount),
+      customerFieldValues: toCustomerFieldValues(item.customerFieldValues ?? null),
     })),
     customerFieldValues: toCustomerFieldValues(order.customerFieldValues ?? null),
     paid: toMoneyNumber(order.paid),

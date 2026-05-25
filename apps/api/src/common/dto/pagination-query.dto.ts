@@ -2,7 +2,7 @@ import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 
-/** 可选分页查询基类。 */
+/** 可选分页查询基类 */
 export abstract class OptionalPaginationQueryDto {
   @ApiPropertyOptional({ description: '页码', example: 1 })
   @IsOptional()
@@ -20,7 +20,7 @@ export abstract class OptionalPaginationQueryDto {
   pageSize?: number;
 }
 
-/** 必填分页查询基类。 */
+/** 必填分页查询基类 */
 export abstract class RequiredPaginationQueryDto {
   @ApiProperty({ description: '页码', example: 1 })
   @Type(() => Number)

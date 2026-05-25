@@ -9,7 +9,7 @@ import { getTenantId } from './tenant.access';
 export class TenantService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // 获取当前登录态所属租户的主体资料，只读返回，不承载用户资料语义。
+  // 获取当前登录态所属租户的主体资料，只读返回，不承载用户资料语义
   async getTenantProfile(currentUser: JwtPayload): Promise<TenantProfile> {
     const tenantId = getTenantId(currentUser);
 

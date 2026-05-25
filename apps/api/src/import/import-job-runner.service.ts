@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { HttpException, Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
 import { OrderImportJobStatusEnum as PrismaImportJobStatusEnum, type Prisma } from '@prisma/client';
 import { OrderImportConflictPolicyEnum, OrderImportJobStatusEnum } from '@shou/types/enums';
@@ -31,11 +31,11 @@ import type { PreparedImportOrder } from './import.normalizer';
 import { type ImportJobProgress, type ImportOrderOutcome, type PreviewSnapshot, type TenantImportJobState } from './import.types';
 import { toImportConflictPolicy, toImportJobStatus, toPrismaImportJobStatus } from './mapping/import.mapper';
 
-// Worker 轮询待执行导入任务的时间间隔，单位毫秒。
+// Worker 轮询待执行导入任务的时间间隔，单位毫秒
 const IMPORT_JOB_POLL_INTERVAL_MS = 5000;
-// 任务在该秒数内没有刷新心跳时，会被判定为失联可重试。
+// 任务在该秒数内没有刷新心跳时，会被判定为失联可重试
 const IMPORT_JOB_STALE_SECONDS = 120;
-// 单个导入任务运行时的互斥锁 TTL，避免多个 worker 同时处理同一任务。
+// 单个导入任务运行时的互斥锁 TTL，避免多个 worker 同时处理同一任务
 const IMPORT_JOB_LOCK_TTL_SECONDS = 150;
 
 @Injectable()
@@ -55,19 +55,19 @@ export class ImportJobRunnerService implements OnModuleInit, OnModuleDestroy {
     private readonly runtimeMode: ImportRuntimeMode,
   ) {}
 
-  // 模块初始化时按运行模式决定是否启动导入任务轮询。
+  // 模块初始化时按运行模式决定是否启动导入任务轮询
   onModuleInit(): void {
     if (this.runtimeMode === 'worker' || this.importSettings.workerEnabled) {
       this.startPolling();
     }
   }
 
-  // 模块销毁时停止轮询，避免开发态和测试态残留定时器。
+  // 模块销毁时停止轮询，避免开发态和测试态残留定时器
   onModuleDestroy(): void {
     this.stopPolling();
   }
 
-  // 启动导入任务轮询器，并先立即拉起一次待执行任务扫描。
+  // 启动导入任务轮询器，并先立即拉起一次待执行任务扫描
   startPolling(): void {
     void this.pollRunnableImportJobs().catch((error) => {
       this.logger.error('导入任务轮询初始化失败', error instanceof Error ? error.stack : undefined);
@@ -79,7 +79,7 @@ export class ImportJobRunnerService implements OnModuleInit, OnModuleDestroy {
     }, IMPORT_JOB_POLL_INTERVAL_MS);
   }
 
-  // 停止导入任务轮询器。
+  // 停止导入任务轮询器
   stopPolling(): void {
     if (this.jobPollingTimer) {
       clearInterval(this.jobPollingTimer);
@@ -87,7 +87,7 @@ export class ImportJobRunnerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  // 将导入任务加入当前进程的异步执行队列，避免重复入队。
+  // 将导入任务加入当前进程的异步执行队列，避免重复入队
   enqueueJob(jobId: string): void {
     if (this.queuedJobIds.has(jobId)) return;
 
@@ -99,34 +99,34 @@ export class ImportJobRunnerService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  // 读取租户级活动导入任务状态；当 Redis 占位缺失时，会回查数据库并自愈回补。
+  // 读取租户级活动导入任务状态；当 Redis 占位缺失时，会回查数据库并自愈回补
   async getActiveTenantImportJobState(tenantId: string): Promise<TenantImportJobState | null> {
     return this.tenantJobState.getActiveTenantImportJobState(tenantId);
   }
 
-  // 组装“当前已有活动导入任务”的统一提示文案。
+  // 组装“当前已有活动导入任务”的统一提示文案
   buildActiveImportJobMessage(state: TenantImportJobState): string {
     return this.tenantJobState.buildActiveImportJobMessage(state);
   }
 
-  // 为租户抢占正式导入活动槽位，防止同租户并发创建多个任务。
+  // 为租户抢占正式导入活动槽位，防止同租户并发创建多个任务
   async reserveTenantActiveJobSlot(tenantId: string, jobId: string): Promise<boolean> {
     return this.tenantJobState.reserveTenantActiveJobSlot(tenantId, jobId);
   }
 
-  // 仅当当前占位里的 jobId 仍然属于该任务时，才原子清理租户级活动导入状态。
+  // 仅当当前占位里的 jobId 仍然属于该任务时，才原子清理租户级活动导入状态
   async clearTenantImportJobState(tenantId: string, jobId: string): Promise<void> {
     await this.tenantJobState.clearTenantImportJobState(tenantId, jobId);
   }
 
-  // 判断当前运行模式下，提交正式导入后是否需要立即在本进程触发执行。
+  // 判断当前运行模式下，提交正式导入后是否需要立即在本进程触发执行
   shouldEnqueueImmediately(): boolean {
     return shouldStartImportJobImmediately({
       IMPORT_JOB_WORKER_ENABLED: String(this.importSettings.workerEnabled),
     });
   }
 
-  // 轮询数据库中的待执行或失联任务，并重新加入当前进程执行队列。
+  // 轮询数据库中的待执行或失联任务，并重新加入当前进程执行队列
   private async pollRunnableImportJobs(): Promise<void> {
     const staleBefore = new Date(Date.now() - IMPORT_JOB_STALE_SECONDS * 1000);
     const jobs = await this.prisma.importJob.findMany({
@@ -149,7 +149,7 @@ export class ImportJobRunnerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  // 消费单个导入任务队列项，负责加锁、恢复上下文并进入正式执行。
+  // 消费单个导入任务队列项，负责加锁、恢复上下文并进入正式执行
   private async runQueuedImportJob(jobId: string): Promise<void> {
     const lockKey = buildImportJobLockKey(jobId);
     const lockValue = await this.redis.acquireLock(lockKey, IMPORT_JOB_LOCK_TTL_SECONDS);
@@ -190,7 +190,7 @@ export class ImportJobRunnerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  // 顺序处理导入快照中的订单，并持续把进度落回数据库。
+  // 顺序处理导入快照中的订单，并持续把进度落回数据库
   private async processImportJob(
     jobId: string,
     tenantId: string,
@@ -217,7 +217,7 @@ export class ImportJobRunnerService implements OnModuleInit, OnModuleDestroy {
           return nextProgress;
         });
       } catch (error) {
-        const nextProgress = nextProgressForFailure(progress, order, error);
+        const nextProgress = nextProgressForFailure(progress, order, this.toImportOrderFailureReason(error, jobId, order));
         await this.prisma.importJob.update({
           where: { id: jobId },
           data: toImportJobProgressUpdate(nextProgress),
@@ -253,7 +253,7 @@ export class ImportJobRunnerService implements OnModuleInit, OnModuleDestroy {
     await this.clearTenantImportJobState(tenantId, jobId);
   }
 
-  // 按冲突策略把单笔预检通过的订单写入正式订单表。
+  // 按冲突策略把单笔预检通过的订单写入正式订单表
   private async applyImportOrder(
     client: Prisma.TransactionClient,
     tenantId: string,
@@ -266,7 +266,7 @@ export class ImportJobRunnerService implements OnModuleInit, OnModuleDestroy {
         return {
           type: 'skipped',
           existingOrderId: existing.id,
-          reason: '命中重复订单，按 skip 跳过',
+          reason: '源订单号已存在，当前冲突策略为“跳过”，本订单未导入',
         };
       }
 
@@ -274,7 +274,7 @@ export class ImportJobRunnerService implements OnModuleInit, OnModuleDestroy {
         return {
           type: 'skipped',
           existingOrderId: existing.id,
-          reason: '已有支付记录或支付单，禁止覆盖',
+          reason: '源订单号已存在，且原订单已有收款记录或支付单，为避免账务错误，禁止覆盖',
         };
       }
 
@@ -298,7 +298,20 @@ export class ImportJobRunnerService implements OnModuleInit, OnModuleDestroy {
     return { type: 'created' };
   }
 
-  // 将导入任务显式标记为失败，并同步清理租户级活动占位。
+  // 收口单笔订单导入失败文案：业务错误原样展示，系统错误隐藏内部细节并带上任务 ID
+  private toImportOrderFailureReason(error: unknown, jobId: string, order: PreparedImportOrder): string {
+    if (error instanceof HttpException) {
+      return error.message;
+    }
+
+    this.logger.error(
+      `导入任务单笔订单处理异常，jobId=${jobId}, sourceOrderNo=${order.sourceOrderNo}`,
+      error instanceof Error ? error.stack : String(error),
+    );
+    return `系统处理订单时异常，请联系管理员并提供导入任务 ID：${jobId}`;
+  }
+
+  // 将导入任务显式标记为失败，并同步清理租户级活动占位
   private async markImportJobFailed(jobId: string, message: string): Promise<void> {
     const job = await this.prisma.importJob.update({
       where: { id: jobId },

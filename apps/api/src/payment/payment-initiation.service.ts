@@ -60,7 +60,7 @@ export class PaymentInitiationService {
     }
     await this.paymentWindowService.assertOrderWithinPaymentWindow({
       tenantId: order.tenantId,
-      orderTime: order.orderTime,
+      createdAt: order.createdAt,
     });
 
     const lockKey = `payment:initiate:${order.id}`;
@@ -110,7 +110,7 @@ export class PaymentInitiationService {
       await this.assertOrderWithinPaymentWindow(
         {
           tenantId: currentOrder.tenantId,
-          orderTime: currentOrder.orderTime,
+          createdAt: currentOrder.createdAt,
         },
         tx,
       );
@@ -166,7 +166,7 @@ export class PaymentInitiationService {
       await this.assertOrderWithinPaymentWindow(
         {
           tenantId: currentOrder.tenantId,
-          orderTime: currentOrder.orderTime,
+          createdAt: currentOrder.createdAt,
         },
         tx,
       );
@@ -225,8 +225,8 @@ export class PaymentInitiationService {
   }
 
   /**
-   * 计算当前订单下一次线上支付尝试序号。
-   * 序号只以 payment_orders 为事实源，不依赖 Redis 或订单表冗余计数。
+   * 计算当前订单下一次线上支付尝试序号
+   * 序号只以 payment_orders 为事实源，不依赖 Redis 或订单表冗余计数
    */
   private async resolveNextOnlineAttemptNo(tx: Prisma.TransactionClient, orderId: string): Promise<number> {
     const aggregate = await tx.paymentOrder.aggregate({
@@ -294,7 +294,7 @@ export class PaymentInitiationService {
       await this.assertOrderWithinPaymentWindow(
         {
           tenantId: currentOrder.tenantId,
-          orderTime: currentOrder.orderTime,
+          createdAt: currentOrder.createdAt,
         },
         tx,
       );
@@ -401,7 +401,7 @@ export class PaymentInitiationService {
   private async assertOrderWithinPaymentWindow(
     input: {
       tenantId: string;
-      orderTime: Date;
+      createdAt: Date;
     },
     client: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<void> {

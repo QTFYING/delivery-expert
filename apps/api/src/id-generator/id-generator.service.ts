@@ -14,7 +14,7 @@ export class IdGeneratorService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * 按天重置的业务编号。
+   * 按天重置的业务编号
    * 每天序号从 1 开始，格式：{prefix}{YYYYMMDD}{padded seq}
    */
   async nextDailyId(prefix: string, digits: number): Promise<string> {
@@ -33,7 +33,7 @@ export class IdGeneratorService {
   }
 
   /**
-   * 全局递增的业务编号（不含日期段）。
+   * 全局递增的业务编号（不含日期段）
    * 格式：{prefix}{padded seq}
    */
   async nextGlobalId(prefix: string, seqName: string, digits: number): Promise<string> {

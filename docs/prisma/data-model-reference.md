@@ -379,7 +379,7 @@
   lastFailedAt: string | null; // 最近一次打印失败时间
   creditDays: number | null; // 账期天数
   creditDueDate: string | null; // 账期到期日
-  orderTime: string; // 下单时间
+  orderTime: string; // 下单时间，timestamp(3) 无时区业务时间
   voided: boolean; // 是否已作废
   voidReason: string | null; // 作废原因
   voidedAt: string | null; // 作废时间
@@ -398,6 +398,8 @@
 - 表名：`orders`
 - `prints / lastPrintedAt` 仅在打印成功回执写入时更新
 - `printFailedCount / lastFailedAt` 仅在打印失败上报写入时更新
+- `orderTime` 来自导入订单的业务下单时间，按 `YYYY-MM-DD HH:mm:ss` 业务原值保存，不参与 UTC 时刻转换
+- 订单支付有效期以 `createdAt` 作为订单进入系统时间计算，不以 `orderTime` 计算
 - 当前 schema 使用 `deletedAt` 软删
 
 **order_items**
@@ -408,11 +410,13 @@
   orderId: string; // 所属订单 ID
   skuId: string | null; // 商品主数据 ID
   skuName: string; // 商品名称
-  skuSpec: string | null; // 商品规格
+  skuSpec: string | null; // 商品规格，表示单件规格，例如 153g
   unit: string; // 单位
   quantity: string; // 数量，Decimal(12, 3)
+  packSpec: string | null; // 包装规格，表示销售单位内含，例如 24桶
   unitPrice: string; // 单价，Decimal(12, 2)
   lineAmount: string; // 行金额，Decimal(12, 2)
+  customerFieldValues: any | null; // 商品行级动态字段值，Json
 }
 ```
 
@@ -421,6 +425,8 @@
 - 主键：`id`
 - 索引：`orderId`
 - 表名：`order_items`
+- `skuSpec / unit / packSpec` 可组合表达包装关系，例如 `1箱 = 153g * 24桶`
+- `customerFieldValues` 仅承载导入模板 `type=line` 的商品行级自定义字段值
 
 **order_reminders**
 

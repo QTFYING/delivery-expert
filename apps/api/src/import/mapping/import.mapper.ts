@@ -22,7 +22,7 @@ import {
   type OrderStatus,
 } from '@shou/types/enums';
 import Decimal from 'decimal.js';
-import { formatDateTime, normalizeOptionalText } from '../../common/validators';
+import { formatDateTime, formatLocalDateTime, normalizeOptionalText, parseLocalDateTime } from '../../common/validators';
 import { resolveDefaultTemplateFieldValueRequired } from '../import-template.fields';
 
 const IMPORT_JOB_STATUS_TEXT: Record<OrderImportJobStatus, string> = {
@@ -36,12 +36,24 @@ export function describeImportJobStatus(status: OrderImportJobStatus): string {
   return IMPORT_JOB_STATUS_TEXT[status] ?? '正在处理';
 }
 
-export function asTemplateFields(value: Prisma.JsonValue): OrderImportTemplateField[] {
+function readTemplateFields(value: Prisma.JsonValue): OrderImportTemplateField[] {
+  return Array.isArray(value) ? (value as unknown as OrderImportTemplateField[]) : [];
+}
+
+export function asDefaultTemplateFields(value: Prisma.JsonValue): OrderImportTemplateField[] {
   const fields = Array.isArray(value) ? (value as unknown as OrderImportTemplateField[]) : [];
   return fields.map((field) => ({
     ...field,
     type: field.type ?? 'list',
     isValueRequired: resolveDefaultTemplateFieldValueRequired(field),
+  }));
+}
+
+export function asCustomerTemplateFields(value: Prisma.JsonValue): OrderImportTemplateField[] {
+  return readTemplateFields(value).map((field) => ({
+    ...field,
+    type: field.type ?? 'list',
+    isValueRequired: field.isValueRequired ?? false,
   }));
 }
 
@@ -58,8 +70,8 @@ export function toTemplate(template: {
     name: template.name,
     isDefault: template.isDefault,
     updatedAt: formatDateTime(template.updatedAt),
-    defaultFields: asTemplateFields(template.defaultFields),
-    customerFields: asTemplateFields(template.customerFields),
+    defaultFields: asDefaultTemplateFields(template.defaultFields),
+    customerFields: asCustomerTemplateFields(template.customerFields),
   };
 }
 
@@ -75,7 +87,7 @@ export function toTemplateMutationResponse(template: {
     name: template.name,
     isDefault: template.isDefault,
     updatedAt: formatDateTime(template.updatedAt),
-    customerFields: asTemplateFields(template.customerFields),
+    customerFields: asCustomerTemplateFields(template.customerFields),
   };
 }
 
@@ -98,6 +110,11 @@ export function readDate(value: unknown): Date | undefined {
   }
   const date = new Date(resolved);
   return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+export function readLocalDateTime(value: unknown): string | undefined {
+  const date = parseLocalDateTime(value);
+  return date ? formatLocalDateTime(date) : undefined;
 }
 
 export function readMoney(value: unknown): Decimal | undefined {

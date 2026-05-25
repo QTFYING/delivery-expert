@@ -22,10 +22,14 @@ export interface OrderLineItem {
   unit: string;
   /** 数量 */
   quantity: number;
+  /** 包装规格，例如 24桶，用于表达 1箱 = 153g * 24桶 */
+  packSpec?: string;
   /** 单价 单位元 */
   unitPrice: number;
   /** 行金额 单位元 */
   lineAmount: number;
+  /** 商品行级自定义字段值 */
+  customerFieldValues?: Record<string, string>;
 }
 
 export interface TenantOrderItem {
@@ -61,11 +65,11 @@ export interface TenantOrderItem {
   printFailedCount: number;
   /** 最近打印失败时间 */
   lastFailedAt?: string;
-  /** 下单时间 */
+  /** 下单时间，支持 YYYY-MM-DD 或 YYYY-MM-DD HH:mm:ss */
   orderTime: string;
   /** 订单商品明细 */
   lineItems: OrderLineItem[];
-  /** 自定义字段值 */
+  /** 订单级自定义字段值，仅承载导入模板 type=list 的自定义字段 */
   customerFieldValues?: Record<string, string>;
   /** 是否已作废 */
   voided: boolean;
@@ -106,7 +110,7 @@ export interface AdminOrderItem {
   orderTime: string;
   /** 订单商品明细 */
   lineItems: OrderLineItem[];
-  /** 自定义字段值 */
+  /** 订单级自定义字段值，仅承载导入模板 type=list 的自定义字段 */
   customerFieldValues?: Record<string, string>;
   /** 是否已作废 */
   voided: boolean;
@@ -197,7 +201,7 @@ export interface OrderImportTemplateField {
    */
   label: string;
   /**
-   * 字段 key系统字段使用稳定 key，自定义字段由服务端补 `customerKeyN`
+   * 字段 key系统字段使用稳定 key，自定义字段由服务端补 `cfN`
    */
   key: string;
   /**
@@ -221,15 +225,15 @@ export interface OrderImportTemplateField {
   type?: OrderImportTemplateFieldSourceType;
 }
 
-export interface OrderImportCustomerFieldRequest {
+export interface OrderImportCustomerFieldCreateRequest {
   /**
    * 自定义字段展示名
    */
   label: string;
   /**
-   * Excel / ERP 表头映射值
+   * Excel / ERP 表头映射值；未传或为 `null` 时按空字符串处理
    */
-  mapStr: string;
+  mapStr?: string | null;
   /**
    * 服务端 /preview 校验开关未传时默认 `false`，即该自定义列允许空值通过
    */
@@ -238,6 +242,13 @@ export interface OrderImportCustomerFieldRequest {
    * 字段来源，默认 `list`
    */
   type?: OrderImportTemplateFieldSourceType;
+}
+
+export interface OrderImportCustomerFieldUpdateRequest extends OrderImportCustomerFieldCreateRequest {
+  /**
+   * 自定义字段 key；已有字段编辑时必须传回原 key，新增字段不传，由服务端生成 `cfN`
+   */
+  key?: string;
 }
 
 export interface OrderImportTemplate {
@@ -276,7 +287,7 @@ export interface CreateOrderImportTemplateRequest {
   /** 系统默认字段映射 */
   defaultFields: OrderImportTemplateField[];
   /** 租户自定义字段 */
-  customerFields: OrderImportCustomerFieldRequest[];
+  customerFields: OrderImportCustomerFieldCreateRequest[];
 }
 
 export interface UpdateOrderImportTemplateRequest {
@@ -287,7 +298,7 @@ export interface UpdateOrderImportTemplateRequest {
   /** 系统默认字段映射 */
   defaultFields?: OrderImportTemplateField[];
   /** 租户自定义字段 */
-  customerFields?: OrderImportCustomerFieldRequest[];
+  customerFields?: OrderImportCustomerFieldUpdateRequest[];
 }
 
 export interface OrderImportPreviewOrder {
@@ -307,8 +318,8 @@ export interface OrderImportPreviewOrder {
   orderTime: string;
   /** 结算方式 */
   payType: OrderPayType;
-  /** 自定义字段值 */
-  customerFieldValues: Record<string, string>;
+  /** 订单级自定义字段值，仅承载导入模板 type=list 的自定义字段 */
+  customerFieldValues?: Record<string, string>;
   /** 商品明细 */
   lineItems: OrderLineItem[];
 }
@@ -330,7 +341,7 @@ export interface OrderImportPreviewOrderResult {
   orderTime: string;
   /** 结算方式 */
   payType: OrderPayType;
-  /** 自定义字段值 */
+  /** 订单级自定义字段值，仅承载导入模板 type=list 的自定义字段 */
   customerFieldValues: Record<string, string>;
   /** 映射模板 ID */
   mappingTemplateId?: string;

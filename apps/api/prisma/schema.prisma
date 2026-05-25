@@ -345,7 +345,7 @@ model Order {
   lastFailedAt        DateTime?        @db.Timestamptz(3)
   creditDays          Int?
   creditDueDate       DateTime?        @db.Timestamptz(3)
-  orderTime           DateTime         @db.Timestamptz(3)
+  orderTime           DateTime         @db.Timestamp(3)
   voided              Boolean          @default(false)
   voidReason          String?          @db.VarChar(255)
   voidedAt            DateTime?        @db.Timestamptz(3)
@@ -371,15 +371,17 @@ model Order {
 }
 
 model OrderItem {
-  id         BigInt  @id @default(autoincrement())
-  orderId    String  @db.VarChar(20)
-  skuId      String? @db.VarChar(50)
-  skuName    String  @db.VarChar(200)
-  skuSpec    String? @db.VarChar(100)
-  unit       String  @db.VarChar(20)
-  quantity   Decimal @db.Decimal(12, 3)
-  unitPrice  Decimal @db.Decimal(12, 2)
-  lineAmount Decimal @db.Decimal(12, 2)
+  id                  BigInt  @id @default(autoincrement())
+  orderId             String  @db.VarChar(20)
+  skuId               String? @db.VarChar(50)
+  skuName             String  @db.VarChar(200)
+  skuSpec             String? @db.VarChar(100)
+  unit                String  @db.VarChar(20)
+  quantity            Decimal @db.Decimal(12, 3)
+  packSpec            String? @db.VarChar(50)
+  unitPrice           Decimal @db.Decimal(12, 2)
+  lineAmount          Decimal @db.Decimal(12, 2)
+  customerFieldValues Json?
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
@@ -436,9 +438,9 @@ model PaymentOrder {
   order         Order                 @relation(fields: [orderId], references: [id])
   webhookEvents PaymentWebhookEvent[]
 
+  @@unique([orderId, paymentMethod, onlineAttemptNo])
   @@index([tenantId, status])
   @@index([orderId])
-  @@unique([orderId, paymentMethod, onlineAttemptNo])
   @@map("payment_orders")
 }
 

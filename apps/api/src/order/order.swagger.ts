@@ -28,7 +28,7 @@ export class OrderLineItemSwagger implements OrderLineItemContract {
   @ApiProperty({ description: '商品名称', example: '农夫山泉 550ml' })
   skuName!: string;
 
-  @ApiPropertyOptional({ description: '商品规格', example: '24瓶/箱' })
+  @ApiPropertyOptional({ description: '商品规格；表示单件规格，例如 153g', example: '153g' })
   skuSpec?: string;
 
   @ApiProperty({ description: '单位', example: '箱' })
@@ -37,11 +37,22 @@ export class OrderLineItemSwagger implements OrderLineItemContract {
   @ApiProperty({ description: '数量', example: 2 })
   quantity!: number;
 
+  @ApiPropertyOptional({ description: '包装规格；表示销售单位内含，例如 24桶，可展示为 1箱 = 153g * 24桶', example: '24桶' })
+  packSpec?: string;
+
   @ApiProperty({ description: '单价（元）', example: 48.5 })
   unitPrice!: number;
 
   @ApiProperty({ description: '行金额（元）', example: 97 })
   lineAmount!: number;
+
+  @ApiPropertyOptional({
+    description: '商品行级自定义字段值，仅承载导入模板 type=line 的自定义字段',
+    type: 'object',
+    additionalProperties: { type: 'string' },
+    example: { cf2: '批次A' },
+  })
+  customerFieldValues?: Record<string, string>;
 }
 
 export class TenantOrderItemSwagger implements TenantOrderItemContract {
@@ -100,7 +111,7 @@ export class TenantOrderItemSwagger implements TenantOrderItemContract {
   lineItems!: OrderLineItemSwagger[];
 
   @ApiPropertyOptional({
-    description: '自定义字段键值对',
+    description: '订单级自定义字段键值对，仅承载导入模板 type=list 的自定义字段',
     type: 'object',
     additionalProperties: { type: 'string' },
     example: { customerCode: 'C-001', deliveryRoute: 'A区' },
@@ -152,7 +163,7 @@ export class AdminOrderItemSwagger implements AdminOrderItemContract {
   lineItems!: OrderLineItemSwagger[];
 
   @ApiPropertyOptional({
-    description: '自定义字段键值对',
+    description: '订单级自定义字段键值对，仅承载导入模板 type=list 的自定义字段',
     type: 'object',
     additionalProperties: { type: 'string' },
     example: { customerCode: 'C-001', deliveryRoute: 'A区' },

@@ -10,7 +10,7 @@ import { isTerminalImportJobStatus } from './import-job.worker.helpers';
 import type { TenantImportJobState } from './import.types';
 import { describeImportJobStatus, toImportJobStatus } from './mapping/import.mapper';
 
-// 刚完成 Redis 占位但 import_job 尚未写入数据库时，允许保留的最短建单宽限窗，单位秒。
+// 刚完成 Redis 占位但 import_job 尚未写入数据库时，允许保留的最短建单宽限窗，单位秒
 const IMPORT_ACTIVE_JOB_DB_CREATE_GRACE_SECONDS = 15;
 
 @Injectable()
@@ -24,7 +24,7 @@ export class ImportTenantJobStateService {
     private readonly importSettings: ConfigType<typeof importConfig>,
   ) {}
 
-  // 读取租户级活动导入任务状态；当 Redis 占位缺失时，会回查数据库并自愈回补。
+  // 读取租户级活动导入任务状态；当 Redis 占位缺失时，会回查数据库并自愈回补
   async getActiveTenantImportJobState(tenantId: string): Promise<TenantImportJobState | null> {
     const stateKey = this.getTenantActiveImportJobKey(tenantId);
     const state = await this.redis.getJson<TenantImportJobState>(stateKey);
@@ -58,22 +58,22 @@ export class ImportTenantJobStateService {
     return state;
   }
 
-  // 组装“当前已有活动导入任务”的统一提示文案。
+  // 组装“当前已有活动导入任务”的统一提示文案
   buildActiveImportJobMessage(state: TenantImportJobState): string {
     return `当前租户已有导入任务${describeImportJobStatus(state.status)}，jobId=${state.jobId}，请通过 /orders/import/jobs/${state.jobId} 查询进度`;
   }
 
-  // 为租户抢占正式导入活动槽位，防止同租户并发创建多个任务。
+  // 为租户抢占正式导入活动槽位，防止同租户并发创建多个任务
   async reserveTenantActiveJobSlot(tenantId: string, jobId: string): Promise<boolean> {
     return this.tryReserveTenantActiveJobSlot(tenantId, jobId);
   }
 
-  // 仅当当前占位里的 jobId 仍然属于该任务时，才原子清理租户级活动导入状态。
+  // 仅当当前占位里的 jobId 仍然属于该任务时，才原子清理租户级活动导入状态
   async clearTenantImportJobState(tenantId: string, jobId: string): Promise<void> {
     await this.redis.deleteJsonIfFieldMatches(this.getTenantActiveImportJobKey(tenantId), 'jobId', jobId);
   }
 
-  // 仅当当前任务仍持有租户活动槽位时，才刷新状态并续租 TTL；槽位丢失时会按数据库现状尝试自愈回补。
+  // 仅当当前任务仍持有租户活动槽位时，才刷新状态并续租 TTL；槽位丢失时会按数据库现状尝试自愈回补
   async renewTenantImportJobState(tenantId: string, jobId: string, status: OrderImportJobStatus): Promise<boolean> {
     const stateKey = this.getTenantActiveImportJobKey(tenantId);
     const state = await this.redis.getJson<TenantImportJobState>(stateKey);
@@ -93,12 +93,12 @@ export class ImportTenantJobStateService {
     );
   }
 
-  // 统一生成租户级活动导入任务状态 key。
+  // 统一生成租户级活动导入任务状态 key
   private getTenantActiveImportJobKey(tenantId: string): string {
     return `import:tenant:${tenantId}:job`;
   }
 
-  // 判断当前占位是否仍处于“刚 reserve 成功、数据库可能尚未落行”的短暂建单窗口。
+  // 判断当前占位是否仍处于“刚 reserve 成功、数据库可能尚未落行”的短暂建单窗口
   private isWithinDbCreateGraceWindow(state: TenantImportJobState): boolean {
     if (state.status !== OrderImportJobStatusEnum.PENDING) {
       return false;
@@ -107,7 +107,7 @@ export class ImportTenantJobStateService {
     return Date.now() - state.updatedAt < IMPORT_ACTIVE_JOB_DB_CREATE_GRACE_SECONDS * 1000;
   }
 
-  // 用最原始的 NX 占位尝试抢槽位，不负责孤儿占位清理。
+  // 用最原始的 NX 占位尝试抢槽位，不负责孤儿占位清理
   private async tryReserveTenantActiveJobSlot(tenantId: string, jobId: string): Promise<boolean> {
     return this.redis.setJsonIfAbsent(
       this.getTenantActiveImportJobKey(tenantId),
@@ -116,7 +116,7 @@ export class ImportTenantJobStateService {
     );
   }
 
-  // 当 Redis 活动占位缺失或失真时，回查数据库中的活动任务并重建租户级状态。
+  // 当 Redis 活动占位缺失或失真时，回查数据库中的活动任务并重建租户级状态
   private async recoverTenantImportJobStateFromDb(tenantId: string, staleJobId?: string): Promise<TenantImportJobState | null> {
     const job = await this.prisma.importJob.findFirst({
       where: { tenantId, status: { in: [PrismaImportJobStatusEnum.PENDING, PrismaImportJobStatusEnum.PROCESSING] } },

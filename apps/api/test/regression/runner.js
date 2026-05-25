@@ -299,9 +299,8 @@ async function main() {
 
     // --- P2-1: Webhook 缺失网关交易号测试 ---
     // (Assuming signature is bypassed or we mock it if it's correct format, but since we can't easily sign here without private key, we expect signature verification failed which is 400 anyway. Wait, signature check is the first thing.)
-    // If signature check is the first thing, it will return 400 for signature verification failed.
-    // Let's just test invalid signature.
-
+    // If signature check is the first thing, it will return 400 for signature verification failed
+    // Let's just test invalid signature
     // --- P2-1: 账期回款重复提交 (幂等) 测试 ---
     // First, create a new order with CREDIT pay type to test receipt
     const creditOrderCreate = await apiRequest(results, 'Create Credit Order', {

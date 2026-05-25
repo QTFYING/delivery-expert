@@ -19,7 +19,7 @@ import { createTenantAuditLog } from './tenant.shared';
 export class OsTenantCertificationService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // 获取待审核的资质队列。
+  // 获取待审核的资质队列
   async getCertificationQueue(): Promise<TenantCertificationRecordItem[]> {
     const records = await this.prisma.tenantCertification.findMany({
       where: {
@@ -47,7 +47,7 @@ export class OsTenantCertificationService {
     }));
   }
 
-  // 处理单条资质审核决议并推进状态机。
+  // 处理单条资质审核决议并推进状态机
   async createCertificationReviewDecision(
     currentUser: JwtPayload,
     certificationId: string,

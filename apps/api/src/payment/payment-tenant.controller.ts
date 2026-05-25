@@ -35,7 +35,7 @@ import {
 export class TenantPaymentController {
   constructor(private readonly paymentService: PaymentService) {}
 
-  // 查询租户侧或平台侧的收款流水列表。
+  // 查询租户侧或平台侧的收款流水列表
   @ApiOperation({ summary: '获取收款流水列表' })
   @ApiOkResponse({
     schema: {
@@ -51,7 +51,7 @@ export class TenantPaymentController {
     return this.paymentService.getPayments(currentUser, query as PaymentListQuery);
   }
 
-  // 查询收款汇总统计，供平台或租户财务视图展示。
+  // 查询收款汇总统计，供平台或租户财务视图展示
   @ApiOperation({ summary: '获取收款汇总统计' })
   @ApiOkResponse({ type: PaymentSummaryResponseSwagger })
   @Get('payments/summary')
@@ -60,7 +60,7 @@ export class TenantPaymentController {
     return this.paymentService.getPaymentSummary(currentUser);
   }
 
-  // 为指定订单创建现金核销记录，收口租户财务人工核销入口。
+  // 为指定订单创建现金核销记录，收口租户财务人工核销入口
   @ApiOperation({ summary: '创建现金核销记录' })
   @ApiParam({ name: 'id', description: '订单 ID' })
   @ApiOkResponse({ type: CreateCashVerificationResponseSwagger })
