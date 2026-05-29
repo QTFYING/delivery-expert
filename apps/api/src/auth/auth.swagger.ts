@@ -5,7 +5,7 @@ import type {
   LoginResponse as LoginResponseContract,
   RefreshTokenResponse as RefreshTokenResponseContract,
 } from '@shou/types/contracts';
-import { AuthSourceTagEnum, UserRoleEnum } from '@shou/types/enums';
+import { TenantPermissionCodeEnum, UserRoleEnum } from '@shou/types/enums';
 
 export class AuthUserProfileSwagger implements AuthUserProfileContract {
   @ApiProperty({ description: '用户 ID', example: '8d5d4f78-5c25-4bc6-bf6c-64061edc3079' })
@@ -16,9 +16,6 @@ export class AuthUserProfileSwagger implements AuthUserProfileContract {
 
   @ApiProperty({ description: '用户姓名', example: '张三' })
   realName!: string;
-
-  @ApiProperty({ description: '当前主角色', enum: Object.values(UserRoleEnum), example: UserRoleEnum.TENANT_OPERATOR })
-  role!: AuthUserProfileContract['role'];
 
   @ApiPropertyOptional({
     description: '所属租户 ID；平台用户为空',
@@ -52,9 +49,30 @@ export class RefreshTokenResponseSwagger implements RefreshTokenResponseContract
 
 export class AuthMeResponseSwagger extends AuthUserProfileSwagger implements AuthMeResponseContract {
   @ApiPropertyOptional({
-    description: '数据来源标记',
-    enum: Object.values(AuthSourceTagEnum),
-    example: AuthSourceTagEnum.REMOTE,
+    description: '当前角色 ID；平台用户为空',
+    example: '0c04ef8c-cfde-40a4-a553-9ab8d31a448d',
+    nullable: true,
   })
-  source?: AuthMeResponseContract['source'];
+  roleId!: string | null;
+
+  @ApiPropertyOptional({
+    description: '当前角色编码；平台用户可返回 OS_SUPER_ADMIN',
+    example: UserRoleEnum.OS_SUPER_ADMIN,
+    nullable: true,
+  })
+  roleCode!: string | null;
+
+  @ApiPropertyOptional({ description: '当前角色名称', example: '平台超级管理员', nullable: true })
+  roleName!: string | null;
+
+  @ApiProperty({
+    description: '当前用户拥有的 Tenant 权限编码列表',
+    enum: Object.values(TenantPermissionCodeEnum),
+    isArray: true,
+    example: [TenantPermissionCodeEnum.ORDERS_READ, TenantPermissionCodeEnum.PAYMENTS_READ],
+  })
+  permissions!: AuthMeResponseContract['permissions'];
+
+  @ApiProperty({ description: '当前用户权限版本', example: 3 })
+  permissionVersion!: number;
 }

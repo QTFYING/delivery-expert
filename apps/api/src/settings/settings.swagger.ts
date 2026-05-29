@@ -4,33 +4,61 @@ import type {
   GetPrintingConfigDetailResponse as GetPrintingConfigDetailResponseContract,
   GetPrintingConfigListResponse as GetPrintingConfigListResponseContract,
   GetTenantPaymentConfigListResponse as GetTenantPaymentConfigListResponseContract,
-  PermissionNode as PermissionNodeContract,
   PrintingConfigListItem as PrintingConfigListItemContract,
   TenantPaymentConfigListItem as TenantPaymentConfigListItemContract,
   TenantPaymentConfigSnapshot as TenantPaymentConfigSnapshotContract,
   TenantAuditLogListResponse as TenantAuditLogListResponseContract,
   TenantGeneralSettings as TenantGeneralSettingsContract,
+  TenantPermissionDomainNode as TenantPermissionDomainNodeContract,
+  TenantPermissionItem as TenantPermissionItemContract,
+  TenantPermissionTreeResponse as TenantPermissionTreeResponseContract,
   TenantRoleAccount as TenantRoleAccountContract,
   TenantSettingsUser as TenantSettingsUserContract,
   UpdatePrintingConfigResponse as UpdatePrintingConfigResponseContract,
 } from '@shou/types/contracts';
-import { PaymentChannelEnum, TenantPaymentConfigStatusEnum, TenantRoleEnum, TenantStatusEnum, UserSimpleStatusEnum } from '@shou/types/enums';
+import {
+  PaymentChannelEnum,
+  TenantPaymentConfigStatusEnum,
+  TenantPermissionCodeEnum,
+  TenantPermissionDomainEnum,
+  TenantStatusEnum,
+  UserSimpleStatusEnum,
+} from '@shou/types/enums';
 import { PaginatedResponseMetaSwagger } from '../common/swagger/paginated-response.swagger';
 
-export class PermissionNodeSwagger implements PermissionNodeContract {
-  @ApiProperty({ description: '权限节点 ID', example: 'orders.view' })
-  id!: string;
+export class TenantPermissionItemSwagger implements TenantPermissionItemContract {
+  @ApiProperty({ description: '权限编码', enum: Object.values(TenantPermissionCodeEnum), example: TenantPermissionCodeEnum.ORDERS_READ })
+  code!: TenantPermissionItemContract['code'];
 
-  @ApiProperty({ description: '权限节点名称', example: '查看订单列表' })
-  label!: string;
+  @ApiProperty({ description: '服务端业务能力说明，不代表前端菜单文案', example: '查看订单' })
+  description!: string;
+}
 
-  @ApiPropertyOptional({ description: '子节点', type: () => PermissionNodeSwagger, isArray: true })
-  children?: PermissionNodeSwagger[];
+export class TenantPermissionDomainNodeSwagger implements TenantPermissionDomainNodeContract {
+  @ApiProperty({ description: '权限所属业务域', enum: Object.values(TenantPermissionDomainEnum), example: TenantPermissionDomainEnum.ORDERS })
+  domain!: TenantPermissionDomainNodeContract['domain'];
+
+  @ApiProperty({ description: '服务端业务域说明，不代表前端菜单文案', example: '订单域' })
+  description!: string;
+
+  @ApiProperty({ description: '当前业务域下的权限项', type: [TenantPermissionItemSwagger] })
+  permissions!: TenantPermissionItemSwagger[];
+}
+
+export class TenantPermissionTreeResponseSwagger implements TenantPermissionTreeResponseContract {
+  @ApiProperty({ description: '权限能力树版本', example: 'tenant-rbac-2026-05-26' })
+  version!: string;
+
+  @ApiProperty({ description: '按业务域分组的权限能力列表', type: [TenantPermissionDomainNodeSwagger] })
+  domains!: TenantPermissionDomainNodeSwagger[];
 }
 
 export class TenantRoleAccountSwagger implements TenantRoleAccountContract {
   @ApiProperty({ description: '角色 ID' })
   id!: string;
+
+  @ApiProperty({ description: '角色编码；内置角色使用 TENANT_*，自定义角色由服务端生成', example: 'TENANT_FINANCE' })
+  code!: string;
 
   @ApiProperty({ description: '角色名称', example: '财务' })
   name!: string;
@@ -38,14 +66,28 @@ export class TenantRoleAccountSwagger implements TenantRoleAccountContract {
   @ApiPropertyOptional({ description: '角色描述', example: '负责核销与对账' })
   description?: string;
 
-  @ApiProperty({ description: '权限标识列表', type: [String], example: ['payments.view', 'orders.credit'] })
-  permissions!: string[];
+  @ApiProperty({
+    description: '权限编码列表',
+    enum: Object.values(TenantPermissionCodeEnum),
+    isArray: true,
+    example: [TenantPermissionCodeEnum.PAYMENTS_READ, TenantPermissionCodeEnum.FINANCE_READ],
+  })
+  permissions!: TenantRoleAccountContract['permissions'];
 
   @ApiProperty({ description: '是否系统内置角色', example: true })
   isSystem!: boolean;
 
+  @ApiProperty({ description: '是否允许编辑', example: false })
+  isEditable!: boolean;
+
   @ApiProperty({ description: '角色绑定用户数', example: 2 })
   userCount!: number;
+
+  @ApiPropertyOptional({ description: '创建时间', example: '2026-05-28T09:00:00.000Z' })
+  createdAt?: string;
+
+  @ApiPropertyOptional({ description: '更新时间', example: '2026-05-28T09:30:00.000Z' })
+  updatedAt?: string;
 }
 
 export class TenantSettingsUserSwagger implements TenantSettingsUserContract {
@@ -55,11 +97,14 @@ export class TenantSettingsUserSwagger implements TenantSettingsUserContract {
   @ApiProperty({ description: '姓名', example: '李四' })
   name!: string;
 
-  @ApiProperty({ description: '登录账号', example: '13800138000' })
-  account!: string;
+  @ApiProperty({ description: '当前角色 ID', example: '0c04ef8c-cfde-40a4-a553-9ab8d31a448d' })
+  roleId!: string;
 
-  @ApiProperty({ description: '角色', enum: Object.values(TenantRoleEnum), example: TenantRoleEnum.FINANCE })
-  role!: TenantSettingsUserContract['role'];
+  @ApiProperty({ description: '当前角色编码', example: 'TENANT_FINANCE' })
+  roleCode!: string;
+
+  @ApiProperty({ description: '当前角色名称', example: '财务' })
+  roleName!: string;
 
   @ApiProperty({ description: '手机号', example: '13800138000' })
   phone!: string;

@@ -11,40 +11,35 @@ const TENANT_ROLE_TO_PRISMA: Record<TenantRole, PrismaUserRoleEnum> = {
   [TenantRoleEnum.VIEWER]: PrismaUserRoleEnum.TENANT_VIEWER,
 };
 
-const PRISMA_TO_TENANT_ROLE: Record<PrismaUserRoleEnum, TenantRole | null> = {
-  [PrismaUserRoleEnum.OS_SUPER_ADMIN]: null,
-  [PrismaUserRoleEnum.TENANT_OWNER]: TenantRoleEnum.OWNER,
-  [PrismaUserRoleEnum.TENANT_OPERATOR]: TenantRoleEnum.OPERATOR,
-  [PrismaUserRoleEnum.TENANT_FINANCE]: TenantRoleEnum.FINANCE,
-  [PrismaUserRoleEnum.TENANT_VIEWER]: TenantRoleEnum.VIEWER,
-};
-
 export function toTenantSettingsUser(user: {
   id: string;
   realName: string;
-  account: string;
-  role: PrismaUserRoleEnum;
   phone: string | null;
   status: UserStatusEnum;
   loginAt: Date | null;
+  roleAssignments: Array<{
+    role: {
+      id: string;
+      code: string;
+      name: string;
+    };
+  }>;
 }): TenantSettingsUser {
+  const assignment = user.roleAssignments[0];
+  if (!assignment) {
+    throw new BadRequestException('租户用户未绑定角色');
+  }
+
   return {
     id: user.id,
     name: user.realName,
-    account: user.account,
-    role: fromPrismaTenantRole(user.role),
+    roleId: assignment.role.id,
+    roleCode: assignment.role.code,
+    roleName: assignment.role.name,
     phone: user.phone ?? '',
     status: fromPrismaTenantUserStatus(user.status),
     lastLogin: formatDateTime(user.loginAt) ?? '',
   };
-}
-
-export function fromPrismaTenantRole(role: PrismaUserRoleEnum): TenantRole {
-  const tenantRole = PRISMA_TO_TENANT_ROLE[role];
-  if (!tenantRole) {
-    throw new BadRequestException('role 不是合法租户角色');
-  }
-  return tenantRole;
 }
 
 export function toTenantPrismaRole(role: TenantRole): PrismaUserRoleEnum {
@@ -53,6 +48,14 @@ export function toTenantPrismaRole(role: TenantRole): PrismaUserRoleEnum {
     throw new BadRequestException('role 不是合法租户角色');
   }
   return prismaRole;
+}
+
+export function toLegacyPrismaTenantRole(roleCode: string): PrismaUserRoleEnum {
+  if (Object.values(TenantRoleEnum).includes(roleCode as TenantRole)) {
+    return toTenantPrismaRole(roleCode as TenantRole);
+  }
+
+  return PrismaUserRoleEnum.TENANT_VIEWER;
 }
 
 export function fromPrismaTenantUserStatus(status: UserStatusEnum): (typeof UserSimpleStatusEnum)[keyof typeof UserSimpleStatusEnum] {

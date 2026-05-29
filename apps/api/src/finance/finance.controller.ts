@@ -1,7 +1,7 @@
 import { Controller, Get, Header, Query, Res, StreamableFile, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiExtraModels, ApiOkResponse, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
-import { UserRoleEnum } from '@shou/types/enums';
+import { TenantPermissionCodeEnum, UserRoleEnum } from '@shou/types/enums';
 import type {
   AdminReconciliationDailyRecordItem,
   AdminReconciliationSummaryResponse,
@@ -11,8 +11,10 @@ import type {
 import type { PaginatedResponse } from '@shou/types/common';
 import { CurrentUser, JwtPayload } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { Permissions } from '../authorization/permissions.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { PermissionsGuard } from '../authorization/permissions.guard';
 import { ListReconciliationQueryDto } from './dto/list-reconciliation.query.dto';
 import { FinanceService } from './finance.service';
 import {
@@ -26,14 +28,14 @@ import {
 @ApiBearerAuth()
 @ApiExtraModels(FinanceSummaryResponseSwagger, FinanceReconciliationListResponseSwagger)
 @Controller('finance')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class TenantFinanceController {
   constructor(private readonly financeService: FinanceService) {}
 
   @ApiOperation({ summary: '获取财务汇总' })
   @ApiOkResponse({ type: FinanceSummaryResponseSwagger })
   @Get('summary')
-  @Roles(UserRoleEnum.TENANT_OWNER, UserRoleEnum.TENANT_FINANCE)
+  @Permissions(TenantPermissionCodeEnum.FINANCE_READ)
   async getSummary(@CurrentUser() currentUser: JwtPayload): Promise<FinanceSummaryResponse> {
     return this.financeService.getTenantSummary(currentUser);
   }
@@ -41,7 +43,7 @@ export class TenantFinanceController {
   @ApiOperation({ summary: '获取租户对账明细' })
   @ApiOkResponse({ type: FinanceReconciliationListResponseSwagger })
   @Get('reconciliation')
-  @Roles(UserRoleEnum.TENANT_OWNER, UserRoleEnum.TENANT_FINANCE)
+  @Permissions(TenantPermissionCodeEnum.FINANCE_READ)
   async getReconciliation(
     @CurrentUser() currentUser: JwtPayload,
     @Query() query: ListReconciliationQueryDto,
@@ -54,7 +56,7 @@ export class TenantFinanceController {
   @ApiOkResponse({ description: '导出成功，返回文件流', schema: { type: 'string', format: 'binary' } })
   @Get('reconciliation/export')
   @Header('Content-Type', 'application/octet-stream')
-  @Roles(UserRoleEnum.TENANT_OWNER, UserRoleEnum.TENANT_FINANCE)
+  @Permissions(TenantPermissionCodeEnum.FINANCE_EXPORT)
   async exportReconciliation(@CurrentUser() currentUser: JwtPayload, @Res({ passthrough: true }) response: Response): Promise<StreamableFile> {
     const file = await this.financeService.exportTenantReconciliation(currentUser);
     response.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);

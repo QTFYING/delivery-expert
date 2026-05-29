@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuthorizationModule } from '../authorization/authorization.module';
 import { SettingsModule } from '../settings/settings.module';
 import { OsTenantCertificationController } from './os-tenant-certification.controller';
 import { OsTenantCertificationService } from './os-tenant-certification.service';
@@ -14,7 +15,7 @@ import { TenantSelfController } from './tenant-self.controller';
 import { TenantService } from './tenant.service';
 
 @Module({
-  imports: [SettingsModule],
+  imports: [AuthorizationModule, SettingsModule],
   controllers: [TenantSelfController, OsTenantController, OsTenantCertificationController, OsUserController, TenantCertificationController],
   providers: [
     TenantService,

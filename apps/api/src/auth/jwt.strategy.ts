@@ -7,6 +7,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { authConfig } from '../config/auth.config';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthSessionStore } from '../redis/auth-session.store';
+import { PermissionCacheService } from '../authorization/permission-cache.service';
 import { fromPrismaTenantStatus, fromPrismaUserRole, fromPrismaUserStatus } from '../tenant/mapping/tenant.mapper';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { JwtPayload } from './decorators/current-user.decorator';
@@ -20,6 +21,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     authSettings: ConfigType<typeof authConfig>,
     private authSessions: AuthSessionStore,
     private prisma: PrismaService,
+    private permissionCache: PermissionCacheService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -60,6 +62,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     const userRole = fromPrismaUserRole(user.role);
+    const permissionVersion = await this.resolvePermissionVersion(payload, user.tenantId, user.id);
     if (user.tenantId) {
       this.assertTenantAvailable(user.tenant, userRole);
     }
@@ -74,7 +77,22 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       side: user.tenantId ? 'tenant' : 'platform',
       sessionId,
       tokenVersion,
+      permissionVersion,
     };
+  }
+
+  // 兼容读取 JWT 内权限版本 旧 token 没有 pver 时按 Redis 当前版本补齐
+  private async resolvePermissionVersion(payload: Record<string, unknown>, tenantId: string | null, userId: string): Promise<number> {
+    if (!tenantId) {
+      return 0;
+    }
+
+    const payloadPermissionVersion = payload.pver ?? payload.permissionVersion;
+    if (typeof payloadPermissionVersion === 'number' && Number.isInteger(payloadPermissionVersion) && payloadPermissionVersion > 0) {
+      return payloadPermissionVersion;
+    }
+
+    return this.permissionCache.getTenantPermissionVersion(tenantId, userId);
   }
 
   // 校验租户状态是否允许当前角色继续访问受保护接口

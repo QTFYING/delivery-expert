@@ -8,11 +8,11 @@ import type {
   OrderPrintRecordsResponse,
   TenantPrintRecordsResponse,
 } from '@shou/types/contracts';
-import { UserRoleEnum } from '@shou/types/enums';
+import { TenantPermissionCodeEnum } from '@shou/types/enums';
 import { CurrentUser, JwtPayload } from '../auth/decorators/current-user.decorator';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { Permissions } from '../authorization/permissions.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
+import { PermissionsGuard } from '../authorization/permissions.guard';
 import { CreateOrderPrintFailureDto } from './dto/create-order-print-failure.dto';
 import { CreateOrderPrintRecordDto } from './dto/create-order-print-record.dto';
 import { QueryOrderPrintRecordsDto, QueryTenantPrintRecordsDto } from './dto/query-order-print-records.dto';
@@ -34,7 +34,7 @@ import {
   TenantPrintRecordsResponseSwagger,
 )
 @Controller('orders')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class OrderPrintController {
   constructor(
     private readonly orderPrintService: OrderPrintService,
@@ -45,7 +45,7 @@ export class OrderPrintController {
   @ApiOperation({ summary: '创建打印回执' })
   @ApiOkResponse({ type: OrderPrintRecordResponseSwagger })
   @Post('print-records')
-  @Roles(UserRoleEnum.TENANT_OWNER, UserRoleEnum.TENANT_OPERATOR)
+  @Permissions(TenantPermissionCodeEnum.ORDERS_PRINT_MANAGE)
   async createPrintRecord(@CurrentUser() currentUser: JwtPayload, @Body() request: CreateOrderPrintRecordDto): Promise<OrderPrintRecordResponse> {
     return this.orderPrintService.createPrintRecord(currentUser, request as OrderPrintRecordRequest);
   }
@@ -54,7 +54,7 @@ export class OrderPrintController {
   @ApiOperation({ summary: '跨订单打印事件追溯' })
   @ApiOkResponse({ type: TenantPrintRecordsResponseSwagger })
   @Get('print-records')
-  @Roles(UserRoleEnum.TENANT_OWNER, UserRoleEnum.TENANT_FINANCE)
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_AUDIT_LOGS_READ)
   async getTenantPrintRecords(
     @CurrentUser() currentUser: JwtPayload,
     @Query() query: QueryTenantPrintRecordsDto,
@@ -67,7 +67,7 @@ export class OrderPrintController {
   @ApiParam({ name: 'id', description: '订单 ID' })
   @ApiOkResponse({ type: CreateOrderPrintFailureResponseSwagger })
   @Post(':id/print-failures')
-  @Roles(UserRoleEnum.TENANT_OWNER, UserRoleEnum.TENANT_OPERATOR)
+  @Permissions(TenantPermissionCodeEnum.ORDERS_PRINT_MANAGE)
   async createPrintFailure(
     @CurrentUser() currentUser: JwtPayload,
     @Param('id') id: string,
@@ -81,7 +81,7 @@ export class OrderPrintController {
   @ApiParam({ name: 'id', description: '订单 ID' })
   @ApiOkResponse({ type: OrderPrintRecordsResponseSwagger })
   @Get(':id/print-records')
-  @Roles(UserRoleEnum.TENANT_OWNER, UserRoleEnum.TENANT_OPERATOR, UserRoleEnum.TENANT_FINANCE, UserRoleEnum.TENANT_VIEWER)
+  @Permissions(TenantPermissionCodeEnum.ORDERS_READ)
   async getOrderPrintRecords(
     @CurrentUser() currentUser: JwtPayload,
     @Param('id') id: string,

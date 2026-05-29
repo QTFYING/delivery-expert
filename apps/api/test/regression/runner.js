@@ -45,7 +45,7 @@ async function main() {
   try {
     await prepareFixtures(prisma);
 
-    app = await NestFactory.create(AppModule, { logger: false });
+    app = await NestFactory.create(AppModule, { logger: false, abortOnError: false });
     app.setGlobalPrefix('api');
     app.useGlobalPipes(
       new ValidationPipe({
@@ -79,6 +79,8 @@ async function main() {
 
     const ownerSession = { token: null, cookie: null };
     const financeSession = { token: null, cookie: null };
+    const readOnlySession = { token: null, cookie: null };
+    const osAdminSession = { token: null, cookie: null };
 
     const ownerLogin = await apiRequest(results, 'Auth Owner Login', {
       method: 'POST',
@@ -90,6 +92,28 @@ async function main() {
     });
     ownerSession.token = ownerLogin.data.accessToken;
     ownerSession.cookie = ownerLogin.cookie;
+
+    const osAdminLogin = await apiRequest(results, 'Auth OS Admin Login', {
+      method: 'POST',
+      url: `${baseUrl}/auth/login`,
+      body: {
+        account: FIXTURES.osAdminAccount,
+        password: FIXTURES.password,
+      },
+    });
+    osAdminSession.token = osAdminLogin.data.accessToken;
+    osAdminSession.cookie = osAdminLogin.cookie;
+
+    const readOnlyLogin = await apiRequest(results, 'Auth ReadOnly Login', {
+      method: 'POST',
+      url: `${baseUrl}/auth/login`,
+      body: {
+        account: FIXTURES.readOnlyAccount,
+        password: FIXTURES.password,
+      },
+    });
+    readOnlySession.token = readOnlyLogin.data.accessToken;
+    readOnlySession.cookie = readOnlyLogin.cookie;
 
     await apiRequest(results, 'Auth Me', {
       method: 'GET',
@@ -117,6 +141,73 @@ async function main() {
       401,
     );
 
+    const createdTenant = await apiRequest(results, 'Admin Tenant Create With RBAC Bootstrap', {
+      method: 'POST',
+      url: `${baseUrl}/tenants`,
+      token: osAdminSession.token,
+      body: {
+        name: '联调新建租户 RBAC',
+        softwareVersion: 'L1',
+        ownerName: '新租户老板',
+        address: '深圳市南山区新租户路 1 号',
+        licenseNo: 'LIC-RBAC-BOOTSTRAP',
+        channel: 'lakala',
+        serviceExpireAt: '2027-05-13',
+        ownerAccount: FIXTURES.createdTenantOwnerAccount,
+        ownerInitialPassword: '123456',
+      },
+    });
+    if (!createdTenant.data.id) {
+      throw new Error('平台新建租户未返回租户 ID');
+    }
+
+    const createdTenantOwnerLogin = await apiRequest(results, 'Auth Created Tenant Owner Login', {
+      method: 'POST',
+      url: `${baseUrl}/auth/login`,
+      body: {
+        account: FIXTURES.createdTenantOwnerAccount,
+        password: '123456',
+      },
+    });
+
+    await apiRequest(results, 'Auth Created Tenant Owner Change Password', {
+      method: 'POST',
+      url: `${baseUrl}/auth/change-password`,
+      token: createdTenantOwnerLogin.data.accessToken,
+      body: {
+        currentPassword: '123456',
+        newPassword: FIXTURES.createdTenantOwnerPassword,
+      },
+    });
+
+    const createdTenantOwnerCurrentLogin = await apiRequest(results, 'Auth Created Tenant Owner ReLogin', {
+      method: 'POST',
+      url: `${baseUrl}/auth/login`,
+      body: {
+        account: FIXTURES.createdTenantOwnerAccount,
+        password: FIXTURES.createdTenantOwnerPassword,
+      },
+    });
+    const createdTenantOwnerMe = await apiRequest(results, 'Auth Created Tenant Owner Me With RBAC', {
+      method: 'GET',
+      url: `${baseUrl}/auth/me`,
+      token: createdTenantOwnerCurrentLogin.data.accessToken,
+    });
+    if (
+      createdTenantOwnerMe.data.tenantId !== createdTenant.data.id ||
+      createdTenantOwnerMe.data.roleCode !== 'TENANT_OWNER' ||
+      !createdTenantOwnerMe.data.roleId ||
+      !createdTenantOwnerMe.data.permissions.includes('settings.roles.manage')
+    ) {
+      throw new Error('平台新建租户老板账号未完成 RBAC 绑定');
+    }
+
+    await apiRequest(results, 'Tenant Profile Created Owner Permission Allowed', {
+      method: 'GET',
+      url: `${baseUrl}/tenant/profile`,
+      token: createdTenantOwnerCurrentLogin.data.accessToken,
+    });
+
     await apiRequest(results, 'Settings General Get', {
       method: 'GET',
       url: `${baseUrl}/settings/general`,
@@ -136,6 +227,94 @@ async function main() {
         dailyReportPush: true,
       },
     });
+
+    const permissionTree = await apiRequest(results, 'Settings Permissions Tree', {
+      method: 'GET',
+      url: `${baseUrl}/settings/permissions`,
+      token: ownerSession.token,
+    });
+    if (!permissionTree.data.version || !Array.isArray(permissionTree.data.domains) || permissionTree.data.domains.length === 0) {
+      throw new Error('权限能力树响应缺少 version 或 domains');
+    }
+
+    const roleList = await apiRequest(results, 'Settings Roles List', {
+      method: 'GET',
+      url: `${baseUrl}/settings/roles`,
+      token: ownerSession.token,
+    });
+    const financeRole = roleList.data.find((role) => role.code === 'TENANT_FINANCE');
+    const operatorRole = roleList.data.find((role) => role.code === 'TENANT_OPERATOR');
+    if (!financeRole?.id || !operatorRole?.id) {
+      throw new Error('角色列表缺少财务或打单员内置角色');
+    }
+
+    const customRole = await apiRequest(results, 'Settings Role Create', {
+      method: 'POST',
+      url: `${baseUrl}/settings/roles`,
+      token: ownerSession.token,
+      body: {
+        name: '联调 RBAC 自定义角色',
+        description: '用于回归验证的临时角色',
+        permissionCodes: ['orders.read', 'notifications.read'],
+      },
+    });
+    if (customRole.data.isSystem !== false || customRole.data.isEditable !== true || !customRole.data.permissions.includes('orders.read')) {
+      throw new Error('自定义角色创建响应不符合 RBAC 契约');
+    }
+
+    const updatedCustomRole = await apiRequest(results, 'Settings Role Update', {
+      method: 'PUT',
+      url: `${baseUrl}/settings/roles/${customRole.data.id}`,
+      token: ownerSession.token,
+      body: {
+        name: '联调 RBAC 自定义角色更新',
+        permissionCodes: ['orders.read', 'orders.manage'],
+      },
+    });
+    if (updatedCustomRole.data.name !== '联调 RBAC 自定义角色更新' || !updatedCustomRole.data.permissions.includes('orders.manage')) {
+      throw new Error('自定义角色更新响应不符合 RBAC 契约');
+    }
+
+    const rbacUser = await apiRequest(results, 'Settings User Create With RoleId', {
+      method: 'POST',
+      url: `${baseUrl}/settings/users`,
+      token: ownerSession.token,
+      body: {
+        name: '联调 RBAC 员工',
+        phone: FIXTURES.rbacUserPhone,
+        account: FIXTURES.rbacUserAccount,
+        roleId: financeRole.id,
+      },
+    });
+    if (rbacUser.data.roleId !== financeRole.id || rbacUser.data.roleCode !== 'TENANT_FINANCE') {
+      throw new Error('创建用户未按 roleId 返回财务角色绑定');
+    }
+
+    const updatedRbacUser = await apiRequest(results, 'Settings User Update RoleId', {
+      method: 'PUT',
+      url: `${baseUrl}/settings/users/${rbacUser.data.id}`,
+      token: ownerSession.token,
+      body: {
+        roleId: operatorRole.id,
+      },
+    });
+    if (updatedRbacUser.data.roleId !== operatorRole.id || updatedRbacUser.data.roleCode !== 'TENANT_OPERATOR') {
+      throw new Error('更新用户未按 roleId 返回打单员角色绑定');
+    }
+
+    await expectHttpFailure(
+      results,
+      'Settings User Reject Cross Tenant RoleId',
+      {
+        method: 'PUT',
+        url: `${baseUrl}/settings/users/${rbacUser.data.id}`,
+        token: ownerSession.token,
+        body: {
+          roleId: FIXTURES.otherTenantRoleId,
+        },
+      },
+      404,
+    );
 
     const templateCreate = await apiRequest(results, 'Import Template Create', {
       method: 'POST',
@@ -208,6 +387,145 @@ async function main() {
       throw new Error(`导入任务未完成，最终状态=${importJob.data.status}`);
     }
 
+    await apiRequest(results, 'Orders List ReadOnly Permission Allowed', {
+      method: 'GET',
+      url: `${baseUrl}/orders?keyword=${encodeURIComponent(FIXTURES.sourceOrderNo)}`,
+      token: readOnlySession.token,
+    });
+
+    await expectHttpFailure(
+      results,
+      'Orders Create ReadOnly Permission Denied',
+      {
+        method: 'POST',
+        url: `${baseUrl}/orders`,
+        token: readOnlySession.token,
+        body: {
+          customer: '只读权限客户',
+          amount: 10,
+          payType: 'cash',
+          summary: '只读权限不应创建订单',
+        },
+      },
+      403,
+    );
+
+    const readOnlyUserList = await apiRequest(results, 'Settings Users List For Permission Version', {
+      method: 'GET',
+      url: `${baseUrl}/settings/users`,
+      token: ownerSession.token,
+    });
+    const readOnlyUser = readOnlyUserList.data.find((user) => user.phone === FIXTURES.readOnlyPhone);
+    if (!readOnlyUser?.id) {
+      throw new Error('未找到只读权限回归用户');
+    }
+
+    await apiRequest(results, 'Settings User Bind Custom Role For Permission Invalidation', {
+      method: 'PUT',
+      url: `${baseUrl}/settings/users/${readOnlyUser.id}`,
+      token: ownerSession.token,
+      body: {
+        roleId: updatedCustomRole.data.id,
+      },
+    });
+
+    const readOnlyCustomRoleLogin = await apiRequest(results, 'Auth ReadOnly Login Before Role Permission Change', {
+      method: 'POST',
+      url: `${baseUrl}/auth/login`,
+      body: {
+        account: FIXTURES.readOnlyAccount,
+        password: FIXTURES.password,
+      },
+    });
+
+    const readOnlyRoleMeBeforePermissionChange = await apiRequest(results, 'Auth Me ReadOnly Before Role Permission Change', {
+      method: 'GET',
+      url: `${baseUrl}/auth/me`,
+      token: readOnlyCustomRoleLogin.data.accessToken,
+    });
+
+    await apiRequest(results, 'Orders List Custom Role Permission Allowed', {
+      method: 'GET',
+      url: `${baseUrl}/orders?keyword=${encodeURIComponent(FIXTURES.sourceOrderNo)}`,
+      token: readOnlyCustomRoleLogin.data.accessToken,
+    });
+
+    await apiRequest(results, 'Settings Role Update Permission Invalidates Bound Users', {
+      method: 'PUT',
+      url: `${baseUrl}/settings/roles/${updatedCustomRole.data.id}`,
+      token: ownerSession.token,
+      body: {
+        permissionCodes: ['notifications.read'],
+      },
+    });
+
+    await expectHttpFailure(
+      results,
+      'Orders List Old Token Role Permission Version Changed',
+      {
+        method: 'GET',
+        url: `${baseUrl}/orders?keyword=${encodeURIComponent(FIXTURES.sourceOrderNo)}`,
+        token: readOnlyCustomRoleLogin.data.accessToken,
+      },
+      403,
+      4006,
+    );
+
+    const readOnlyRoleMeAfterPermissionChange = await apiRequest(results, 'Auth Me ReadOnly After Role Permission Change', {
+      method: 'GET',
+      url: `${baseUrl}/auth/me`,
+      token: readOnlyCustomRoleLogin.data.accessToken,
+    });
+    if (readOnlyRoleMeAfterPermissionChange.data.permissionVersion <= readOnlyRoleMeBeforePermissionChange.data.permissionVersion) {
+      throw new Error('角色权限变更后 /auth/me 未返回递增后的 permissionVersion');
+    }
+
+    const readOnlyCurrentLogin = await apiRequest(results, 'Auth ReadOnly Login Before User Role Change', {
+      method: 'POST',
+      url: `${baseUrl}/auth/login`,
+      body: {
+        account: FIXTURES.readOnlyAccount,
+        password: FIXTURES.password,
+      },
+    });
+    readOnlySession.token = readOnlyCurrentLogin.data.accessToken;
+    readOnlySession.cookie = readOnlyCurrentLogin.cookie;
+
+    const readOnlyMeBeforePermissionChange = await apiRequest(results, 'Auth Me ReadOnly Before Permission Change', {
+      method: 'GET',
+      url: `${baseUrl}/auth/me`,
+      token: readOnlySession.token,
+    });
+
+    await apiRequest(results, 'Settings User Update RoleId Invalidates Permission Version', {
+      method: 'PUT',
+      url: `${baseUrl}/settings/users/${readOnlyUser.id}`,
+      token: ownerSession.token,
+      body: {
+        roleId: operatorRole.id,
+      },
+    });
+
+    await expectHttpFailure(
+      results,
+      'Orders List Old Token Permission Version Changed',
+      {
+        method: 'GET',
+        url: `${baseUrl}/orders?keyword=${encodeURIComponent(FIXTURES.sourceOrderNo)}`,
+        token: readOnlySession.token,
+      },
+      403,
+      4006,
+    );
+
+    const readOnlyMeAfterPermissionChange = await apiRequest(results, 'Auth Me ReadOnly After Permission Change', {
+      method: 'GET',
+      url: `${baseUrl}/auth/me`,
+      token: readOnlySession.token,
+    });
+    if (readOnlyMeAfterPermissionChange.data.permissionVersion <= readOnlyMeBeforePermissionChange.data.permissionVersion) {
+      throw new Error('用户角色变更后 /auth/me 未返回递增后的 permissionVersion');
+    }
     const orderList = await apiRequest(results, 'Orders List', {
       method: 'GET',
       url: `${baseUrl}/orders?keyword=${encodeURIComponent(FIXTURES.sourceOrderNo)}`,
@@ -578,6 +896,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error);
+  console.error(serializeError(error));
   process.exit(1);
 });

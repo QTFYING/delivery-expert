@@ -1,11 +1,11 @@
 import { Body, Controller, Get, Ip, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiExtraModels, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { UserRoleEnum } from '@shou/types/enums';
+import { TenantPermissionCodeEnum } from '@shou/types/enums';
 import type { TenantCertificationStatusResult, TenantCertificationSubmitRequest, TenantCertificationSubmitResponse } from '@shou/types/contracts';
 import { CurrentUser, JwtPayload } from '../auth/decorators/current-user.decorator';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { Permissions } from '../authorization/permissions.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
+import { PermissionsGuard } from '../authorization/permissions.guard';
 import { CreateTenantCertificationDto } from './dto/create-tenant-certification.dto';
 import { TenantCertificationService } from './tenant-certification.service';
 import { TenantCertificationStatusResultSwagger, TenantCertificationSubmitResponseSwagger } from './tenant.swagger';
@@ -14,14 +14,14 @@ import { TenantCertificationStatusResultSwagger, TenantCertificationSubmitRespon
 @ApiBearerAuth()
 @ApiExtraModels(TenantCertificationSubmitResponseSwagger, TenantCertificationStatusResultSwagger)
 @Controller('tenants')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class TenantCertificationController {
   constructor(private readonly tenantCertificationService: TenantCertificationService) {}
 
   @ApiOperation({ summary: '提交当前租户资质材料' })
   @ApiOkResponse({ type: TenantCertificationSubmitResponseSwagger })
   @Post('certification')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.TENANT_CERTIFICATION_MANAGE)
   async submitCertification(
     @CurrentUser() currentUser: JwtPayload,
     @Body() request: CreateTenantCertificationDto,
@@ -33,7 +33,7 @@ export class TenantCertificationController {
   @ApiOperation({ summary: '查询当前租户资质状态' })
   @ApiOkResponse({ type: TenantCertificationStatusResultSwagger })
   @Get('certification')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.TENANT_CERTIFICATION_MANAGE)
   async getCertificationStatus(@CurrentUser() currentUser: JwtPayload): Promise<TenantCertificationStatusResult> {
     return this.tenantCertificationService.getCertificationStatus(currentUser);
   }

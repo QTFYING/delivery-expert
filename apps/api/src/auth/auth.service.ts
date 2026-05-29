@@ -1,10 +1,12 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
-import type { ChangePasswordRequest } from '@shou/types/contracts';
+import type { AuthMeResponse, AuthUserProfile, ChangePasswordRequest } from '@shou/types/contracts';
 import { TenantStatusEnum, UserRoleEnum, UserStatusEnum } from '@shou/types/enums';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import { PermissionCacheService } from '../authorization/permission-cache.service';
+import { PermissionService } from '../authorization/permission.service';
 import { assertPasswordStrength } from '../common/validators';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthSessionStore } from '../redis/auth-session.store';
@@ -30,13 +32,17 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private authSessions: AuthSessionStore,
+    private permissionCache: PermissionCacheService,
+    private permissionService: PermissionService,
   ) {}
 
   // 校验账号密码并创建新的登录会话 返回 access token 与 refresh token
   async login(loginDto: LoginDto) {
-    const { account, password } = loginDto;
+    const account = loginDto.account.trim();
+    const password = loginDto.password.trim();
     const user = await this.findLoginUser(account, password);
     const tokenVersion = await this.authSessions.getUserTokenVersion(user.id);
+    const permissionVersion = await this.getTokenPermissionVersion(user);
     const sessionId = crypto.randomUUID();
     const refreshToken = crypto.randomBytes(48).toString('hex');
     await this.authSessions.createAuthSession(
@@ -51,7 +57,7 @@ export class AuthService {
       ACCESS_TOKEN_TTL,
       REFRESH_TOKEN_TTL,
     );
-    const accessToken = this.jwtService.sign(this.buildAccessTokenPayload(user, sessionId, tokenVersion));
+    const accessToken = this.jwtService.sign(this.buildAccessTokenPayload(user, sessionId, tokenVersion, permissionVersion));
 
     return {
       accessToken,
@@ -70,6 +76,7 @@ export class AuthService {
 
     const user = await this.getAvailableUserById(session.userId);
     const tokenVersion = await this.authSessions.getUserTokenVersion(user.id);
+    const permissionVersion = await this.getTokenPermissionVersion(user);
     const newRefreshToken = crypto.randomBytes(48).toString('hex');
     const nextSession = await this.authSessions.refreshAuthSession(
       session.sessionId,
@@ -87,7 +94,7 @@ export class AuthService {
       throw new UnauthorizedException('Refresh Token 已失效，请重新登录');
     }
 
-    const accessToken = this.jwtService.sign(this.buildAccessTokenPayload(user, nextSession.sessionId, tokenVersion));
+    const accessToken = this.jwtService.sign(this.buildAccessTokenPayload(user, nextSession.sessionId, tokenVersion, permissionVersion));
 
     return {
       accessToken,
@@ -96,10 +103,30 @@ export class AuthService {
     };
   }
 
-  // 读取当前登录用户的基础资料
-  async getProfile(userId: string) {
-    const user = await this.getAvailableUserById(userId);
-    return this.toUserProfile(user);
+  // 读取当前登录用户资料与 Tenant 权限快照 平台用户不进入 Tenant RBAC
+  async getMe(currentUser: JwtPayload): Promise<AuthMeResponse> {
+    const user = await this.getAvailableUserById(currentUser.userId);
+    const profile = this.toUserProfile(user);
+    if (!user.tenantId) {
+      return {
+        ...profile,
+        roleId: null,
+        roleCode: UserRoleEnum.OS_SUPER_ADMIN,
+        roleName: '平台超级管理员',
+        permissions: [],
+        permissionVersion: 0,
+      };
+    }
+
+    const snapshot = await this.permissionService.getTenantPermissionSnapshot(user.tenantId, user.id);
+    return {
+      ...profile,
+      roleId: snapshot.roleId,
+      roleCode: snapshot.roleCode,
+      roleName: snapshot.roleName,
+      permissions: snapshot.permissions,
+      permissionVersion: snapshot.permissionVersion,
+    };
   }
 
   // 修改当前登录用户密码 并使全部旧会话失效
@@ -240,20 +267,32 @@ export class AuthService {
     throw new UnauthorizedException(TENANT_UNAVAILABLE_MESSAGE);
   }
 
+  // 读取 access token 内使用的权限版本 平台用户固定为 0
+  private async getTokenPermissionVersion(user: AuthUserRecord): Promise<number> {
+    if (!user.tenantId) {
+      return 0;
+    }
+
+    return this.permissionCache.getTenantPermissionVersion(user.tenantId, user.id);
+  }
+
   // 构造 access token 的业务载荷 统一收口 tenant 和 platform 双侧会话语义
   private buildAccessTokenPayload(
     user: AuthUserRecord,
     sessionId: string,
     tokenVersion: number,
-  ): Omit<JwtPayload, 'userId' | 'sessionId' | 'tokenVersion'> & {
+    permissionVersion: number,
+  ): Omit<JwtPayload, 'userId' | 'sessionId' | 'tokenVersion' | 'permissionVersion'> & {
     sub: string;
     sid: string;
     ver: number;
+    pver?: number;
   } {
     return {
       sub: user.id,
       sid: sessionId,
       ver: tokenVersion,
+      pver: user.tenantId ? permissionVersion : undefined,
       tenantId: user.tenantId,
       role: fromPrismaUserRole(user.role),
       side: user.tenantId ? 'tenant' : 'platform',
@@ -261,12 +300,11 @@ export class AuthService {
   }
 
   // 将数据库用户记录裁剪为接口返回给前端的用户资料视图
-  private toUserProfile(user: AuthUserRecord) {
+  private toUserProfile(user: AuthUserRecord): AuthUserProfile {
     return {
       id: user.id,
       account: user.account,
       realName: user.realName,
-      role: fromPrismaUserRole(user.role),
       tenantId: user.tenantId,
       requiresPasswordReset: user.requiresPasswordReset,
     };

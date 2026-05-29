@@ -5,9 +5,11 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { authConfig } from '../config/auth.config';
+import { AuthorizationModule } from '../authorization/authorization.module';
 
 @Module({
   imports: [
+    AuthorizationModule,
     JwtModule.registerAsync({
       inject: [authConfig.KEY],
       useFactory: (settings: ConfigType<typeof authConfig>) => ({

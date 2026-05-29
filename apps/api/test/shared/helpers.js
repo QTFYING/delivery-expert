@@ -45,7 +45,7 @@ async function apiRequest(results, name, input) {
   };
 }
 
-async function expectHttpFailure(results, name, input, expectedStatus) {
+async function expectHttpFailure(results, name, input, expectedStatus, expectedCode) {
   const headers = { 'Content-Type': 'application/json' };
   if (input.token) {
     headers.Authorization = `Bearer ${input.token}`;
@@ -64,6 +64,9 @@ async function expectHttpFailure(results, name, input, expectedStatus) {
   const parsed = text ? JSON.parse(text) : null;
   if (response.status !== expectedStatus) {
     throw new Error(`${name} 期望 HTTP ${expectedStatus}，实际 ${response.status}`);
+  }
+  if (expectedCode !== undefined && parsed?.code !== expectedCode) {
+    throw new Error(`${name} 期望业务码 ${expectedCode}，实际 ${parsed?.code}`);
   }
 
   results.steps.push({

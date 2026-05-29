@@ -1,11 +1,11 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiExtraModels, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { TenantProfile } from '@shou/types/contracts';
-import { UserRoleEnum } from '@shou/types/enums';
+import { TenantPermissionCodeEnum } from '@shou/types/enums';
 import { CurrentUser, JwtPayload } from '../auth/decorators/current-user.decorator';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { Permissions } from '../authorization/permissions.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
+import { PermissionsGuard } from '../authorization/permissions.guard';
 import { TenantService } from './tenant.service';
 import { TenantProfileSwagger } from './tenant.swagger';
 
@@ -13,7 +13,7 @@ import { TenantProfileSwagger } from './tenant.swagger';
 @ApiBearerAuth()
 @ApiExtraModels(TenantProfileSwagger)
 @Controller('tenant')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class TenantSelfController {
   constructor(private readonly tenantService: TenantService) {}
 
@@ -21,7 +21,7 @@ export class TenantSelfController {
   @ApiOperation({ summary: '获取当前租户主体资料' })
   @ApiOkResponse({ type: TenantProfileSwagger })
   @Get('profile')
-  @Roles(UserRoleEnum.TENANT_OWNER, UserRoleEnum.TENANT_OPERATOR, UserRoleEnum.TENANT_FINANCE, UserRoleEnum.TENANT_VIEWER)
+  @Permissions(TenantPermissionCodeEnum.TENANT_PROFILE_READ)
   async getTenantProfile(@CurrentUser() currentUser: JwtPayload): Promise<TenantProfile> {
     return this.tenantService.getTenantProfile(currentUser);
   }

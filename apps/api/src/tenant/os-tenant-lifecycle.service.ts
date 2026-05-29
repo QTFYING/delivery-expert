@@ -27,6 +27,7 @@ import * as bcrypt from 'bcrypt';
 import dayjs from 'dayjs';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
 import { normalizeIdArray, normalizeText } from '../common/validators';
+import { ensureTenantRbacBootstrap } from '../authorization/tenant-rbac-bootstrap';
 import { ID_CONFIG } from '../id-generator/id-generator.constants';
 import { IdGeneratorService } from '../id-generator/id-generator.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -92,6 +93,12 @@ export class OsTenantLifecycleService {
           status: UserStatusEnum.ACTIVE,
           requiresPasswordReset: true,
         },
+      });
+
+      await ensureTenantRbacBootstrap(tx, {
+        tenantId: tenant.id,
+        ownerUserId: owner.id,
+        actorUserId: currentUser.userId,
       });
 
       await createTenantAuditLog(tx, currentUser, {

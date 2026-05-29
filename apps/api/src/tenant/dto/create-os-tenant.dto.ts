@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { IsEnum, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 import { TenantSoftwareVersionEnum } from '@shou/types/enums';
 
@@ -34,10 +35,12 @@ export class CreateOsTenantDto {
   serviceExpireAt!: string;
 
   @ApiProperty({ description: '首个老板登录账号，当前按手机号使用', example: '13800138000' })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   ownerAccount!: string;
 
   @ApiPropertyOptional({ description: '首个老板初始密码，不传则由服务端回退默认密码', example: '123456' })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsOptional()
   @IsString()
   ownerInitialPassword?: string;

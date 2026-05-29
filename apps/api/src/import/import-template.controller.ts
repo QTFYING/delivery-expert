@@ -7,11 +7,11 @@ import type {
   OrderImportTemplateMutationResponse,
   UpdateOrderImportTemplateRequest,
 } from '@shou/types/contracts';
-import { UserRoleEnum } from '@shou/types/enums';
+import { TenantPermissionCodeEnum } from '@shou/types/enums';
 import { CurrentUser, JwtPayload } from '../auth/decorators/current-user.decorator';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { Permissions } from '../authorization/permissions.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
+import { PermissionsGuard } from '../authorization/permissions.guard';
 import { CreateImportTemplateDto, UpdateImportTemplateDto } from './dto/import-template.dto';
 import { ImportTemplateService } from './import-template.service';
 import { OrderImportTemplateFieldSwagger, OrderImportTemplateMutationResponseSwagger, OrderImportTemplateSwagger } from './import.swagger';
@@ -20,7 +20,7 @@ import { OrderImportTemplateFieldSwagger, OrderImportTemplateMutationResponseSwa
 @ApiBearerAuth()
 @ApiExtraModels(OrderImportTemplateFieldSwagger, OrderImportTemplateSwagger, OrderImportTemplateMutationResponseSwagger)
 @Controller()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class ImportTemplateController {
   constructor(private readonly importTemplateService: ImportTemplateService) {}
 
@@ -64,16 +64,16 @@ export class ImportTemplateController {
     },
   })
   @Get('import/default-template')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.TEMPLATES_MANAGE)
   async getDefaultTemplate(): Promise<OrderImportTemplateField[]> {
     return this.importTemplateService.getDefaultTemplate();
   }
 
-  // 查询当前租户可用的导入模板列表，不在 controller 中承载模板组装逻辑
-  @ApiOperation({ summary: '获取导入模板列表' })
+  // 查询当前租户可用的完整映射模板列表，供订单展示自定义字段和导入选择复用
+  @ApiOperation({ summary: '获取导入模板列表', description: '返回当前租户可用的完整映射模板列表，供订单展示自定义字段和导入选择复用。' })
   @ApiOkResponse({ type: [OrderImportTemplateSwagger] })
   @Get('import/templates')
-  @Roles(UserRoleEnum.TENANT_OWNER, UserRoleEnum.TENANT_OPERATOR)
+  @Permissions(TenantPermissionCodeEnum.TEMPLATES_READ)
   async getImportTemplates(@CurrentUser() currentUser: JwtPayload): Promise<OrderImportTemplate[]> {
     return this.importTemplateService.getImportTemplates(currentUser);
   }
@@ -82,7 +82,7 @@ export class ImportTemplateController {
   @ApiOperation({ summary: '创建导入模板' })
   @ApiOkResponse({ type: OrderImportTemplateMutationResponseSwagger })
   @Post('import/templates')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.TEMPLATES_MANAGE)
   async createImportTemplate(
     @CurrentUser() currentUser: JwtPayload,
     @Body() request: CreateImportTemplateDto,
@@ -95,7 +95,7 @@ export class ImportTemplateController {
   @ApiParam({ name: 'id', description: '导入模板 ID' })
   @ApiOkResponse({ type: OrderImportTemplateMutationResponseSwagger })
   @Put('import/templates/:id')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.TEMPLATES_MANAGE)
   async updateImportTemplate(
     @CurrentUser() currentUser: JwtPayload,
     @Param('id') id: string,

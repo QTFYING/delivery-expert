@@ -963,7 +963,7 @@
 | 续费租户                 | Tenant 端套餐和有效期更新                                                              |
 | 创建/管理用户            | Tenant 端用户列表同步更新                                                              |
 | 查看/兜底支付渠道配置    | Tenant 端 `GET /settings/payment-configs/{channel}` 的状态由平台兜底可见               |
-| 固定角色与权限树只读接口 | Tenant `GET /settings/roles`、`GET /settings/permissions` 只读返回固定枚举             |
+| Tenant RBAC 配置          | Tenant `GET /settings/roles` 返回租户内置与自定义角色，`GET /settings/permissions` 返回服务端权限能力树 |
 | 发布公告（远景规划）     | Tenant 端 `GET /notifications` 接收公告已落地；Admin `/notices/*` 发布管理仍属规划能力 |
 | 跨租户订单/流水查看      | 数据来源于各 Tenant 的订单和支付                                                       |
 

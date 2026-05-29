@@ -8,6 +8,7 @@ export interface JwtPayload {
   side: 'platform' | 'tenant';
   sessionId: string;
   tokenVersion: number;
+  permissionVersion: number;
 }
 
 export const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext): JwtPayload => {

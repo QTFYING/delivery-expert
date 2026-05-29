@@ -26,18 +26,6 @@ export const TenantSideEnum = {
 export type TenantSide = EnumValue<typeof TenantSideEnum>;
 
 /**
- * 登录态来源标记
- */
-export const AuthSourceTagEnum = {
-  /** 模拟数据 */
-  MOCK: 'mock',
-  /** 远端真实数据 */
-  REMOTE: 'remote',
-} as const;
-
-export type AuthSourceTag = EnumValue<typeof AuthSourceTagEnum>;
-
-/**
  * 审核动作
  */
 export const ReviewActionEnum = {

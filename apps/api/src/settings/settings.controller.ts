@@ -2,35 +2,40 @@ import { Body, Controller, Delete, Get, Ip, Param, ParseUUIDPipe, Patch, Post, P
 import { ApiBearerAuth, ApiExtraModels, ApiOkResponse, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type {
   GetTenantPaymentConfigListResponse,
-  PermissionNode,
   TenantAuditLogListResponse,
   GetPrintingConfigDetailResponse,
   GetPrintingConfigListResponse,
   TenantPaymentConfigSnapshot,
+  TenantPermissionTreeResponse,
   TenantRoleAccount,
   TenantSettingsUser,
   TenantGeneralSettings,
   TenantUserStatusUpdateRequest,
+  CreateTenantRoleRequest,
   CreateTenantUserRequest,
   UpdateTenantGeneralSettingsRequest,
   UpdatePrintingConfigRequest,
   UpdatePrintingConfigResponse,
   UpsertTenantPaymentConfigRequest,
+  UpdateTenantRoleRequest,
   UpdateTenantUserRequest,
 } from '@shou/types/contracts';
-import { PaymentChannelEnum, UserRoleEnum, type PaymentChannel } from '@shou/types/enums';
+import { PaymentChannelEnum, TenantPermissionCodeEnum, type PaymentChannel } from '@shou/types/enums';
 import { CurrentUser, JwtPayload } from '../auth/decorators/current-user.decorator';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { Permissions } from '../authorization/permissions.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
+import { PermissionsGuard } from '../authorization/permissions.guard';
+import { CreateTenantRoleDto } from './dto/create-tenant-role.dto';
 import { CreateTenantUserDto } from './dto/create-tenant-user.dto';
 import { ListAuditLogsQueryDto } from './dto/list-audit-logs.query.dto';
 import { PatchTenantUserStatusDto } from './dto/patch-tenant-user-status.dto';
 import { UpdateGeneralSettingsDto } from './dto/update-general-settings.dto';
 import { UpdatePrintingConfigDto } from './dto/update-printing-config.dto';
 import { UpdateTenantPaymentConfigDto } from './dto/update-tenant-payment-config.dto';
+import { UpdateTenantRoleDto } from './dto/update-tenant-role.dto';
 import { UpdateTenantUserDto } from './dto/update-tenant-user.dto';
 import { SettingsPaymentConfigService } from './settings-payment-config.service';
+import { SettingsRoleService } from './settings-role.service';
 import { SettingsPrintingService } from './settings-printing.service';
 import { SettingsUserService } from './settings-user.service';
 import { SettingsUserPasswordService } from './settings-user-password.service';
@@ -39,8 +44,8 @@ import {
   GetPrintingConfigDetailResponseSwagger,
   GetPrintingConfigListResponseSwagger,
   GetTenantPaymentConfigListResponseSwagger,
-  PermissionNodeSwagger,
   TenantAuditLogListResponseSwagger,
+  TenantPermissionTreeResponseSwagger,
   TenantGeneralSettingsSwagger,
   TenantPaymentConfigSnapshotSwagger,
   TenantRoleAccountSwagger,
@@ -53,7 +58,7 @@ import {
 @ApiExtraModels(
   TenantGeneralSettingsSwagger,
   TenantRoleAccountSwagger,
-  PermissionNodeSwagger,
+  TenantPermissionTreeResponseSwagger,
   TenantSettingsUserSwagger,
   TenantPaymentConfigSnapshotSwagger,
   GetTenantPaymentConfigListResponseSwagger,
@@ -63,10 +68,11 @@ import {
   TenantAuditLogListResponseSwagger,
 )
 @Controller('settings')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class SettingsController {
   constructor(
     private readonly settingsService: SettingsService,
+    private readonly settingsRoleService: SettingsRoleService,
     private readonly settingsUserService: SettingsUserService,
     private readonly settingsUserPasswordService: SettingsUserPasswordService,
     private readonly settingsPaymentConfigService: SettingsPaymentConfigService,
@@ -77,7 +83,7 @@ export class SettingsController {
   @ApiOperation({ summary: '获取通用配置' })
   @ApiOkResponse({ type: TenantGeneralSettingsSwagger })
   @Get('general')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_GENERAL_MANAGE)
   async getGeneralSettings(@CurrentUser() currentUser: JwtPayload): Promise<TenantGeneralSettings> {
     return this.settingsService.getGeneralSettings(currentUser);
   }
@@ -86,7 +92,7 @@ export class SettingsController {
   @ApiOperation({ summary: '保存通用配置' })
   @ApiOkResponse({ type: TenantGeneralSettingsSwagger })
   @Put('general')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_GENERAL_MANAGE)
   async updateGeneralSettings(
     @CurrentUser() currentUser: JwtPayload,
     @Body() request: UpdateGeneralSettingsDto,
@@ -99,7 +105,7 @@ export class SettingsController {
   @ApiOperation({ summary: '获取支付渠道配置列表' })
   @ApiOkResponse({ type: GetTenantPaymentConfigListResponseSwagger })
   @Get('payment-configs')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_PAYMENT_CONFIGS_READ)
   async getPaymentConfigList(@CurrentUser() currentUser: JwtPayload): Promise<GetTenantPaymentConfigListResponse> {
     return this.settingsPaymentConfigService.getPaymentConfigList(currentUser);
   }
@@ -109,7 +115,7 @@ export class SettingsController {
   @ApiParam({ name: 'channel', description: '支付渠道', enum: Object.values(PaymentChannelEnum), example: PaymentChannelEnum.LAKALA })
   @ApiOkResponse({ type: TenantPaymentConfigSnapshotSwagger })
   @Get('payment-configs/:channel')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_PAYMENT_CONFIGS_READ)
   async getPaymentConfigDetail(
     @CurrentUser() currentUser: JwtPayload,
     @Param('channel') channel: PaymentChannel,
@@ -122,7 +128,7 @@ export class SettingsController {
   @ApiParam({ name: 'channel', description: '支付渠道', enum: Object.values(PaymentChannelEnum), example: PaymentChannelEnum.LAKALA })
   @ApiOkResponse({ type: TenantPaymentConfigSnapshotSwagger })
   @Put('payment-configs/:channel')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_PAYMENT_CONFIGS_MANAGE)
   async updatePaymentConfig(
     @CurrentUser() currentUser: JwtPayload,
     @Param('channel') channel: PaymentChannel,
@@ -140,7 +146,7 @@ export class SettingsController {
   @ApiParam({ name: 'channel', description: '支付渠道', enum: Object.values(PaymentChannelEnum), example: PaymentChannelEnum.LAKALA })
   @ApiOkResponse({ type: TenantPaymentConfigSnapshotSwagger })
   @Post('payment-configs/:channel/disable')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_PAYMENT_CONFIGS_MANAGE)
   async disablePaymentConfig(
     @CurrentUser() currentUser: JwtPayload,
     @Param('channel') channel: PaymentChannel,
@@ -154,7 +160,7 @@ export class SettingsController {
   @ApiParam({ name: 'channel', description: '支付渠道', enum: Object.values(PaymentChannelEnum), example: PaymentChannelEnum.LAKALA })
   @ApiOkResponse({ type: TenantPaymentConfigSnapshotSwagger })
   @Post('payment-configs/:channel/activate')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_PAYMENT_CONFIGS_MANAGE)
   async activatePaymentConfig(
     @CurrentUser() currentUser: JwtPayload,
     @Param('channel') channel: PaymentChannel,
@@ -167,17 +173,51 @@ export class SettingsController {
   @ApiOperation({ summary: '获取角色列表' })
   @ApiOkResponse({ type: [TenantRoleAccountSwagger] })
   @Get('roles')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_ROLES_MANAGE)
   async getRoles(@CurrentUser() currentUser: JwtPayload): Promise<TenantRoleAccount[]> {
-    return this.settingsUserService.getRoles(currentUser);
+    return this.settingsRoleService.getRoles(currentUser);
+  }
+
+  /** 创建租户自定义角色 */
+  @ApiOperation({ summary: '创建租户自定义角色' })
+  @ApiOkResponse({ type: TenantRoleAccountSwagger })
+  @Post('roles')
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_ROLES_MANAGE)
+  async createRole(@CurrentUser() currentUser: JwtPayload, @Body() request: CreateTenantRoleDto, @Ip() ip: string): Promise<TenantRoleAccount> {
+    return this.settingsRoleService.createRole(currentUser, request as CreateTenantRoleRequest, ip);
+  }
+
+  /** 更新租户自定义角色 */
+  @ApiOperation({ summary: '更新租户自定义角色' })
+  @ApiParam({ name: 'id', description: '角色 ID', format: 'uuid' })
+  @ApiOkResponse({ type: TenantRoleAccountSwagger })
+  @Put('roles/:id')
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_ROLES_MANAGE)
+  async updateRole(
+    @CurrentUser() currentUser: JwtPayload,
+    @Param('id', new ParseUUIDPipe()) roleId: string,
+    @Body() request: UpdateTenantRoleDto,
+    @Ip() ip: string,
+  ): Promise<TenantRoleAccount> {
+    return this.settingsRoleService.updateRole(currentUser, roleId, request as UpdateTenantRoleRequest, ip);
+  }
+
+  /** 删除租户自定义角色 */
+  @ApiOperation({ summary: '删除租户自定义角色' })
+  @ApiParam({ name: 'id', description: '角色 ID', format: 'uuid' })
+  @ApiOkResponse({ description: '删除成功', schema: { type: 'null' } })
+  @Delete('roles/:id')
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_ROLES_MANAGE)
+  async deleteRole(@CurrentUser() currentUser: JwtPayload, @Param('id', new ParseUUIDPipe()) roleId: string, @Ip() ip: string): Promise<null> {
+    return this.settingsRoleService.deleteRole(currentUser, roleId, ip);
   }
 
   /** 获取租户权限树 */
   @ApiOperation({ summary: '获取权限树' })
-  @ApiOkResponse({ type: [PermissionNodeSwagger] })
+  @ApiOkResponse({ type: TenantPermissionTreeResponseSwagger })
   @Get('permissions')
-  @Roles(UserRoleEnum.TENANT_OWNER)
-  async getPermissions(): Promise<PermissionNode[]> {
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_ROLES_MANAGE)
+  async getPermissions(): Promise<TenantPermissionTreeResponse> {
     return this.settingsService.getPermissions();
   }
 
@@ -185,7 +225,7 @@ export class SettingsController {
   @ApiOperation({ summary: '获取租户用户列表' })
   @ApiOkResponse({ type: [TenantSettingsUserSwagger] })
   @Get('users')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_USERS_MANAGE)
   async getUsers(@CurrentUser() currentUser: JwtPayload): Promise<TenantSettingsUser[]> {
     return this.settingsUserService.getUsers(currentUser);
   }
@@ -194,7 +234,7 @@ export class SettingsController {
   @ApiOperation({ summary: '创建租户用户' })
   @ApiOkResponse({ type: TenantSettingsUserSwagger })
   @Post('users')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_USERS_MANAGE)
   async createUser(@CurrentUser() currentUser: JwtPayload, @Body() request: CreateTenantUserDto, @Ip() ip: string): Promise<TenantSettingsUser> {
     return this.settingsUserService.createUser(currentUser, request as CreateTenantUserRequest, ip);
   }
@@ -204,7 +244,7 @@ export class SettingsController {
   @ApiParam({ name: 'id', description: '用户 ID', format: 'uuid' })
   @ApiOkResponse({ type: TenantSettingsUserSwagger })
   @Put('users/:id')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_USERS_MANAGE)
   async updateUser(
     @CurrentUser() currentUser: JwtPayload,
     @Param('id', new ParseUUIDPipe()) userId: string,
@@ -219,7 +259,7 @@ export class SettingsController {
   @ApiParam({ name: 'id', description: '用户 ID', format: 'uuid' })
   @ApiOkResponse({ description: '删除成功', schema: { type: 'null' } })
   @Delete('users/:id')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_USERS_MANAGE)
   async deleteUser(@CurrentUser() currentUser: JwtPayload, @Param('id', new ParseUUIDPipe()) userId: string, @Ip() ip: string): Promise<null> {
     return this.settingsUserService.deleteUser(currentUser, userId, ip);
   }
@@ -229,7 +269,7 @@ export class SettingsController {
   @ApiParam({ name: 'id', description: '用户 ID', format: 'uuid' })
   @ApiOkResponse({ type: TenantSettingsUserSwagger })
   @Patch('users/:id')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_USERS_MANAGE)
   async patchUserStatus(
     @CurrentUser() currentUser: JwtPayload,
     @Param('id', new ParseUUIDPipe()) userId: string,
@@ -244,7 +284,7 @@ export class SettingsController {
   @ApiParam({ name: 'id', description: '用户 ID', format: 'uuid' })
   @ApiOkResponse({ description: '重置成功', schema: { type: 'null' } })
   @Post('users/:id/password-resets')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_USERS_MANAGE)
   async resetUserPassword(@CurrentUser() currentUser: JwtPayload, @Param('id', new ParseUUIDPipe()) userId: string, @Ip() ip: string): Promise<null> {
     return this.settingsUserPasswordService.resetEmployeePassword(currentUser, userId, ip);
   }
@@ -253,7 +293,7 @@ export class SettingsController {
   @ApiOperation({ summary: '获取打印配置列表' })
   @ApiOkResponse({ type: GetPrintingConfigListResponseSwagger })
   @Get('printing')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_PRINTING_READ)
   async getPrintingConfigList(@CurrentUser() currentUser: JwtPayload): Promise<GetPrintingConfigListResponse> {
     return this.settingsPrintingService.getPrintingConfigList(currentUser);
   }
@@ -263,7 +303,7 @@ export class SettingsController {
   @ApiParam({ name: 'importTemplateId', description: '导入映射模板 ID' })
   @ApiOkResponse({ type: GetPrintingConfigDetailResponseSwagger })
   @Get('printing/:importTemplateId')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_PRINTING_READ)
   async getPrintingConfigDetail(
     @CurrentUser() currentUser: JwtPayload,
     @Param('importTemplateId') importTemplateId: string,
@@ -276,7 +316,7 @@ export class SettingsController {
   @ApiParam({ name: 'importTemplateId', description: '导入映射模板 ID' })
   @ApiOkResponse({ type: UpdatePrintingConfigResponseSwagger })
   @Put('printing/:importTemplateId')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_PRINTING_UPDATE)
   async updatePrintingConfig(
     @CurrentUser() currentUser: JwtPayload,
     @Param('importTemplateId') importTemplateId: string,
@@ -290,7 +330,7 @@ export class SettingsController {
   @ApiOperation({ summary: '获取租户操作日志' })
   @ApiOkResponse({ type: TenantAuditLogListResponseSwagger })
   @Get('audit-logs')
-  @Roles(UserRoleEnum.TENANT_OWNER)
+  @Permissions(TenantPermissionCodeEnum.SETTINGS_AUDIT_LOGS_READ)
   async getAuditLogs(@CurrentUser() currentUser: JwtPayload, @Query() query: ListAuditLogsQueryDto): Promise<TenantAuditLogListResponse> {
     return this.settingsService.getAuditLogs(currentUser, query);
   }

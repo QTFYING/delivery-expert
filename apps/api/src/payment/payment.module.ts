@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuthorizationModule } from '../authorization/authorization.module';
 import { LakalaGatewayProvider } from './gateway/lakala-gateway.provider';
 import { LakalaCounterService } from './gateway/lakala-counter.service';
 import { PaymentGatewayRegistry } from './gateway/payment-gateway.registry';
@@ -16,6 +17,7 @@ import { TenantPaymentController } from './payment-tenant.controller';
 import { PaymentWebhookController } from './payment-webhook.controller';
 
 @Module({
+  imports: [AuthorizationModule],
   controllers: [H5PaymentController, PaymentWebhookController, TenantPaymentController],
   providers: [
     PaymentService,

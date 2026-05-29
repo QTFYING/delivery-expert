@@ -183,7 +183,12 @@ model Tenant {
   noticeReads          NoticeRead[]
   certifications       TenantCertification[]
   auditLogs            AuditLog[]
+  tenantRoles          TenantRole[]
+  userRoleAssignments  UserRoleAssignment[]
 
+  @@index([deletedAt, createdAt])
+  @@index([deletedAt, status])
+  @@index([deletedAt, serviceExpireAt])
   @@map("tenants")
 }
 
@@ -207,10 +212,70 @@ model User {
   orderPrintRecords OrderPrintRecord[] @relation("OrderPrintRecordOperator")
   noticeReads       NoticeRead[]
   orderReminders    OrderReminder[]    @relation("OrderReminderOperator")
+  roleAssignments   UserRoleAssignment[]
 
-  @@index([tenantId])
+  @@unique([tenantId, id])
+  @@index([deletedAt, createdAt])
+  @@index([tenantId, deletedAt, role, status])
   @@index([status])
   @@map("users")
+}
+
+model TenantRole {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @db.VarChar(10)
+  code        String    @db.VarChar(100)
+  name        String    @db.VarChar(50)
+  description String?   @db.VarChar(255)
+  isSystem    Boolean   @default(false)
+  isEditable  Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  createdBy   String?   @db.Uuid
+  updatedBy   String?   @db.Uuid
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
+  deletedAt   DateTime? @db.Timestamptz(3)
+
+  tenant          Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  permissions     TenantRolePermission[]
+  userAssignments UserRoleAssignment[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, id])
+  @@index([tenantId, deletedAt])
+  @@index([tenantId, isSystem, sortOrder])
+  @@map("tenant_roles")
+}
+
+model TenantRolePermission {
+  roleId         String   @db.Uuid
+  permissionCode String   @db.VarChar(100)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+
+  role TenantRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionCode])
+  @@index([permissionCode])
+  @@map("tenant_role_permissions")
+}
+
+model UserRoleAssignment {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @db.VarChar(10)
+  userId    String   @db.Uuid
+  roleId    String   @db.Uuid
+  isPrimary Boolean  @default(true)
+  createdBy String?  @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  tenant Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: Cascade)
+  role   TenantRole @relation(fields: [tenantId, roleId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([tenantId, roleId])
+  @@map("user_role_assignments")
 }
 
 model TenantGeneralSettings {
@@ -254,7 +319,7 @@ model TenantPaymentConfig {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, channel])
-  @@index([tenantId, status])
+  @@index([status, tenantId])
   @@map("tenant_payment_configs")
 }
 
@@ -273,15 +338,15 @@ model ImportTemplate {
   printerTemplate PrinterTemplate?
   orders          Order[]
 
-  @@unique([tenantId, name])
-  @@index([tenantId])
+  @@unique([tenantId, id])
+  @@index([tenantId, deletedAt, createdAt])
   @@map("import_templates")
 }
 
 model PrinterTemplate {
   id               BigInt   @id @default(autoincrement())
   tenantId         String   @db.VarChar(10)
-  importTemplateId BigInt   @unique
+  importTemplateId BigInt
   config           Json
   configVersion    Int      @default(1)
   remark           String?  @db.VarChar(255)
@@ -290,7 +355,7 @@ model PrinterTemplate {
   updatedAt        DateTime @updatedAt @db.Timestamptz(3)
 
   tenant         Tenant         @relation(fields: [tenantId], references: [id])
-  importTemplate ImportTemplate @relation(fields: [importTemplateId], references: [id])
+  importTemplate ImportTemplate @relation(fields: [tenantId, importTemplateId], references: [tenantId, id])
 
   @@unique([tenantId, importTemplateId])
   @@map("printer_templates")
@@ -319,7 +384,7 @@ model ImportJob {
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
-  @@index([tenantId, status])
+  @@index([tenantId, status, createdAt])
   @@index([status, heartbeatAt])
   @@map("import_jobs")
 }
@@ -354,7 +419,7 @@ model Order {
   deletedAt           DateTime?        @db.Timestamptz(3)
 
   tenant               Tenant                @relation(fields: [tenantId], references: [id])
-  mappingTemplate      ImportTemplate?       @relation(fields: [mappingTemplateId], references: [id])
+  mappingTemplate      ImportTemplate?       @relation(fields: [tenantId, mappingTemplateId], references: [tenantId, id], onDelete: Restrict)
   lineItems            OrderItem[]
   payments             Payment[]
   paymentOrders        PaymentOrder[]
@@ -362,11 +427,11 @@ model Order {
   printRecords         OrderPrintRecord[]
   reminders            OrderReminder[]
 
-  @@unique([tenantId, sourceOrderNo])
-  @@index([tenantId, status])
-  @@index([tenantId, payType])
-  @@index([tenantId, orderTime])
-  @@index([mappingTemplateId])
+  @@index([deletedAt, orderTime])
+  @@index([tenantId, deletedAt, orderTime])
+  @@index([tenantId, deletedAt, status, orderTime])
+  @@index([tenantId, deletedAt, payType, creditDueDate])
+  @@index([tenantId, mappingTemplateId])
   @@map("orders")
 }
 
@@ -408,6 +473,9 @@ model Payment {
   order  Order  @relation(fields: [orderId], references: [id])
 
   @@index([tenantId, paidAt])
+  @@index([paidAt])
+  @@index([channel, paidAt])
+  @@index([status, paidAt])
   @@index([orderId])
   @@map("payments")
 }
@@ -439,8 +507,8 @@ model PaymentOrder {
   webhookEvents PaymentWebhookEvent[]
 
   @@unique([orderId, paymentMethod, onlineAttemptNo])
-  @@index([tenantId, status])
-  @@index([orderId])
+  @@index([tenantId, status, updatedAt])
+  @@index([orderId, updatedAt])
   @@map("payment_orders")
 }
 
@@ -471,6 +539,8 @@ model PaymentWebhookEvent {
   @@index([provider, receivedAt])
   @@index([tenantId, receivedAt])
   @@index([gatewayTradeNo, receivedAt])
+  @@index([paymentOrderId, receivedAt])
+  @@index([orderId, receivedAt])
   @@index([processingStatus, receivedAt])
   @@map("payment_webhook_events")
 }

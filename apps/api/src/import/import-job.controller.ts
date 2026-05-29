@@ -7,11 +7,11 @@ import type {
   OrderImportSubmitRequest,
   OrderImportSubmitResponse,
 } from '@shou/types/contracts';
-import { UserRoleEnum } from '@shou/types/enums';
+import { TenantPermissionCodeEnum } from '@shou/types/enums';
 import { CurrentUser, JwtPayload } from '../auth/decorators/current-user.decorator';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { Permissions } from '../authorization/permissions.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
+import { PermissionsGuard } from '../authorization/permissions.guard';
 import { ImportPreviewDto } from './dto/import-preview.dto';
 import { SubmitOrderImportDto } from './dto/submit-order-import.dto';
 import { ImportJobQueryService } from './import-job-query.service';
@@ -23,7 +23,7 @@ import { OrderImportJobResponseSwagger, OrderImportPreviewResponseSwagger, Order
 @ApiBearerAuth()
 @ApiExtraModels(OrderImportPreviewResponseSwagger, OrderImportSubmitResponseSwagger, OrderImportJobResponseSwagger)
 @Controller()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class ImportJobController {
   constructor(
     private readonly previewService: ImportPreviewService,
@@ -35,7 +35,7 @@ export class ImportJobController {
   @ApiOperation({ summary: '导入预检' })
   @ApiOkResponse({ type: OrderImportPreviewResponseSwagger })
   @Post('import/preview')
-  @Roles(UserRoleEnum.TENANT_OWNER, UserRoleEnum.TENANT_OPERATOR)
+  @Permissions(TenantPermissionCodeEnum.ORDERS_IMPORT_MANAGE)
   async previewImport(@CurrentUser() currentUser: JwtPayload, @Body() request: ImportPreviewDto): Promise<OrderImportPreviewResponse> {
     return this.previewService.previewImport(currentUser, request as OrderImportPreviewRequest);
   }
@@ -44,7 +44,7 @@ export class ImportJobController {
   @ApiOperation({ summary: '正式导入订单' })
   @ApiOkResponse({ type: OrderImportSubmitResponseSwagger })
   @Post('orders/import')
-  @Roles(UserRoleEnum.TENANT_OWNER, UserRoleEnum.TENANT_OPERATOR)
+  @Permissions(TenantPermissionCodeEnum.ORDERS_IMPORT_MANAGE)
   async submitOrderImport(@CurrentUser() currentUser: JwtPayload, @Body() request: SubmitOrderImportDto): Promise<OrderImportSubmitResponse> {
     return this.submitService.submitOrderImport(currentUser, request as OrderImportSubmitRequest);
   }
@@ -54,7 +54,7 @@ export class ImportJobController {
   @ApiParam({ name: 'jobId', description: '导入任务 ID' })
   @ApiOkResponse({ type: OrderImportJobResponseSwagger })
   @Get('orders/import/jobs/:jobId')
-  @Roles(UserRoleEnum.TENANT_OWNER, UserRoleEnum.TENANT_OPERATOR)
+  @Permissions(TenantPermissionCodeEnum.ORDERS_IMPORT_MANAGE)
   async getImportJob(@CurrentUser() currentUser: JwtPayload, @Param('jobId') jobId: string): Promise<OrderImportJobResponse> {
     return this.jobQueryService.getImportJob(currentUser, jobId);
   }

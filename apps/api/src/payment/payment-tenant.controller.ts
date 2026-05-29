@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiExtraModels, ApiOkResponse, ApiOperation, ApiParam, ApiTags, getSchemaPath } from '@nestjs/swagger';
-import { UserRoleEnum } from '@shou/types/enums';
+import { TenantPermissionCodeEnum, UserRoleEnum } from '@shou/types/enums';
 import type { PaginatedResponse } from '@shou/types/common';
 import type {
   AdminPaymentRecordItem,
@@ -11,8 +11,10 @@ import type {
 } from '@shou/types/contracts';
 import { CurrentUser, JwtPayload } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { Permissions } from '../authorization/permissions.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { PermissionsGuard } from '../authorization/permissions.guard';
 import { ListPaymentsQueryDto } from './dto/list-payments.query.dto';
 import { PaymentService } from './payment.service';
 import {
@@ -31,7 +33,7 @@ import {
   CreateCashVerificationResponseSwagger,
 )
 @Controller()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 export class TenantPaymentController {
   constructor(private readonly paymentService: PaymentService) {}
 
@@ -43,7 +45,8 @@ export class TenantPaymentController {
     },
   })
   @Get('payments')
-  @Roles(UserRoleEnum.OS_SUPER_ADMIN, UserRoleEnum.TENANT_OWNER, UserRoleEnum.TENANT_FINANCE)
+  @Roles(UserRoleEnum.OS_SUPER_ADMIN)
+  @Permissions(TenantPermissionCodeEnum.PAYMENTS_READ)
   async getPayments(
     @CurrentUser() currentUser: JwtPayload,
     @Query() query: ListPaymentsQueryDto,
@@ -55,7 +58,8 @@ export class TenantPaymentController {
   @ApiOperation({ summary: '获取收款汇总统计' })
   @ApiOkResponse({ type: PaymentSummaryResponseSwagger })
   @Get('payments/summary')
-  @Roles(UserRoleEnum.OS_SUPER_ADMIN, UserRoleEnum.TENANT_OWNER, UserRoleEnum.TENANT_FINANCE)
+  @Roles(UserRoleEnum.OS_SUPER_ADMIN)
+  @Permissions(TenantPermissionCodeEnum.PAYMENTS_READ)
   async getPaymentSummary(@CurrentUser() currentUser: JwtPayload): Promise<PaymentSummaryResponse> {
     return this.paymentService.getPaymentSummary(currentUser);
   }
@@ -65,7 +69,7 @@ export class TenantPaymentController {
   @ApiParam({ name: 'id', description: '订单 ID' })
   @ApiOkResponse({ type: CreateCashVerificationResponseSwagger })
   @Post('orders/:id/cash-verifications')
-  @Roles(UserRoleEnum.TENANT_FINANCE)
+  @Permissions(TenantPermissionCodeEnum.PAYMENTS_CASH_VERIFY_CREATE)
   async createCashVerification(@CurrentUser() currentUser: JwtPayload, @Param('id') orderId: string): Promise<CreateCashVerificationResponse> {
     return this.paymentService.createCashVerification(currentUser, orderId);
   }

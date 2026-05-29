@@ -2,7 +2,6 @@ import type { ListParams } from '../common';
 import type {
   AuditResult,
   AuditTargetType,
-  AuthSourceTag,
   PaymentChannel,
   ReviewAction,
   SortOrder,
@@ -277,8 +276,6 @@ export interface ConsoleInfoResponse {
   role: string;
   /** 当前租户名称 */
   currentTenant: string;
-  /** 数据来源标记 */
-  source?: AuthSourceTag;
 }
 
 export interface TenantListQuery extends ListParams {

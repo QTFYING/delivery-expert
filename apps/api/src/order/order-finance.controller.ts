@@ -8,11 +8,11 @@ import type {
   CreateOrderReminderResponse,
   CreditOrderItem,
 } from '@shou/types/contracts';
-import { UserRoleEnum } from '@shou/types/enums';
+import { TenantPermissionCodeEnum } from '@shou/types/enums';
 import { CurrentUser, JwtPayload } from '../auth/decorators/current-user.decorator';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { Permissions } from '../authorization/permissions.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
+import { PermissionsGuard } from '../authorization/permissions.guard';
 import { CreateOrderReceiptDto } from './dto/create-order-receipt.dto';
 import { CreateOrderReminderDto } from './dto/create-order-reminder.dto';
 import { ListCreditOrdersQueryDto } from './dto/list-credit-orders.query.dto';
@@ -23,7 +23,7 @@ import { CreateOrderReceiptResponseSwagger, CreateOrderReminderResponseSwagger, 
 @ApiBearerAuth()
 @ApiExtraModels(CreditOrderListResponseSwagger, CreateOrderReminderResponseSwagger, CreateOrderReceiptResponseSwagger)
 @Controller('orders')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class OrderFinanceController {
   constructor(private readonly orderFinanceService: OrderFinanceService) {}
 
@@ -31,7 +31,7 @@ export class OrderFinanceController {
   @ApiOperation({ summary: '获取账期订单列表' })
   @ApiOkResponse({ type: CreditOrderListResponseSwagger })
   @Get('credit')
-  @Roles(UserRoleEnum.TENANT_OWNER, UserRoleEnum.TENANT_FINANCE)
+  @Permissions(TenantPermissionCodeEnum.CREDIT_READ)
   async getCreditOrders(
     @CurrentUser() currentUser: JwtPayload,
     @Query() query: ListCreditOrdersQueryDto,
@@ -44,7 +44,7 @@ export class OrderFinanceController {
   @ApiParam({ name: 'id', description: '订单 ID' })
   @ApiOkResponse({ type: CreateOrderReminderResponseSwagger })
   @Post(':id/reminders')
-  @Roles(UserRoleEnum.TENANT_OWNER, UserRoleEnum.TENANT_FINANCE)
+  @Permissions(TenantPermissionCodeEnum.ORDERS_REMINDER_CREATE)
   async createReminder(
     @CurrentUser() currentUser: JwtPayload,
     @Param('id') id: string,
@@ -58,7 +58,7 @@ export class OrderFinanceController {
   @ApiParam({ name: 'id', description: '订单 ID' })
   @ApiOkResponse({ type: CreateOrderReceiptResponseSwagger })
   @Post(':id/receipts')
-  @Roles(UserRoleEnum.TENANT_OWNER, UserRoleEnum.TENANT_FINANCE)
+  @Permissions(TenantPermissionCodeEnum.CREDIT_RECEIPT_CREATE)
   async createReceipt(
     @CurrentUser() currentUser: JwtPayload,
     @Param('id') id: string,

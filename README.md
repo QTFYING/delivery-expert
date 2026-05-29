@@ -95,11 +95,6 @@ pnpm -F api prisma:generate
 pnpm db:seed
 ```
 
-默认测试账号：
-
-- 平台账号：`admin` / `123456`
-- 租户账号：`boss` / `123456`
-
 ### 6. 启动 API
 
 ```bash

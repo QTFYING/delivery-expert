@@ -1,64 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { AuditTargetTypeEnum as PrismaAuditTargetTypeEnum, Prisma } from '@prisma/client';
 import type {
-  PermissionNode,
   TenantAuditLogListResponse,
   TenantAuditLogQuery,
   TenantGeneralSettings,
+  TenantPermissionTreeResponse,
   UpdateTenantGeneralSettingsRequest,
 } from '@shou/types/contracts';
 import dayjs from 'dayjs';
 import { JwtPayload } from '../auth/decorators/current-user.decorator';
+import { toTenantPermissionTreeResponse } from '../authorization/mapping/permission.mapper';
 import { normalizePage, normalizePageSize } from '../common/validators';
 import { PrismaService } from '../prisma/prisma.service';
 import { GENERAL_SETTINGS_CONFIG_GROUP, GENERAL_SETTINGS_DEFAULTS } from './settings.constants';
 import { ListAuditLogsQueryDto } from './dto/list-audit-logs.query.dto';
 import { mergeGeneralSettings, parseBooleanValue, parseNumberValue, toTenantOverrideUpdate } from './mapping/settings.mapper';
 import { createAuditLog, getTenantSideId } from './settings.shared';
-
-const PERMISSION_TREE: PermissionNode[] = [
-  {
-    id: 'dashboard',
-    label: '首页',
-  },
-  {
-    id: 'orders',
-    label: '订单管理',
-    children: [
-      { id: 'orders.view', label: '查看订单列表' },
-      { id: 'orders.import', label: '导入订单' },
-      { id: 'orders.print', label: '打印订单' },
-    ],
-  },
-  {
-    id: 'printing',
-    label: '打印设置',
-    children: [
-      { id: 'printing.view', label: '查看打印配置' },
-      { id: 'printing.manage', label: '维护打印模板' },
-    ],
-  },
-  {
-    id: 'finance',
-    label: '财务报表',
-    children: [
-      { id: 'finance.summary', label: '查看收款报表' },
-      { id: 'finance.reconciliation', label: '查看对账明细' },
-      { id: 'finance.credit', label: '查看账期管理' },
-      { id: 'finance.export', label: '导出报表' },
-    ],
-  },
-  {
-    id: 'settings',
-    label: '系统设置',
-    children: [
-      { id: 'settings.general', label: '基础设置' },
-      { id: 'settings.printing', label: '打印配置' },
-      { id: 'settings.roles', label: '角色管理' },
-      { id: 'settings.users', label: '用户管理' },
-    ],
-  },
-];
 
 @Injectable()
 export class SettingsService {
@@ -106,9 +63,9 @@ export class SettingsService {
     return result;
   }
 
-  // 返回当前固定权限树，供租户角色配置页展示
-  getPermissions(): PermissionNode[] {
-    return PERMISSION_TREE;
+  // 返回服务端定义的 Tenant 权限能力树 不是前端菜单或路由树
+  getPermissions(): TenantPermissionTreeResponse {
+    return toTenantPermissionTreeResponse();
   }
 
   // 查询当前租户审计日志，按登录态 tenantId 强制隔离

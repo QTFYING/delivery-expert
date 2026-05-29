@@ -1,28 +1,68 @@
 import type { ListParams, PaginatedResponse } from '../common';
-import type { PaymentChannel, TenantPaymentConfigStatus, TenantRole, TenantStatus, UserSimpleStatus } from '../enums';
+import type { PaymentChannel, TenantPaymentConfigStatus, TenantPermissionCode, TenantPermissionDomain, TenantStatus, UserSimpleStatus } from '../enums';
 
-export interface PermissionNode {
-  /** 权限节点 ID */
-  id: string;
-  /** 权限节点名称 */
-  label: string;
-  /** 子权限节点 */
-  children?: PermissionNode[];
+export interface TenantPermissionItem {
+  /** 权限编码 */
+  code: TenantPermissionCode;
+  /** 服务端业务能力说明，不代表前端菜单文案 */
+  description: string;
+}
+
+export interface TenantPermissionDomainNode {
+  /** 权限所属业务域 */
+  domain: TenantPermissionDomain;
+  /** 服务端业务域说明，不代表前端菜单文案 */
+  description: string;
+  /** 当前业务域下的权限项 */
+  permissions: TenantPermissionItem[];
+}
+
+export interface TenantPermissionTreeResponse {
+  /** 权限能力树版本，随服务端权限定义发布 */
+  version: string;
+  /** 按业务域分组的权限能力列表 */
+  domains: TenantPermissionDomainNode[];
 }
 
 export interface TenantRoleAccount {
   /** 角色 ID */
   id: string;
+  /** 角色编码；内置角色使用 TENANT_*，自定义角色由服务端生成 */
+  code: string;
   /** 角色名称 */
   name: string;
   /** 角色描述 */
   description?: string;
   /** 权限编码列表 */
-  permissions: string[];
+  permissions: TenantPermissionCode[];
   /** 是否系统内置角色 */
   isSystem: boolean;
+  /** 是否允许编辑 */
+  isEditable: boolean;
   /** 使用该角色的用户数 */
   userCount: number;
+  /** 创建时间 */
+  createdAt?: string;
+  /** 更新时间 */
+  updatedAt?: string;
+}
+
+export interface CreateTenantRoleRequest {
+  /** 角色名称 */
+  name: string;
+  /** 角色描述 */
+  description?: string;
+  /** 角色包含的权限编码 */
+  permissionCodes: TenantPermissionCode[];
+}
+
+export interface UpdateTenantRoleRequest {
+  /** 角色名称 */
+  name?: string;
+  /** 角色描述 */
+  description?: string;
+  /** 角色包含的权限编码 */
+  permissionCodes?: TenantPermissionCode[];
 }
 
 export interface TenantSettingsUser {
@@ -30,10 +70,12 @@ export interface TenantSettingsUser {
   id: string;
   /** 用户姓名 */
   name: string;
-  /** 登录账号 */
-  account: string;
-  /** 主角色 */
-  role: TenantRole;
+  /** 当前角色 ID */
+  roleId: string;
+  /** 当前角色编码 */
+  roleCode: string;
+  /** 当前角色名称 */
+  roleName: string;
   /** 手机号 */
   phone: string;
   /** 用户状态 */
@@ -47,17 +89,19 @@ export interface CreateTenantUserRequest {
   name: string;
   /** 手机号 */
   phone: string;
-  /** 角色 */
-  role: TenantRole;
+  /** 登录账号；未提交时服务端使用手机号 */
+  account?: string;
+  /** 角色 ID */
+  roleId: string;
 }
 
 export interface UpdateTenantUserRequest {
   /** 用户姓名 */
   name?: string;
-  /** 登录账号 */
+  /** 登录账号；未提交时服务端使用手机号 */
   account?: string;
-  /** 角色 */
-  role?: TenantRole;
+  /** 角色 ID */
+  roleId?: string;
   /** 手机号 */
   phone?: string;
   /** 用户状态 */

@@ -16,10 +16,10 @@ export function toImportOrderCreateInput(tenantId: string, order: PreparedImport
   const totalAmount = toMoney(order.totalAmount, 'totalAmount', true);
 
   return {
-    tenant: { connect: { id: tenantId } },
+    tenantId,
     sourceOrderNo: order.sourceOrderNo,
     groupKey: order.groupKey,
-    mappingTemplate: { connect: { id: BigInt(order.mappingTemplateId as string) } },
+    mappingTemplateId: BigInt(order.mappingTemplateId as string),
     qrCodeToken: generateQrCodeToken(),
     customer: cut(order.customer, 100),
     customerPhone: normalizeNullableText(order.customerPhone, 30),
@@ -47,7 +47,7 @@ export function toImportOrderUpdateInput(order: PreparedImportOrder): Prisma.Ord
 
   return {
     groupKey: order.groupKey,
-    mappingTemplate: { connect: { id: BigInt(order.mappingTemplateId as string) } },
+    mappingTemplateId: BigInt(order.mappingTemplateId as string),
     customer: cut(order.customer, 100),
     customerPhone: normalizeNullableText(order.customerPhone, 30),
     customerAddress: cut(order.customerAddress, 255),
@@ -72,8 +72,8 @@ export function toImportOrderUpdateInput(order: PreparedImportOrder): Prisma.Ord
  * 用于正式导入时执行跳过、覆盖等冲突策略判断
  */
 export async function findExistingImportOrder(client: Prisma.TransactionClient | PrismaService, tenantId: string, sourceOrderNo: string) {
-  return client.order.findUnique({
-    where: { tenantId_sourceOrderNo: { tenantId, sourceOrderNo } },
+  return client.order.findFirst({
+    where: { tenantId, sourceOrderNo, deletedAt: null },
     select: { id: true },
   });
 }

@@ -1,12 +1,14 @@
 import { Body, Controller, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiExtraModels, ApiOkResponse, ApiOperation, ApiParam, ApiTags, getSchemaPath } from '@nestjs/swagger';
-import { UserRoleEnum } from '@shou/types/enums';
+import { TenantPermissionCodeEnum, UserRoleEnum } from '@shou/types/enums';
 import type { PaginatedResponse } from '@shou/types/common';
 import type { AdminOrderItem, CreateOrderRequest, TenantOrderItem, UpdateOrderRequest, VoidOrderRequest } from '@shou/types/contracts';
 import { CurrentUser, JwtPayload } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { Permissions } from '../authorization/permissions.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { PermissionsGuard } from '../authorization/permissions.guard';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { ListOrdersQueryDto } from './dto/list-orders.query.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
@@ -18,7 +20,7 @@ import { AdminOrderItemSwagger, AdminOrderListResponseSwagger, TenantOrderItemSw
 @ApiBearerAuth()
 @ApiExtraModels(TenantOrderItemSwagger, AdminOrderItemSwagger, TenantOrderListResponseSwagger, AdminOrderListResponseSwagger)
 @Controller('orders')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 export class OrderController {
   constructor(private readonly orderService: OrderService) {}
 
@@ -30,13 +32,8 @@ export class OrderController {
     },
   })
   @Get()
-  @Roles(
-    UserRoleEnum.OS_SUPER_ADMIN,
-    UserRoleEnum.TENANT_OWNER,
-    UserRoleEnum.TENANT_OPERATOR,
-    UserRoleEnum.TENANT_FINANCE,
-    UserRoleEnum.TENANT_VIEWER,
-  )
+  @Roles(UserRoleEnum.OS_SUPER_ADMIN)
+  @Permissions(TenantPermissionCodeEnum.ORDERS_READ)
   async findAll(
     @CurrentUser() currentUser: JwtPayload,
     @Query() query: ListOrdersQueryDto,
@@ -53,13 +50,8 @@ export class OrderController {
     },
   })
   @Get(':id')
-  @Roles(
-    UserRoleEnum.OS_SUPER_ADMIN,
-    UserRoleEnum.TENANT_OWNER,
-    UserRoleEnum.TENANT_OPERATOR,
-    UserRoleEnum.TENANT_FINANCE,
-    UserRoleEnum.TENANT_VIEWER,
-  )
+  @Roles(UserRoleEnum.OS_SUPER_ADMIN)
+  @Permissions(TenantPermissionCodeEnum.ORDERS_READ)
   async getOrder(@Param('id') id: string, @CurrentUser() currentUser: JwtPayload): Promise<TenantOrderItem | AdminOrderItem> {
     return this.orderService.getOrder(id, currentUser);
   }
@@ -68,7 +60,7 @@ export class OrderController {
   @ApiOperation({ summary: '创建订单' })
   @ApiOkResponse({ type: TenantOrderItemSwagger })
   @Post()
-  @Roles(UserRoleEnum.TENANT_OWNER, UserRoleEnum.TENANT_OPERATOR)
+  @Permissions(TenantPermissionCodeEnum.ORDERS_MANAGE)
   async createOrder(@CurrentUser() currentUser: JwtPayload, @Body() request: CreateOrderDto): Promise<TenantOrderItem> {
     return this.orderService.createOrder(currentUser, request as CreateOrderRequest);
   }
@@ -78,7 +70,7 @@ export class OrderController {
   @ApiParam({ name: 'id', description: '订单 ID' })
   @ApiOkResponse({ type: TenantOrderItemSwagger })
   @Put(':id')
-  @Roles(UserRoleEnum.TENANT_OWNER, UserRoleEnum.TENANT_OPERATOR)
+  @Permissions(TenantPermissionCodeEnum.ORDERS_MANAGE)
   async updateOrder(@CurrentUser() currentUser: JwtPayload, @Param('id') id: string, @Body() request: UpdateOrderDto): Promise<TenantOrderItem> {
     return this.orderService.updateOrder(currentUser, id, request as UpdateOrderRequest);
   }
@@ -88,7 +80,7 @@ export class OrderController {
   @ApiParam({ name: 'id', description: '订单 ID' })
   @ApiOkResponse({ type: TenantOrderItemSwagger })
   @Patch(':id')
-  @Roles(UserRoleEnum.TENANT_OWNER, UserRoleEnum.TENANT_OPERATOR)
+  @Permissions(TenantPermissionCodeEnum.ORDERS_VOID)
   async voidOrder(@CurrentUser() currentUser: JwtPayload, @Param('id') id: string, @Body() request: VoidOrderDto): Promise<TenantOrderItem> {
     return this.orderService.voidOrder(currentUser, id, request as VoidOrderRequest);
   }

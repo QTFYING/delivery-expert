@@ -1,4 +1,5 @@
 import { DynamicModule, Module } from '@nestjs/common';
+import { AuthorizationModule } from '../authorization/authorization.module';
 import { ImportJobController } from './import-job.controller';
 import { ImportJobQueryService } from './import-job-query.service';
 import { ImportJobRunnerService } from './import-job-runner.service';
@@ -15,6 +16,7 @@ export class ImportModule {
   static register(runtimeMode: ImportRuntimeMode = 'api'): DynamicModule {
     return {
       module: ImportModule,
+      imports: [AuthorizationModule],
       controllers: runtimeMode === 'api' ? [ImportTemplateController, ImportJobController] : [],
       providers: [
         ImportJobQueryService,

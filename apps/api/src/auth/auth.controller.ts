@@ -64,7 +64,7 @@ export class AuthController {
     };
   }
 
-  // 返回当前登录用户的资料视图
+  // 返回当前登录用户资料与权限快照
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -74,7 +74,7 @@ export class AuthController {
   })
   @ApiOkResponse({ description: '返回用户信息', type: AuthMeResponseSwagger })
   async me(@CurrentUser() currentUser: JwtPayload) {
-    return this.authService.getProfile(currentUser.userId);
+    return this.authService.getMe(currentUser);
   }
 
   // 修改当前登录用户密码并清理旧会话

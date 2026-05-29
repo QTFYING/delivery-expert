@@ -1,105 +1,42 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditTargetTypeEnum as PrismaAuditTargetTypeEnum, UserRoleEnum, UserStatusEnum } from '@prisma/client';
-import type {
-  CreateTenantUserRequest,
-  TenantRoleAccount,
-  TenantSettingsUser,
-  TenantUserStatusUpdateRequest,
-  UpdateTenantUserRequest,
-} from '@shou/types/contracts';
-import { TenantRoleEnum, UserSimpleStatusEnum } from '@shou/types/enums';
+import type { CreateTenantUserRequest, TenantSettingsUser, TenantUserStatusUpdateRequest, UpdateTenantUserRequest } from '@shou/types/contracts';
+import { UserSimpleStatusEnum } from '@shou/types/enums';
 import * as bcrypt from 'bcrypt';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
+import { PermissionService } from '../authorization/permission.service';
 import { normalizeText } from '../common/validators';
 import { PrismaService } from '../prisma/prisma.service';
-import { getTenantPrismaRoles, toPrismaTenantUserStatus, toTenantPrismaRole, toTenantSettingsUser } from './mapping/settings.mapper';
+import { getTenantPrismaRoles, toLegacyPrismaTenantRole, toPrismaTenantUserStatus, toTenantSettingsUser } from './mapping/settings.mapper';
+import { SettingsRoleService } from './settings-role.service';
 import { createAuditLog, getTenantSideId } from './settings.shared';
 
 const DEFAULT_TENANT_USER_PASSWORD = '123456';
-
-const TENANT_ROLE_DEFINITIONS: Array<{
-  role: (typeof TenantRoleEnum)[keyof typeof TenantRoleEnum];
-  name: string;
-  description: string;
-  permissions: string[];
-}> = [
-  {
-    role: TenantRoleEnum.OWNER,
-    name: '老板',
-    description: '租户管理员，拥有全部管理权限',
-    permissions: [
-      'dashboard',
-      'orders',
-      'orders.view',
-      'orders.import',
-      'orders.print',
-      'printing',
-      'printing.view',
-      'printing.manage',
-      'finance',
-      'finance.summary',
-      'finance.reconciliation',
-      'finance.credit',
-      'finance.export',
-      'settings',
-      'settings.general', // 基础设置
-      'settings.mapping', // 映射配置
-      'settings.printing', // 打印设置
-      'settings.roles', // 角色管理
-      'settings.users', // 用户管理
-    ],
+const USER_WITH_ROLE_ASSIGNMENT_INCLUDE = {
+  roleAssignments: {
+    where: { isPrimary: true },
+    include: {
+      role: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+        },
+      },
+    },
+    take: 1,
   },
-  {
-    role: TenantRoleEnum.OPERATOR,
-    name: '打单员',
-    description: '负责导单、查单和打印',
-    permissions: ['dashboard', 'orders', 'orders.view', 'orders.import', 'orders.print', 'printing.view'],
-  },
-  {
-    role: TenantRoleEnum.FINANCE,
-    name: '财务',
-    description: '负责收款、核销、对账和账期管理',
-    permissions: ['dashboard', 'orders.view', 'finance', 'finance.summary', 'finance.reconciliation', 'finance.credit', 'finance.export'],
-  },
-  {
-    role: TenantRoleEnum.VIEWER,
-    name: '访客',
-    description: '只读查看业务数据',
-    permissions: ['dashboard', 'orders.view', 'finance.summary'],
-  },
-];
+} as const;
 
 @Injectable()
 export class SettingsUserService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settingsRoleService: SettingsRoleService,
+    private readonly permissionService: PermissionService,
+  ) {}
 
-  // 获取当前租户的内置角色定义与占用数量
-  async getRoles(currentUser: JwtPayload): Promise<TenantRoleAccount[]> {
-    const tenantId = getTenantSideId(currentUser);
-    const users = await this.prisma.user.findMany({
-      where: {
-        tenantId,
-        deletedAt: null,
-        role: {
-          in: getTenantPrismaRoles(),
-        },
-      },
-      select: {
-        role: true,
-      },
-    });
-
-    return TENANT_ROLE_DEFINITIONS.map((item) => ({
-      id: item.role,
-      name: item.name,
-      description: item.description,
-      permissions: item.permissions,
-      isSystem: true,
-      userCount: users.filter((user) => user.role === item.role).length,
-    }));
-  }
-
-  // 获取当前租户可见的用户列表
+  // 获取当前租户可见的用户列表，角色信息来自 user_role_assignments
   async getUsers(currentUser: JwtPayload): Promise<TenantSettingsUser[]> {
     const tenantId = getTenantSideId(currentUser);
     const users = await this.prisma.user.findMany({
@@ -110,30 +47,50 @@ export class SettingsUserService {
           in: getTenantPrismaRoles(),
         },
       },
+      include: USER_WITH_ROLE_ASSIGNMENT_INCLUDE,
       orderBy: [{ createdAt: 'asc' }],
     });
 
     return users.map((user) => toTenantSettingsUser(user));
   }
 
-  // 创建当前租户下的新用户账号
+  // 创建当前租户下的新用户账号，并绑定当前租户内的角色 ID
   async createUser(currentUser: JwtPayload, request: CreateTenantUserRequest, ip?: string): Promise<TenantSettingsUser> {
     const tenantId = getTenantSideId(currentUser);
-    const account = this.normalizePhoneAsAccount(request.phone);
+    const role = await this.settingsRoleService.getBindableRole(tenantId, request.roleId);
+    const phone = this.normalizePhoneAsAccount(request.phone);
+    const account = request.account !== undefined ? normalizeText(request.account, 'account', 50) : phone;
     await this.ensureAccountAvailable(account);
 
-    const created = await this.prisma.user.create({
-      data: {
-        tenantId,
-        account,
-        phone: account,
-        passwordHash: await bcrypt.hash(DEFAULT_TENANT_USER_PASSWORD, 10),
-        realName: normalizeText(request.name, 'name', 50),
-        role: toTenantPrismaRole(request.role),
-        scope: 'tenant',
-        status: UserStatusEnum.ACTIVE,
-        requiresPasswordReset: true,
-      },
+    const created = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          tenantId,
+          account,
+          phone,
+          passwordHash: await bcrypt.hash(DEFAULT_TENANT_USER_PASSWORD, 10),
+          realName: normalizeText(request.name, 'name', 50),
+          role: toLegacyPrismaTenantRole(role.code),
+          scope: 'tenant',
+          status: UserStatusEnum.ACTIVE,
+          requiresPasswordReset: true,
+        },
+      });
+
+      await tx.userRoleAssignment.create({
+        data: {
+          tenantId,
+          userId: user.id,
+          roleId: role.id,
+          isPrimary: true,
+          createdBy: currentUser.userId,
+        },
+      });
+
+      return tx.user.findUniqueOrThrow({
+        where: { id: user.id },
+        include: USER_WITH_ROLE_ASSIGNMENT_INCLUDE,
+      });
     });
 
     await createAuditLog(this.prisma, currentUser, {
@@ -147,31 +104,71 @@ export class SettingsUserService {
     return toTenantSettingsUser(created);
   }
 
-  // 更新当前租户用户，并阻止移除最后一个老板账号
+  // 更新当前租户用户资料，并在传入 roleId 时更新角色绑定
   async updateUser(currentUser: JwtPayload, userId: string, request: UpdateTenantUserRequest, ip?: string): Promise<TenantSettingsUser> {
     const tenantId = getTenantSideId(currentUser);
     const existing = await this.getScopedTenantUser(tenantId, userId);
-    const nextRole = request.role ? toTenantPrismaRole(request.role) : existing.role;
-    const nextStatus = request.status ? toPrismaTenantUserStatus(request.status) : existing.status;
+    const nextRole = request.roleId ? await this.settingsRoleService.getBindableRole(tenantId, request.roleId) : existing.roleAssignments[0]?.role;
+    if (!nextRole) {
+      throw new ConflictException('租户用户未绑定角色');
+    }
 
+    const currentRoleId = existing.roleAssignments[0]?.role.id;
+    const roleChanged = request.roleId !== undefined && nextRole.id !== currentRoleId;
+    const nextLegacyRole = toLegacyPrismaTenantRole(nextRole.code);
+    const nextStatus = request.status ? toPrismaTenantUserStatus(request.status) : existing.status;
+    const statusChanged = request.status !== undefined && nextStatus !== existing.status;
     const nextAccount = request.account !== undefined ? normalizeText(request.account, 'account', 50) : undefined;
     const nextPhone = request.phone !== undefined ? this.normalizePhoneAsAccount(request.phone) : undefined;
-    const accountCandidate = nextPhone ?? nextAccount;
+    const accountCandidate = nextAccount ?? nextPhone;
     if (accountCandidate && accountCandidate !== existing.account) {
       await this.ensureAccountAvailable(accountCandidate, existing.id);
     }
-    await this.assertOwnerMutationAllowed(tenantId, existing, nextRole, nextStatus);
+    await this.assertOwnerMutationAllowed(tenantId, existing, nextLegacyRole, nextStatus);
 
-    const updated = await this.prisma.user.update({
-      where: { id: existing.id },
-      data: {
-        realName: request.name !== undefined ? normalizeText(request.name, 'name', 50) : undefined,
-        account: accountCandidate,
-        phone: nextPhone ?? request.phone,
-        role: request.role ? nextRole : undefined,
-        status: request.status ? nextStatus : undefined,
-      },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: existing.id },
+        data: {
+          realName: request.name !== undefined ? normalizeText(request.name, 'name', 50) : undefined,
+          account: accountCandidate,
+          phone: nextPhone,
+          role: request.roleId ? nextLegacyRole : undefined,
+          status: request.status ? nextStatus : undefined,
+        },
+      });
+
+      if (request.roleId) {
+        await tx.userRoleAssignment.upsert({
+          where: {
+            tenantId_userId: {
+              tenantId,
+              userId: existing.id,
+            },
+          },
+          create: {
+            tenantId,
+            userId: existing.id,
+            roleId: nextRole.id,
+            isPrimary: true,
+            createdBy: currentUser.userId,
+          },
+          update: {
+            roleId: nextRole.id,
+            isPrimary: true,
+          },
+        });
+      }
+
+      return tx.user.findUniqueOrThrow({
+        where: { id: existing.id },
+        include: USER_WITH_ROLE_ASSIGNMENT_INCLUDE,
+      });
     });
+
+    if (roleChanged || statusChanged) {
+      await this.permissionService.invalidateTenantUserPermission(tenantId, existing.id);
+    }
 
     await createAuditLog(this.prisma, currentUser, {
       tenantId,
@@ -203,6 +200,8 @@ export class SettingsUserService {
       },
     });
 
+    await this.permissionService.invalidateTenantUserPermission(tenantId, existing.id);
+
     await createAuditLog(this.prisma, currentUser, {
       tenantId,
       action: '删除租户用户',
@@ -223,12 +222,18 @@ export class SettingsUserService {
     }
     await this.assertOwnerMutationAllowed(tenantId, existing, existing.role, toPrismaTenantUserStatus(request.status));
 
+    const nextStatus = toPrismaTenantUserStatus(request.status);
     const updated = await this.prisma.user.update({
       where: { id: existing.id },
       data: {
-        status: toPrismaTenantUserStatus(request.status),
+        status: nextStatus,
       },
+      include: USER_WITH_ROLE_ASSIGNMENT_INCLUDE,
     });
+
+    if (nextStatus !== existing.status) {
+      await this.permissionService.invalidateTenantUserPermission(tenantId, existing.id);
+    }
 
     await createAuditLog(this.prisma, currentUser, {
       tenantId,
@@ -241,7 +246,7 @@ export class SettingsUserService {
     return toTenantSettingsUser(updated);
   }
 
-  // 查询当前租户作用域内的单个用户
+  // 查询当前租户作用域内的单个用户，并带出主角色绑定
   private async getScopedTenantUser(tenantId: string, userId: string) {
     const user = await this.prisma.user.findFirst({
       where: {
@@ -252,6 +257,7 @@ export class SettingsUserService {
           in: getTenantPrismaRoles(),
         },
       },
+      include: USER_WITH_ROLE_ASSIGNMENT_INCLUDE,
     });
 
     if (!user) {

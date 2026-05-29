@@ -1,4 +1,4 @@
-import type { AuthSourceTag, UserRole } from '../enums';
+import type { TenantPermissionCode } from '../enums';
 
 export interface LoginRequest {
   /** 登录账号 */
@@ -21,8 +21,6 @@ export interface AuthUserProfile {
   account: string;
   /** 用户姓名 */
   realName: string;
-  /** 当前主角色 */
-  role: UserRole;
   /** 所属租户 ID；平台用户为 `null` */
   tenantId: string | null;
   /** 是否要求先修改密码 */
@@ -46,6 +44,14 @@ export interface RefreshTokenResponse {
 }
 
 export interface AuthMeResponse extends AuthUserProfile {
-  /** 数据来源标记 */
-  source?: AuthSourceTag;
+  /** 当前角色 ID；平台用户可为空 */
+  roleId: string | null;
+  /** 当前角色编码；平台用户可返回 OS_SUPER_ADMIN */
+  roleCode: string | null;
+  /** 当前角色名称 */
+  roleName: string | null;
+  /** 当前用户拥有的 Tenant 权限编码列表 */
+  permissions: TenantPermissionCode[];
+  /** 当前用户权限版本 */
+  permissionVersion: number;
 }

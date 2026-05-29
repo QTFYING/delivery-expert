@@ -4,12 +4,11 @@
 
 ## 变量文件位置
 
-| 文件                                      | 使用场景                                       | 是否提交 Git |
-| ----------------------------------------- | ---------------------------------------------- | ------------ |
-| `apps/api/.env.example`                   | API 本地开发模板                               | 是           |
-| `apps/api/.env.lakala.production.example` | 拉卡拉生产联调模板（预填 `api.shoudanba.com`） | 是           |
-| `apps/api/.env`                           | 本机 `pnpm dev:api` / PM2 开发态读取           | 否           |
-| `.env`                                    | 根目录 Docker Compose 读取                     | 否           |
+| 文件                    | 使用场景                                          | 是否提交 Git |
+| ----------------------- | ------------------------------------------------- | ------------ |
+| `apps/api/.env.example` | API 本地开发模板，也是 PM2 / 拉卡拉联调的起始模板 | 是           |
+| `apps/api/.env`         | 本机 `pnpm dev:api` / PM2 开发态读取              | 否           |
+| `.env`                  | 根目录 Docker Compose 读取                        | 否           |
 
 说明：
 
@@ -133,61 +132,6 @@ LAKALA_NOTIFY_URL=https://api.shoudanba.cn/api/payment/webhook/lakala
 - API / Worker 容器访问的是宿主机上 1Panel 托管的 PostgreSQL / Redis。
 - `CORS_ORIGINS` 只填写前端来源域名，不填写 `api` 域名。
 - 1Panel 托管 PostgreSQL 需将实例时区设为 `UTC`；执行 `SHOW timezone;` 应返回 `UTC`。
-
-## 拉卡拉生产联调模板
-
-文件：`apps/api/.env.lakala.production.example`
-
-适用场景：
-
-- API 由 PM2 直接跑在宿主机
-- 下周与拉卡拉做生产域名联调
-- 当前对外 API 域名固定为 `https://api.shoudanba.com`
-
-使用方式：
-
-1. 复制模板到 `apps/api/.env`
-2. 替换 PostgreSQL / Redis / JWT 密钥
-3. 替换拉卡拉应用 ID、证书序列号、公私钥和回调地址
-
-说明：
-
-- 模板已预填：
-  - `LAKALA_NOTIFY_URL=https://api.shoudanba.com/api/payment/webhook/lakala`
-- `CORS_ORIGINS` 仍需你按真实前端域名补齐，不要把 `api.shoudanba.com` 填进去。
-
-## 阿里云全 Docker Compose 示例
-
-文件：项目根目录 `.env`
-
-```env
-POSTGRES_USER=shou_user
-POSTGRES_PASSWORD=<PostgreSQL强密码>
-POSTGRES_DB=shou_db
-REDIS_PASSWORD=<Redis强密码>
-
-DATABASE_URL=postgresql://shou_user:<PostgreSQL强密码>@postgres:5432/shou_db?schema=public
-REDIS_URL=redis://:<Redis强密码>@redis:6379
-JWT_SECRET=<生产随机密钥>
-CORS_ORIGINS=https://mp.shoudanba.cn,https://www.shoudanba.cn,https://h5.shoudanba.cn
-TZ=UTC
-AUTH_COOKIE_SECURE=true
-IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS=900
-IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS=60
-LAKALA_BASE_URL=https://s2.lakala.com
-LAKALA_APP_ID=<拉卡拉应用ID>
-LAKALA_SERIAL_NO=<拉卡拉证书序列号>
-LAKALA_PRIVATE_KEY="<拉卡拉商户私钥，使用 \n 保留换行>"
-LAKALA_PLATFORM_PUBLIC_KEY="<拉卡拉平台公钥，使用 \n 保留换行>"
-LAKALA_NOTIFY_URL=https://api.shoudanba.cn/api/payment/webhook/lakala
-```
-
-说明：
-
-- 该场景需要另建 `docker-compose.full.yml`。
-- `DATABASE_URL` 中的主机名应使用 Compose 服务名 `postgres`。
-- `REDIS_URL` 中的主机名应使用 Compose 服务名 `redis`。
-- 全 Docker Compose 场景的 PostgreSQL 容器通过 `timezone=UTC`、`PGTZ=UTC` 固定数据库会话时区。
 
 ## 常见错误
 

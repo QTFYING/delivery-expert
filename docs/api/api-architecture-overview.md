@@ -84,8 +84,11 @@ https://api.platform.com/api
 | `1003` | 支付中，禁止并发发起     |
 | `1004` | 当前租户支付渠道不可用   |
 | `4001` | 未登录或 Token 已失效    |
+| `4006` | 权限已变更，请刷新当前用户信息 |
 | `4003` | 无权限访问该资源         |
 | `4004` | 资源不存在               |
+
+`4006` 用于后台登录（目前仅做tenant端）态请求的权限快照失效感知。前端收到后应重新调用 `GET /auth/me` 刷新当前用户的 `permissions` 与 `permissionVersion`。
 
 ### 2.6 时区约定
 
@@ -118,7 +121,7 @@ https://api.platform.com/api
 | **Payment**          | 跨租户收款流水汇总 + 支付渠道配置兜底               | 本租户收款 + 现金核销 + 财务对账 + 支付渠道配置       | 发起支付（受当前生效支付渠道约束）           |
 | **Reconciliation**   | 平台侧对账汇总与对账明细                            | 本租户财务对账                                        | —                                            |
 | **Analytics**        | 平台级聚合指标                                      | 本租户经营数据                                        | —                                            |
-| **Settings / Roles** | 租户支付渠道配置兜底                                | 通用配置 + 打印模板 + 租户支付渠道配置 + 固定角色只读 | —                                            |
+| **Settings / Roles** | 租户支付渠道配置兜底                                | 通用配置 + 打印模板 + 租户支付渠道配置 + 单角色 RBAC  | —                                            |
 | **Notification**     | —                                                   | 接收 / 阅读平台公告                                   | —                                            |
 
 以下资源属于远景规划能力，当前后端未提供对应 Admin controller，不作为当前联调、Swagger 或 contracts 事实源：
@@ -157,7 +160,9 @@ https://api.platform.com/api
 - 订单导入采用“默认模板 / 租户模板 → 预检 → 正式导入 → 导入任务轮询”的链路；预检同步返回，正式导入异步执行。
 - 手工订单、导入订单、打印回执、催款提醒均属于 Tenant 订单域职责。
 - `/settings/general` 采用“平台默认 + 租户覆盖”模型，Tenant 端只更新通知与业务偏好覆盖层，不修改企业主体字段。
-- `/settings/roles` 与 `/settings/permissions` 是固定角色和权限树的只读接口。
+- Tenant 侧采用单角色功能权限 RBAC：角色是长期权限包，权限点是服务端开放的能力闭集，用户当前阶段只绑定一个角色。
+- `/settings/roles` 承载租户内置角色与自定义角色；`/settings/permissions` 返回服务端权限能力树，不返回前端菜单树或路由树。
+- 前端菜单、路由、图标和页面标题由前端维护，并通过 `TenantPermissionCode` 与服务端权限能力绑定。
 - 打印配置只存黑盒 JSON，持久化维度为 `tenantId + importTemplateId`。
 - 支付渠道配置以 `channel` 为资源维度，实际收款渠道由租户主记录上的 `activePaymentChannel` 表达。
 

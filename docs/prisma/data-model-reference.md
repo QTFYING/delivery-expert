@@ -3,19 +3,22 @@
 > 本文件仅作为当前 `apps/api/prisma/schema.prisma` 的说明书，不作为 `schema.prisma` 设计或迭代的前置事实源。
 > 涉及业务语义、字段含义、状态机与对外结构时，以上游 `docs/api/*.md -> packages/types/src/enums -> packages/types/src/contracts` 为准。
 > `apps/api/prisma/schema.prisma` 是当前可执行基准，本文只做人工可读同步。
-> 确认日期：2026-05-08
+> 确认日期：2026-05-27
 > 业务枚举闭集事实源统一维护在 `packages/types/src/enums`。
 
 ---
 
 ## 1. 当前模型总览
 
-当前 `schema.prisma` 共定义 20 个 model：
+当前 `schema.prisma` 共定义 23 个 model：
 
 | Prisma Model            | 表名                      | 说明               |
 | ----------------------- | ------------------------- | ------------------ |
 | `Tenant`                | `tenants`                 | 租户主体           |
 | `User`                  | `users`                   | 用户账号           |
+| `TenantRole`            | `tenant_roles`            | 租户角色定义       |
+| `TenantRolePermission`  | `tenant_role_permissions` | 租户角色权限绑定   |
+| `UserRoleAssignment`    | `user_role_assignments`   | 用户角色绑定       |
 | `TenantGeneralSettings` | `tenant_general_settings` | 租户通用配置覆盖层 |
 | `TenantPaymentConfig`   | `tenant_payment_configs`  | 租户支付渠道配置   |
 | `SystemConfig`          | `system_configs`          | 平台系统配置       |
@@ -43,6 +46,7 @@
 - 闭集字段的实际值以上游枚举事实源为准。
 - `deletedAt` 仅出现在当前 schema 明确声明软删的表中。
 - 事件时间字段在 Prisma 中使用 `DateTime @db.Timestamptz(3)`，API 以 ISO 8601 UTC 字符串投影；`IdSequence.dateKey` 是业务日期键，保留 `@db.Date`。
+- Prisma 无法表达的 partial / expression index 由正式迁移 SQL 维护，本文在对应表约束中显式标注。
 
 ## 3. 枚举摘要
 
@@ -126,6 +130,7 @@
 
 - 主键：`id`
 - 表名：`tenants`
+- 索引：`(deletedAt, createdAt)`、`(deletedAt, status)`、`(deletedAt, serviceExpireAt)`
 - `activePaymentChannel = null` 表示当前没有生效中的线上支付渠道
 - 当前 schema 使用 `deletedAt` 软删
 
@@ -153,10 +158,81 @@
 关键约束：
 
 - 主键：`id`
-- 唯一键：`account`
-- 索引：`tenantId`、`status`
+- 唯一键：`account`、`(tenantId, id)`
+- 索引：`(deletedAt, createdAt)`、`(tenantId, deletedAt, role, status)`、`status`
 - 表名：`users`
 - 当前 schema 使用 `deletedAt` 软删
+
+**tenant_roles**
+
+```typescript
+{
+  id: string; // 角色 ID，UUID
+  tenantId: string; // 租户 ID
+  code: string; // 角色编码，内置角色使用 TENANT_*，自定义角色由服务端生成
+  name: string; // 角色名称
+  description: string | null; // 角色描述
+  isSystem: boolean; // 是否系统内置角色
+  isEditable: boolean; // 是否允许编辑
+  sortOrder: number; // 排序号
+  createdBy: string | null; // 创建人用户 ID
+  updatedBy: string | null; // 最近更新人用户 ID
+  createdAt: string; // 创建时间
+  updatedAt: string; // 更新时间
+  deletedAt: string | null; // 软删时间
+}
+```
+
+关键约束：
+
+- 主键：`id`
+- 唯一键：`(tenantId, code)`、`(tenantId, id)`
+- 索引：`(tenantId, deletedAt)`、`(tenantId, isSystem, sortOrder)`
+- 表名：`tenant_roles`
+- 手写迁移维护 partial expression unique：`(tenantId, lower(name)) WHERE deletedAt IS NULL`
+- `tenantId` 必须显式存在，所有查询和写入都要按租户隔离
+- 当前 schema 使用 `deletedAt` 软删
+
+**tenant_role_permissions**
+
+```typescript
+{
+  roleId: string; // 角色 ID，UUID
+  permissionCode: string; // 权限编码，业务层校验属于 TenantPermissionCode 闭集
+  createdAt: string; // 创建时间
+}
+```
+
+关键约束：
+
+- 复合主键：`(roleId, permissionCode)`
+- 索引：`permissionCode`
+- 表名：`tenant_role_permissions`
+- `permissionCode` 存储为字符串，数据库不维护权限定义事实源
+
+**user_role_assignments**
+
+```typescript
+{
+  id: string; // 用户角色绑定 ID，UUID
+  tenantId: string; // 租户 ID
+  userId: string; // 用户 ID，UUID
+  roleId: string; // 角色 ID，UUID
+  isPrimary: boolean; // 是否主角色，当前阶段恒为 true
+  createdBy: string | null; // 创建人用户 ID
+  createdAt: string; // 创建时间
+  updatedAt: string; // 更新时间
+}
+```
+
+关键约束：
+
+- 主键：`id`
+- 唯一键：`(tenantId, userId)`
+- 索引：`(tenantId, roleId)`
+- 表名：`user_role_assignments`
+- 当前产品层面只允许一个用户绑定一个角色
+- 用户与角色均通过复合外键绑定 `tenantId`，避免跨租户绑定
 
 **tenant_general_settings**
 
@@ -267,9 +343,10 @@
 关键约束：
 
 - 主键：`id`
-- 唯一键：`(tenantId, name)`
-- 索引：`tenantId`
+- 唯一键：`(tenantId, id)`
+- 索引：`(tenantId, deletedAt, createdAt)`
 - 表名：`import_templates`
+- 手写迁移维护 partial expression unique：`(tenantId, lower(name)) WHERE deletedAt IS NULL`
 - 当前 schema 使用 `deletedAt` 软删
 
 **printer_templates**
@@ -291,9 +368,9 @@
 关键约束：
 
 - 主键：`id`
-- 唯一键：`importTemplateId`
 - 唯一键：`(tenantId, importTemplateId)`
 - 表名：`printer_templates`
+- 通过复合外键 `(tenantId, importTemplateId)` 绑定 `import_templates(tenantId, id)`，避免跨租户绑定打印配置
 
 **import_jobs**
 
@@ -324,7 +401,7 @@
 关键约束：
 
 - 主键：`id`
-- 索引：`(tenantId, status)`、`(status, heartbeatAt)`
+- 索引：`(tenantId, status, createdAt)`、`(status, heartbeatAt)`
 - 表名：`import_jobs`
 
 **order_print_records**
@@ -393,9 +470,10 @@
 
 - 主键：`id`
 - 唯一键：`qrCodeToken`（当前落库字段名；业务语义等同 `h5EntryToken`）
-- 唯一键：`(tenantId, sourceOrderNo)`
-- 索引：`(tenantId, status)`、`(tenantId, payType)`、`(tenantId, orderTime)`、`mappingTemplateId`
+- 手写迁移维护 partial unique：`(tenantId, sourceOrderNo) WHERE deletedAt IS NULL AND sourceOrderNo IS NOT NULL`
+- 索引：`(deletedAt, orderTime)`、`(tenantId, deletedAt, orderTime)`、`(tenantId, deletedAt, status, orderTime)`、`(tenantId, deletedAt, payType, creditDueDate)`、`(tenantId, mappingTemplateId)`
 - 表名：`orders`
+- `mappingTemplateId` 通过复合外键 `(tenantId, mappingTemplateId)` 绑定 `import_templates(tenantId, id)`，避免订单跨租户挂载导入模板
 - `prints / lastPrintedAt` 仅在打印成功回执写入时更新
 - `printFailedCount / lastFailedAt` 仅在打印失败上报写入时更新
 - `orderTime` 来自导入订单的业务下单时间，按 `YYYY-MM-DD HH:mm:ss` 业务原值保存，不参与 UTC 时刻转换
@@ -472,7 +550,7 @@
 
 - 主键：`id`
 - 唯一键：`(tenantId, channel)`
-- 索引：`(tenantId, status)`
+- 索引：`(status, tenantId)`
 - 表名：`tenant_payment_configs`
 - `configJson` 为渠道专属黑盒 Json，服务端不在 schema 层解析内部结构
 - `status` 只表达该渠道配置本身是否可用，不表达是否当前正在使用
@@ -504,7 +582,7 @@
 
 - 主键：`id`
 - 唯一键：`gatewayTradeNo`
-- 索引：`(tenantId, paidAt)`、`orderId`
+- 索引：`(tenantId, paidAt)`、`paidAt`、`(channel, paidAt)`、`(status, paidAt)`、`orderId`
 - 表名：`payments`
 
 **payment_orders**
@@ -539,7 +617,7 @@
 - 主键：`id`
 - 唯一键：`gatewayTradeNo`
 - 唯一键：`(orderId, paymentMethod, onlineAttemptNo)`
-- 索引：`(tenantId, status)`、`orderId`
+- 索引：`(tenantId, status, updatedAt)`、`(orderId, updatedAt)`
 - 表名：`payment_orders`
 
 **payment_webhook_events**
@@ -570,7 +648,7 @@
 关键约束：
 
 - 主键：`id`
-- 索引：`(provider, receivedAt)`、`(tenantId, receivedAt)`、`(gatewayTradeNo, receivedAt)`、`(processingStatus, receivedAt)`
+- 索引：`(provider, receivedAt)`、`(tenantId, receivedAt)`、`(gatewayTradeNo, receivedAt)`、`(paymentOrderId, receivedAt)`、`(orderId, receivedAt)`、`(processingStatus, receivedAt)`
 - 表名：`payment_webhook_events`
 - 该表只作为支付回调证据链和排障审计记录，不作为订单或支付单状态裁决事实源
 - `headers / payload / normalized` 为黑盒 Json 快照，服务端只按当前版本 normalizer 写入，不反向扩展 H5/public 支付能力
