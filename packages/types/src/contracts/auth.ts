@@ -1,4 +1,4 @@
-import type { TenantPermissionCode } from '../enums';
+import type { SmsCodeScene, TenantPermissionCode } from '../enums';
 
 export interface LoginRequest {
   /** 登录账号 */
@@ -12,6 +12,42 @@ export interface ChangePasswordRequest {
   currentPassword: string;
   /** 新密码 */
   newPassword: string;
+}
+
+export interface SendSmsCodeRequest {
+  /** 租户用户绑定手机号 */
+  phone: string;
+  /** 短信验证码使用场景 */
+  scene: SmsCodeScene;
+  /** 阿里云验证码 2.0 前端校验结果 */
+  captchaVerifyParam?: string;
+}
+
+export interface SmsLoginRequest {
+  /** 租户用户绑定手机号 */
+  phone: string;
+  /** 短信验证码 */
+  code: string;
+}
+
+export interface PasswordResetRequest {
+  /** 租户用户绑定手机号 */
+  phone: string;
+  /** 短信验证码 */
+  code: string;
+  /** 新密码 */
+  newPassword: string;
+}
+
+export interface DebugSmsCodeResponse {
+  /** 租户用户绑定手机号 */
+  phone: string;
+  /** 短信验证码使用场景 */
+  scene: SmsCodeScene;
+  /** 调试明文验证码 */
+  code: string;
+  /** 过期时间 */
+  expiresAt: string;
 }
 
 export interface AuthUserProfile {

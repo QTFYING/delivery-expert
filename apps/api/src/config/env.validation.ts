@@ -108,6 +108,42 @@ export function validateEnv(rawEnv: Record<string, unknown>): Record<string, unk
     throw new Error('IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS 必须小于 IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS');
   }
 
+  // 短信行为开关 默认关闭真实发送 默认允许调试查码供本地和联调使用
+  if (!env.SMS_SEND_ENABLED || typeof env.SMS_SEND_ENABLED !== 'string') {
+    env.SMS_SEND_ENABLED = 'false';
+  }
+  parseBoolean('SMS_SEND_ENABLED', env.SMS_SEND_ENABLED as string);
+
+  if (!env.SMS_DEBUG_CODE_VISIBLE || typeof env.SMS_DEBUG_CODE_VISIBLE !== 'string') {
+    env.SMS_DEBUG_CODE_VISIBLE = 'true';
+  }
+  parseBoolean('SMS_DEBUG_CODE_VISIBLE', env.SMS_DEBUG_CODE_VISIBLE as string);
+
+  if (!env.ALIYUN_SMS_ENDPOINT || typeof env.ALIYUN_SMS_ENDPOINT !== 'string') {
+    env.ALIYUN_SMS_ENDPOINT = 'dypnsapi.aliyuncs.com';
+  }
+  if (!env.ALIYUN_SMS_SIGN_NAME || typeof env.ALIYUN_SMS_SIGN_NAME !== 'string') {
+    env.ALIYUN_SMS_SIGN_NAME = '速通互联验证码';
+  }
+  if (!env.ALIYUN_SMS_LOGIN_TEMPLATE_CODE || typeof env.ALIYUN_SMS_LOGIN_TEMPLATE_CODE !== 'string') {
+    env.ALIYUN_SMS_LOGIN_TEMPLATE_CODE = '100001';
+  }
+  if (!env.ALIYUN_SMS_PASSWORD_RESET_TEMPLATE_CODE || typeof env.ALIYUN_SMS_PASSWORD_RESET_TEMPLATE_CODE !== 'string') {
+    env.ALIYUN_SMS_PASSWORD_RESET_TEMPLATE_CODE = '100001';
+  }
+  if (!env.ALIYUN_CAPTCHA_ENDPOINT || typeof env.ALIYUN_CAPTCHA_ENDPOINT !== 'string') {
+    env.ALIYUN_CAPTCHA_ENDPOINT = 'captcha.cn-shanghai.aliyuncs.com';
+  }
+
+  const smsRequiredKeys = ['ALIYUN_ACCESS_KEY_ID', 'ALIYUN_ACCESS_KEY_SECRET'] as const;
+  if (env.SMS_SEND_ENABLED === 'true') {
+    for (const key of smsRequiredKeys) {
+      if (!hasValue(env[key])) {
+        throw new Error(`${key} 环境变量必填`);
+      }
+    }
+  }
+
   // 只要用户填写了任意一项拉卡拉联调配置 就要求整组关键配置齐全
   const lakalaRequiredKeys = ['LAKALA_APP_ID', 'LAKALA_SERIAL_NO', 'LAKALA_PRIVATE_KEY', 'LAKALA_PLATFORM_PUBLIC_KEY', 'LAKALA_NOTIFY_URL'] as const;
 

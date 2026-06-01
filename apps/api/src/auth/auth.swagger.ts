@@ -2,10 +2,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import type {
   AuthMeResponse as AuthMeResponseContract,
   AuthUserProfile as AuthUserProfileContract,
+  DebugSmsCodeResponse as DebugSmsCodeResponseContract,
   LoginResponse as LoginResponseContract,
   RefreshTokenResponse as RefreshTokenResponseContract,
 } from '@shou/types/contracts';
-import { TenantPermissionCodeEnum, UserRoleEnum } from '@shou/types/enums';
+import { SmsCodeSceneEnum, TenantPermissionCodeEnum, UserRoleEnum } from '@shou/types/enums';
 
 export class AuthUserProfileSwagger implements AuthUserProfileContract {
   @ApiProperty({ description: '用户 ID', example: '8d5d4f78-5c25-4bc6-bf6c-64061edc3079' })
@@ -75,4 +76,22 @@ export class AuthMeResponseSwagger extends AuthUserProfileSwagger implements Aut
 
   @ApiProperty({ description: '当前用户权限版本', example: 3 })
   permissionVersion!: number;
+}
+
+export class DebugSmsCodeResponseSwagger implements DebugSmsCodeResponseContract {
+  @ApiProperty({ description: '租户用户绑定手机号', example: '13800138000' })
+  phone!: string;
+
+  @ApiProperty({
+    description: '短信验证码使用场景',
+    enum: Object.values(SmsCodeSceneEnum),
+    example: SmsCodeSceneEnum.TENANT_PASSWORD_RESET,
+  })
+  scene!: DebugSmsCodeResponseContract['scene'];
+
+  @ApiProperty({ description: '调试明文验证码', example: '123456' })
+  code!: string;
+
+  @ApiProperty({ description: '过期时间', example: '2026-05-29T08:00:00.000Z' })
+  expiresAt!: string;
 }

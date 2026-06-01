@@ -1,5 +1,5 @@
 {
-  "cSpell.words": ["LAKALA", "opencode", "pingan", "shou", "shoudanba", "SHOUQIANBA", "Sinhe", "Streamable"],
+  "cSpell.words": ["alicloud", "aliyun", "LAKALA", "opencode", "pingan", "PNVS", "shou", "shoudanba", "SHOUQIANBA", "Sinhe", "Streamable"],
   "files.exclude": {
     "**/dist": true,
     "**/.git": true,

@@ -213,11 +213,6 @@ export class ImportTemplateService {
   private normalizeCreateCustomerFields(customerFields: OrderImportCustomerFieldCreateRequest[]): OrderImportTemplateField[] {
     const normalized = customerFields.map((field, index) => this.normalizeCustomerField(field, index, `cf${index + 1}`));
 
-    this.ensureNoDuplicate(
-      normalized.map((field) => field.label),
-      '自定义字段名称',
-    );
-
     return normalized;
   }
 
@@ -251,11 +246,6 @@ export class ImportTemplateService {
       submittedKeys.add(nextKey);
       return this.normalizeCustomerField(field, index, nextKey);
     });
-
-    this.ensureNoDuplicate(
-      normalized.map((field) => field.label),
-      '自定义字段名称',
-    );
 
     return normalized;
   }

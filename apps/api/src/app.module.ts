@@ -11,6 +11,7 @@ import { ImportModule } from './import/import.module';
 import { PaymentModule } from './payment/payment.module';
 import { ReportModule } from './report/report.module';
 import { NotificationModule } from './notification/notification.module';
+import { SmsModule } from './sms/sms.module';
 import { FinanceModule } from './finance/finance.module';
 import { IdGeneratorModule } from './id-generator/id-generator.module';
 import { RequestLoggingMiddleware } from './common/middleware/request-logging.middleware';
@@ -31,11 +32,13 @@ import { RequestLoggingMiddleware } from './common/middleware/request-logging.mi
     FinanceModule,
     ReportModule,
     NotificationModule,
+    SmsModule,
   ],
   controllers: [],
   providers: [],
 })
 export class AppModule implements NestModule {
+  /** 注册全局请求日志中间件，覆盖 API 进程内的所有 HTTP 路由 */
   configure(consumer: MiddlewareConsumer): void {
     consumer.apply(RequestLoggingMiddleware).forRoutes({ path: '*', method: RequestMethod.ALL });
   }

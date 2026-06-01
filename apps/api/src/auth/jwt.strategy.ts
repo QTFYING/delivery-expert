@@ -1,4 +1,4 @@
-import { HttpStatus, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { TenantStatusEnum, UserRoleEnum, UserStatusEnum } from '@shou/types/enums';
@@ -10,12 +10,15 @@ import { AuthSessionStore } from '../redis/auth-session.store';
 import { PermissionCacheService } from '../authorization/permission-cache.service';
 import { fromPrismaTenantStatus, fromPrismaUserRole, fromPrismaUserStatus } from '../tenant/mapping/tenant.mapper';
 import { BusinessException } from '../common/exceptions/business.exception';
+import { formatTraceLog } from '../common/trace-log';
 import { JwtPayload } from './decorators/current-user.decorator';
 
 const PASSWORD_RESET_REQUIRED_CODE = 4002;
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+  private readonly logger = new Logger(JwtStrategy.name);
+
   constructor(
     @Inject(authConfig.KEY)
     authSettings: ConfigType<typeof authConfig>,
@@ -37,16 +40,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const sessionId = payload.sid;
     const tokenVersion = payload.ver;
     if (typeof userId !== 'string' || typeof sessionId !== 'string' || typeof tokenVersion !== 'number') {
+      this.logJwtDenied('payload_invalid');
       throw new UnauthorizedException('Token 无效，请重新登录');
     }
 
     const session = await this.authSessions.getAuthSession(sessionId);
     if (!session || session.status !== 'active' || session.userId !== userId) {
+      this.logJwtDenied('session_inactive', { userId });
       throw new UnauthorizedException('会话已失效，请重新登录');
     }
 
     const currentTokenVersion = await this.authSessions.getUserTokenVersion(userId);
     if (tokenVersion !== currentTokenVersion) {
+      this.logJwtDenied('token_version_mismatch', { userId, tokenVersion, currentTokenVersion });
       throw new UnauthorizedException('会话已失效，请重新登录');
     }
 
@@ -58,17 +64,35 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
 
     if (!user || user.deletedAt || fromPrismaUserStatus(user.status) !== UserStatusEnum.ACTIVE) {
+      this.logJwtDenied('account_unavailable', { userId });
       throw new UnauthorizedException('账号不可用');
     }
 
     const userRole = fromPrismaUserRole(user.role);
     const permissionVersion = await this.resolvePermissionVersion(payload, user.tenantId, user.id);
     if (user.tenantId) {
-      this.assertTenantAvailable(user.tenant, userRole);
+      try {
+        this.assertTenantAvailable(user.tenant, userRole);
+      } catch (error) {
+        this.logJwtDenied('tenant_unavailable', { userId: user.id, tenantId: user.tenantId, role: userRole });
+        throw error;
+      }
     }
-    this.assertPasswordResetAccessAllowed(req, user.requiresPasswordReset);
+    this.assertPasswordResetAccessAllowed(req, user.requiresPasswordReset, user.id, user.tenantId, userRole);
 
     await this.authSessions.touchAuthSession(sessionId, user.id);
+
+    this.logger.log(
+      formatTraceLog('auth.jwt.validated', {
+        userId: user.id,
+        tenantId: user.tenantId ?? 'null',
+        side: user.tenantId ? 'tenant' : 'platform',
+        role: userRole,
+        tokenVersion,
+        permissionVersion,
+        requiresPasswordReset: user.requiresPasswordReset,
+      }),
+    );
 
     return {
       userId: user.id,
@@ -120,7 +144,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   // 在首次改密阶段 仅允许访问最小认证接口
-  private assertPasswordResetAccessAllowed(req: Request, requiresPasswordReset: boolean): void {
+  private assertPasswordResetAccessAllowed(
+    req: Request,
+    requiresPasswordReset: boolean,
+    userId: string,
+    tenantId: string | null,
+    userRole: JwtPayload['role'],
+  ): void {
     if (!requiresPasswordReset) {
       return;
     }
@@ -129,6 +159,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       return;
     }
 
+    this.logJwtDenied('password_reset_required', { userId, tenantId: tenantId ?? 'null', role: userRole });
     throw new BusinessException(PASSWORD_RESET_REQUIRED_CODE, '当前账号需先修改密码', HttpStatus.FORBIDDEN);
   }
 
@@ -140,5 +171,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return (
       (requestMethod === 'GET' && requestPath.endsWith('/auth/me')) || (requestMethod === 'POST' && requestPath.endsWith('/auth/change-password'))
     );
+  }
+
+  // 输出 JWT 拒绝原因，仅记录用户和租户上下文，不记录 token 内容
+  private logJwtDenied(reason: string, fields: Record<string, string | number | boolean | null | undefined> = {}): void {
+    this.logger.warn(formatTraceLog('auth.jwt.denied', { ...fields, reason }));
   }
 }

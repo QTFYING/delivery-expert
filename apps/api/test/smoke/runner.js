@@ -606,19 +606,31 @@ run('导入模板维护错误提示面向业务字段', () => {
     /系统字段「源订单号」不允许修改显示名/,
   );
 
-  assert.throws(
-    () =>
-      service.normalizeCreateTemplatePayload({
-        name: '错误模板',
-        isDefault: false,
-        defaultFields: DEFAULT_TEMPLATE_FIELDS.map((field) => ({ ...field, mapStr: field.isRequired ? field.label : '' })),
-        customerFields: [
-          { label: '客户编码', mapStr: '客户编码' },
-          { label: ' 客户编码 ', mapStr: '客户编码2' },
-        ],
-      }),
-    /自定义字段名称重复：「客户编码」/,
-  );
+  const duplicateCustomerFieldTemplate = service.normalizeCreateTemplatePayload({
+    name: '重复自定义字段模板',
+    isDefault: false,
+    defaultFields: DEFAULT_TEMPLATE_FIELDS.map((field) => ({ ...field, mapStr: field.isRequired ? field.label : '' })),
+    customerFields: [
+      { label: '备注', mapStr: '订单备注', type: 'list' },
+      { label: '备注', mapStr: '备注', type: 'line' },
+    ],
+  });
+  assert.equal(duplicateCustomerFieldTemplate.customerFields[0].label, '备注');
+  assert.equal(duplicateCustomerFieldTemplate.customerFields[1].label, '备注');
+
+  const duplicateMapStrTemplate = service.normalizeCreateTemplatePayload({
+    name: '重复表头模板',
+    isDefault: false,
+    defaultFields: DEFAULT_TEMPLATE_FIELDS.map((field) =>
+      field.key === 'customerPhone' ? { ...field, mapStr: '备注' } : { ...field, mapStr: field.isRequired ? field.label : '' },
+    ),
+    customerFields: [
+      { label: '订单备注', mapStr: '备注', type: 'list' },
+      { label: '行备注', mapStr: '备注', type: 'line' },
+    ],
+  });
+  assert.equal(duplicateMapStrTemplate.customerFields[0].mapStr, '备注');
+  assert.equal(duplicateMapStrTemplate.customerFields[1].mapStr, '备注');
 });
 
 run('订单状态推导覆盖现金、账期、部分支付、全额支付与作废场景', () => {

@@ -1,11 +1,14 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { TenantRoleEnum } from '@shou/types/enums';
+import { formatTraceLog } from '../common/trace-log';
 import { PrismaService } from '../prisma/prisma.service';
 import { PermissionCacheService, TenantPermissionSnapshot } from './permission-cache.service';
 import { DEFAULT_TENANT_ROLE_PERMISSIONS, assertTenantPermissionCodes } from './tenant-permission.definition';
 
 @Injectable()
 export class PermissionService {
+  private readonly logger = new Logger(PermissionService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly permissionCache: PermissionCacheService,
@@ -13,26 +16,52 @@ export class PermissionService {
 
   // 读取 Tenant 用户权限快照 缓存缺失时按 tenantId 和 userId 从角色绑定聚合
   async getTenantPermissionSnapshot(tenantId: string, userId: string): Promise<TenantPermissionSnapshot> {
-    const cachedSnapshot = await this.permissionCache.getTenantPermissionSnapshot(tenantId, userId);
-    if (cachedSnapshot) {
-      return cachedSnapshot;
-    }
+    try {
+      const cachedSnapshot = await this.permissionCache.getTenantPermissionSnapshot(tenantId, userId);
+      if (cachedSnapshot) {
+        this.logSnapshot('permission.snapshot.hit', cachedSnapshot);
+        return cachedSnapshot;
+      }
 
-    const snapshot = await this.buildTenantPermissionSnapshot(tenantId, userId);
-    await this.permissionCache.setTenantPermissionSnapshot(snapshot);
-    return snapshot;
+      this.logger.log(formatTraceLog('permission.snapshot.miss', { tenantId, userId }));
+      const snapshot = await this.buildTenantPermissionSnapshot(tenantId, userId);
+      await this.permissionCache.setTenantPermissionSnapshot(snapshot);
+      this.logSnapshot('permission.snapshot.rebuilt', snapshot);
+      return snapshot;
+    } catch (error) {
+      const reason = getPermissionSnapshotFailureReason(error);
+      const logMessage = formatTraceLog('permission.snapshot.failure', { tenantId, userId, reason });
+      if (reason === 'unknown') {
+        this.logger.error(logMessage, getErrorStack(error));
+      } else {
+        this.logger.warn(logMessage);
+      }
+      throw error;
+    }
   }
 
   // 判断当前 Tenant 用户是否拥有接口要求的全部权限
   async hasTenantPermissions(tenantId: string, userId: string, requiredPermissions: readonly string[]): Promise<boolean> {
+    return (await this.evaluateTenantPermissions(tenantId, userId, requiredPermissions)).allowed;
+  }
+
+  // 返回权限判断结果与当前权限数量，供 Guard 输出授权决策日志
+  async evaluateTenantPermissions(
+    tenantId: string,
+    userId: string,
+    requiredPermissions: readonly string[],
+  ): Promise<{ allowed: boolean; permissionCount: number }> {
     const requiredCodes = assertTenantPermissionCodes(requiredPermissions);
     if (requiredCodes.length === 0) {
-      return true;
+      return { allowed: true, permissionCount: 0 };
     }
 
     const snapshot = await this.getTenantPermissionSnapshot(tenantId, userId);
     const ownedPermissions = new Set(snapshot.permissions);
-    return requiredCodes.every((permission) => ownedPermissions.has(permission));
+    return {
+      allowed: requiredCodes.every((permission) => ownedPermissions.has(permission)),
+      permissionCount: snapshot.permissions.length,
+    };
   }
 
   // 读取 Redis 中当前权限版本 用于接口请求阶段识别旧 access token
@@ -130,4 +159,39 @@ export class PermissionService {
       throw new ForbiddenException('当前角色权限配置无效');
     }
   }
+
+  // 输出权限快照命中或重建结果，只记录角色与权限数量不展开权限明细
+  private logSnapshot(event: string, snapshot: TenantPermissionSnapshot): void {
+    this.logger.log(
+      formatTraceLog(event, {
+        tenantId: snapshot.tenantId,
+        userId: snapshot.userId,
+        roleId: snapshot.roleId,
+        roleCode: snapshot.roleCode,
+        permissionVersion: snapshot.permissionVersion,
+        permissionCount: snapshot.permissions.length,
+      }),
+    );
+  }
+}
+
+function getPermissionSnapshotFailureReason(error: unknown): string {
+  const message = error instanceof Error ? error.message : '';
+  if (message === '当前用户未绑定可用角色') {
+    return 'role_binding_missing';
+  }
+
+  if (message === '当前用户角色绑定无效') {
+    return 'role_binding_invalid';
+  }
+
+  if (message === '当前角色权限配置无效') {
+    return 'role_permission_invalid';
+  }
+
+  return 'unknown';
+}
+
+function getErrorStack(error: unknown): string | undefined {
+  return error instanceof Error ? error.stack : undefined;
 }

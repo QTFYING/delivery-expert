@@ -31,12 +31,32 @@
 | `IMPORT_JOB_WORKER_ENABLED`                       | 是   | API 进程为 `false`，Worker 进程为 `true`                            |
 | `IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS`            | 否   | 租户级活动正式导入任务占位 TTL，单位秒，默认 `900`                  |
 | `IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS` | 否   | 租户级活动正式导入任务续期间隔，单位秒，默认 `60`，且必须小于 TTL   |
+| `SMS_SEND_ENABLED`                                | 否   | 是否真实调用阿里云发送短信，默认 `false`                            |
+| `SMS_DEBUG_CODE_VISIBLE`                          | 否   | 是否允许 debug 查码接口返回 Redis 明文验证码，默认 `true`           |
+| `ALIYUN_ACCESS_KEY_ID`                            | 否   | 阿里云 AccessKey ID；`SMS_SEND_ENABLED=true` 时必填                 |
+| `ALIYUN_ACCESS_KEY_SECRET`                        | 否   | 阿里云 AccessKey Secret；`SMS_SEND_ENABLED=true` 时必填             |
+| `ALIYUN_SMS_ENDPOINT`                             | 否   | 阿里云号码认证服务 PNVS Endpoint，默认 `dypnsapi.aliyuncs.com`      |
+| `ALIYUN_SMS_SIGN_NAME`                            | 否   | 阿里云短信签名，当前默认 `速通互联验证码`                           |
+| `ALIYUN_SMS_LOGIN_TEMPLATE_CODE`                  | 否   | Tenant 短信登录模板 Code，当前默认 `100001`                         |
+| `ALIYUN_SMS_PASSWORD_RESET_TEMPLATE_CODE`         | 否   | Tenant 找回密码模板 Code，当前默认 `100001`                         |
+| `ALIYUN_CAPTCHA_ENDPOINT`                         | 否   | 阿里云验证码 2.0 Endpoint，默认 `captcha.cn-shanghai.aliyuncs.com`  |
+| `ALIYUN_CAPTCHA_SCENE_ID`                         | 否   | 阿里云验证码 2.0 SceneId；和 AccessKey 齐全时启用滑块校验           |
 | `LAKALA_BASE_URL`                                 | 否   | 拉卡拉网关基础地址；启用拉卡拉时填写，默认 `https://api.lakala.com` |
 | `LAKALA_APP_ID`                                   | 否   | 拉卡拉应用 ID；启用拉卡拉时必填                                     |
 | `LAKALA_SERIAL_NO`                                | 否   | 拉卡拉证书序列号；启用拉卡拉时必填                                  |
 | `LAKALA_PRIVATE_KEY`                              | 否   | 拉卡拉商户私钥；启用拉卡拉时必填                                    |
 | `LAKALA_PLATFORM_PUBLIC_KEY`                      | 否   | 拉卡拉平台公钥；启用拉卡拉时必填                                    |
 | `LAKALA_NOTIFY_URL`                               | 否   | 拉卡拉异步通知地址；启用拉卡拉时必填                                |
+
+## 短信与验证码配置说明
+
+短信真实发送由 `SMS_SEND_ENABLED` 控制。本地和测试环境可以保持 `false`，后端仍可生成验证码并通过后续 debug 查码接口辅助联调；生产启用真实发送时应设为 `true`。
+
+`SMS_DEBUG_CODE_VISIBLE` 只控制 debug 查码接口是否可见，不参与验证码校验。生产环境建议设为 `false`；如临时开启，应配合网关/IP/权限限制。
+
+阿里云短信当前使用号码认证服务 PNVS 的短信验证码接口，签名默认按 `速通互联验证码`，登录与找回密码模板可先共用系统赠送模板 `100001`。项目自行生成验证码并通过模板参数传给阿里云，不使用 `##code##` 让阿里云生成验证码。
+
+阿里云验证码 2.0 是可选增强层。只有 `ALIYUN_CAPTCHA_SCENE_ID`、`ALIYUN_ACCESS_KEY_ID`、`ALIYUN_ACCESS_KEY_SECRET` 都填写时，后端才启用滑块服务端校验；未配置时不阻塞短信发送，风险由数据库存在性校验、Redis 频控和阿里云侧频控共同兜底。
 
 ## JWT_SECRET 生成
 
@@ -77,6 +97,16 @@ AUTH_COOKIE_SECURE=false
 IMPORT_JOB_WORKER_ENABLED=false
 IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS=900
 IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS=60
+SMS_SEND_ENABLED=false
+SMS_DEBUG_CODE_VISIBLE=true
+ALIYUN_ACCESS_KEY_ID=
+ALIYUN_ACCESS_KEY_SECRET=
+ALIYUN_SMS_ENDPOINT=dypnsapi.aliyuncs.com
+ALIYUN_SMS_SIGN_NAME=速通互联验证码
+ALIYUN_SMS_LOGIN_TEMPLATE_CODE=100001
+ALIYUN_SMS_PASSWORD_RESET_TEMPLATE_CODE=100001
+ALIYUN_CAPTCHA_ENDPOINT=captcha.cn-shanghai.aliyuncs.com
+ALIYUN_CAPTCHA_SCENE_ID=
 ```
 
 ## 开发机 PM2 + 1Panel 示例
@@ -95,6 +125,16 @@ AUTH_COOKIE_SECURE=false
 IMPORT_JOB_WORKER_ENABLED=false
 IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS=900
 IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS=60
+SMS_SEND_ENABLED=false
+SMS_DEBUG_CODE_VISIBLE=true
+ALIYUN_ACCESS_KEY_ID=
+ALIYUN_ACCESS_KEY_SECRET=
+ALIYUN_SMS_ENDPOINT=dypnsapi.aliyuncs.com
+ALIYUN_SMS_SIGN_NAME=速通互联验证码
+ALIYUN_SMS_LOGIN_TEMPLATE_CODE=100001
+ALIYUN_SMS_PASSWORD_RESET_TEMPLATE_CODE=100001
+ALIYUN_CAPTCHA_ENDPOINT=captcha.cn-shanghai.aliyuncs.com
+ALIYUN_CAPTCHA_SCENE_ID=
 ```
 
 说明：
@@ -117,6 +157,16 @@ TZ=UTC
 AUTH_COOKIE_SECURE=true
 IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS=900
 IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS=60
+SMS_SEND_ENABLED=true
+SMS_DEBUG_CODE_VISIBLE=false
+ALIYUN_ACCESS_KEY_ID=<阿里云AccessKey ID>
+ALIYUN_ACCESS_KEY_SECRET=<阿里云AccessKey Secret>
+ALIYUN_SMS_ENDPOINT=dypnsapi.aliyuncs.com
+ALIYUN_SMS_SIGN_NAME=速通互联验证码
+ALIYUN_SMS_LOGIN_TEMPLATE_CODE=100001
+ALIYUN_SMS_PASSWORD_RESET_TEMPLATE_CODE=100001
+ALIYUN_CAPTCHA_ENDPOINT=captcha.cn-shanghai.aliyuncs.com
+ALIYUN_CAPTCHA_SCENE_ID=<开通阿里云验证码2.0后填写，未开通可留空>
 LAKALA_BASE_URL=https://s2.lakala.com
 LAKALA_APP_ID=<拉卡拉应用ID>
 LAKALA_SERIAL_NO=<拉卡拉证书序列号>

@@ -1,14 +1,19 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Post, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Post, Query, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { authConfig } from '../config/auth.config';
 import { clearRefreshTokenCookie, extractBearerToken, getRefreshTokenFromCookie, setRefreshTokenCookie } from './auth-session.util';
+import { AuthSmsService } from './auth-sms.service';
 import { AuthService } from './auth.service';
-import { AuthMeResponseSwagger, LoginResponseSwagger, RefreshTokenResponseSwagger } from './auth.swagger';
+import { AuthMeResponseSwagger, DebugSmsCodeResponseSwagger, LoginResponseSwagger, RefreshTokenResponseSwagger } from './auth.swagger';
 import { CurrentUser, JwtPayload } from './decorators/current-user.decorator';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { DebugSmsCodeQueryDto } from './dto/debug-sms-code-query.dto';
 import { LoginDto } from './dto/login.dto';
+import { PasswordResetDto } from './dto/password-reset.dto';
+import { SendSmsCodeDto } from './dto/send-sms-code.dto';
+import { SmsLoginDto } from './dto/sms-login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @ApiTags('Auth - 鉴权中心')
@@ -16,6 +21,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
+    private readonly authSmsService: AuthSmsService,
     @Inject(authConfig.KEY)
     private readonly authSettings: ConfigType<typeof authConfig>,
   ) {}
@@ -39,6 +45,65 @@ export class AuthController {
       expiresIn: session.expiresIn,
       user: session.user,
     };
+  }
+
+  // 发送 Tenant 短信验证码 成功响应不暴露手机号是否存在
+  @Post('sms-codes')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '发送 Tenant 短信验证码',
+    description: '用于 Tenant 短信登录和短信找回密码；响应不暴露手机号是否存在',
+  })
+  @ApiOkResponse({ description: '发送请求已受理', schema: { type: 'null' } })
+  async sendSmsCode(@Body() request: SendSmsCodeDto, @Req() req: Request): Promise<null> {
+    await this.authSmsService.sendSmsCode(request, this.getClientIp(req));
+    return null;
+  }
+
+  // 使用 Tenant 手机号和验证码登录 并下发刷新令牌
+  @Post('sms-login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Tenant 短信验证码登录',
+    description: '使用绑定手机号和短信验证码创建 Tenant 登录会话',
+  })
+  @ApiOkResponse({ description: '登录成功，返回 accessToken 与用户信息', type: LoginResponseSwagger })
+  @ApiUnauthorizedResponse({ description: '手机号或验证码错误' })
+  async smsLogin(@Body() request: SmsLoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const session = await this.authSmsService.smsLogin(request);
+
+    setRefreshTokenCookie(res, req, session.refreshToken, this.authSettings);
+
+    return {
+      accessToken: session.accessToken,
+      expiresIn: session.expiresIn,
+      user: session.user,
+    };
+  }
+
+  // 使用 Tenant 手机号和验证码重置密码
+  @Post('password-resets')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Tenant 短信验证码找回密码',
+    description: '使用绑定手机号和短信验证码重置密码，成功后撤销该用户全部旧会话',
+  })
+  @ApiOkResponse({ description: '重置成功', schema: { type: 'null' } })
+  @ApiUnauthorizedResponse({ description: '手机号或验证码错误' })
+  async resetPassword(@Body() request: PasswordResetDto): Promise<null> {
+    await this.authSmsService.resetPassword(request);
+    return null;
+  }
+
+  // 查询 Redis debug key 中的短信验证码明文
+  @Get('sms-codes/debug')
+  @ApiOperation({
+    summary: '查询短信验证码调试明文',
+    description: '仅当 SMS_DEBUG_CODE_VISIBLE=true 且 Redis debug key 仍存在时返回验证码',
+  })
+  @ApiOkResponse({ description: '返回 TTL 内验证码；不存在时返回 null', type: DebugSmsCodeResponseSwagger })
+  async getDebugSmsCode(@Query() query: DebugSmsCodeQueryDto) {
+    return this.authSmsService.getDebugSmsCode(query);
   }
 
   // 使用刷新令牌续签当前会话
@@ -112,5 +177,10 @@ export class AuthController {
     await this.authService.logout(accessToken, refreshToken);
     clearRefreshTokenCookie(res, req, this.authSettings);
     return null;
+  }
+
+  // 读取客户端 IP 用于短信发送频控 优先信任经过代理标准化后的 Express IP
+  private getClientIp(req: Request): string | undefined {
+    return req.ip || req.socket.remoteAddress || undefined;
   }
 }

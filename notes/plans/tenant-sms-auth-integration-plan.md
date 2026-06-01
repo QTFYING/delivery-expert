@@ -455,4 +455,3 @@ pnpm check:backend
 - 正式生产不得同时开启 `SMS_SEND_ENABLED=true` 与 `SMS_DEBUG_CODE_VISIBLE=true`
 - 本期不处理 Admin 端短信找回密码，否则需要另行定义 `account + phone` 绑定校验规则
 - 本期不处理同一手机号跨租户多账号登录选择，因为已决策全平台租户手机号唯一
-

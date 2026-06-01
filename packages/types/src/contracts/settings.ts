@@ -1,5 +1,12 @@
 import type { ListParams, PaginatedResponse } from '../common';
-import type { PaymentChannel, TenantPaymentConfigStatus, TenantPermissionCode, TenantPermissionDomain, TenantStatus, UserSimpleStatus } from '../enums';
+import type {
+  PaymentChannel,
+  TenantPaymentConfigStatus,
+  TenantPermissionCode,
+  TenantPermissionDomain,
+  TenantStatus,
+  UserSimpleStatus,
+} from '../enums';
 
 export interface TenantPermissionItem {
   /** 权限编码 */

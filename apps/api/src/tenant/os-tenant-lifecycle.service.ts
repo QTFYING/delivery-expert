@@ -39,6 +39,7 @@ import {
   toTenantRecordItem,
 } from './mapping/tenant.mapper';
 import { getTenantOrThrow } from './tenant.access';
+import { TenantPhoneIdentityService } from './tenant-phone-identity.service';
 import { createTenantAuditLog } from './tenant.shared';
 
 const DEFAULT_OWNER_PASSWORD = '123456';
@@ -48,6 +49,7 @@ export class OsTenantLifecycleService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly idGen: IdGeneratorService,
+    private readonly tenantPhoneIdentity: TenantPhoneIdentityService,
   ) {}
 
   // 创建 OS 侧租户，并初始化租户生命周期字段
@@ -60,6 +62,7 @@ export class OsTenantLifecycleService {
     const ownerAccount = normalizeText(request.ownerAccount, 'ownerAccount', 50);
     const ownerPassword = request.ownerInitialPassword?.trim() || DEFAULT_OWNER_PASSWORD;
     await this.ensureAccountAvailable(ownerAccount);
+    await this.tenantPhoneIdentity.assertTenantPhoneAvailable(ownerAccount);
     const tenantId = await this.idGen.nextGlobalId(ID_CONFIG.TENANT.prefix, ID_CONFIG.TENANT.seqName, ID_CONFIG.TENANT.digits);
     const activePaymentChannel = this.toPrismaPaymentChannel(this.normalizePaymentChannel(request.channel));
     const serviceExpireAt = this.parseServiceExpireAt(request.serviceExpireAt);

@@ -13,13 +13,7 @@ const PASSWORD_MAX_LENGTH = 20;
 const PASSWORD_CATEGORY_PATTERNS = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z0-9\s]/];
 
 // 仅用于订单导入等业务无时区时间，系统事件时间仍统一使用 ISO UTC
-const LOCAL_DATE_TIME_FORMATS = [
-  'YYYY-MM-DD',
-  'YYYY-MM-DD HH:mm:ss',
-  'YYYY-MM-DD HH:mm:ss.SSS',
-  'YYYY-MM-DDTHH:mm:ss',
-  'YYYY-MM-DDTHH:mm:ss.SSS',
-];
+const LOCAL_DATE_TIME_FORMATS = ['YYYY-MM-DD', 'YYYY-MM-DD HH:mm:ss', 'YYYY-MM-DD HH:mm:ss.SSS', 'YYYY-MM-DDTHH:mm:ss', 'YYYY-MM-DDTHH:mm:ss.SSS'];
 
 const COMMON_WEAK_PASSWORDS = new Set([
   '123456',

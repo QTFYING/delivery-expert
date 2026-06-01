@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
 import type { AuthMeResponse, AuthUserProfile, ChangePasswordRequest } from '@shou/types/contracts';
@@ -7,6 +7,7 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { PermissionCacheService } from '../authorization/permission-cache.service';
 import { PermissionService } from '../authorization/permission.service';
+import { formatTraceLog } from '../common/trace-log';
 import { assertPasswordStrength } from '../common/validators';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthSessionStore } from '../redis/auth-session.store';
@@ -20,6 +21,13 @@ const ACCOUNT_UNAVAILABLE_MESSAGE = '账号不可用';
 const TENANT_UNAVAILABLE_MESSAGE = '租户不可用';
 const ACCOUNT_CONFLICT_MESSAGE = '账号存在冲突，请联系管理员处理';
 
+const AUTH_FAILURE_REASONS = {
+  [INVALID_CREDENTIALS_MESSAGE]: 'invalid_credentials',
+  [ACCOUNT_UNAVAILABLE_MESSAGE]: 'account_unavailable',
+  [TENANT_UNAVAILABLE_MESSAGE]: 'tenant_unavailable',
+  [ACCOUNT_CONFLICT_MESSAGE]: 'account_conflict',
+} as const;
+
 type AuthUserRecord = Prisma.UserGetPayload<{
   include: {
     tenant: true;
@@ -28,6 +36,8 @@ type AuthUserRecord = Prisma.UserGetPayload<{
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
@@ -40,31 +50,57 @@ export class AuthService {
   async login(loginDto: LoginDto) {
     const account = loginDto.account.trim();
     const password = loginDto.password.trim();
-    const user = await this.findLoginUser(account, password);
-    const tokenVersion = await this.authSessions.getUserTokenVersion(user.id);
-    const permissionVersion = await this.getTokenPermissionVersion(user);
-    const sessionId = crypto.randomUUID();
-    const refreshToken = crypto.randomBytes(48).toString('hex');
-    await this.authSessions.createAuthSession(
-      {
-        sessionId,
-        userId: user.id,
-        account: user.account,
-        role: fromPrismaUserRole(user.role),
-        tenantId: user.tenantId,
-      },
-      refreshToken,
-      ACCESS_TOKEN_TTL,
-      REFRESH_TOKEN_TTL,
-    );
-    const accessToken = this.jwtService.sign(this.buildAccessTokenPayload(user, sessionId, tokenVersion, permissionVersion));
 
-    return {
-      accessToken,
-      expiresIn: ACCESS_TOKEN_TTL,
-      refreshToken,
-      user: this.toUserProfile(user),
-    };
+    try {
+      const user = await this.findLoginUser(account, password);
+      const tokenVersion = await this.authSessions.getUserTokenVersion(user.id);
+      const permissionVersion = await this.getTokenPermissionVersion(user);
+      const sessionId = crypto.randomUUID();
+      const refreshToken = crypto.randomBytes(48).toString('hex');
+      await this.authSessions.createAuthSession(
+        {
+          sessionId,
+          userId: user.id,
+          account: user.account,
+          role: fromPrismaUserRole(user.role),
+          tenantId: user.tenantId,
+        },
+        refreshToken,
+        ACCESS_TOKEN_TTL,
+        REFRESH_TOKEN_TTL,
+      );
+      const accessToken = this.jwtService.sign(this.buildAccessTokenPayload(user, sessionId, tokenVersion, permissionVersion));
+      const userProfile = this.toUserProfile(user);
+
+      this.logger.log(
+        formatTraceLog('auth.login.success', {
+          accountHash: hashAuthAccount(account),
+          userId: user.id,
+          tenantId: user.tenantId ?? 'null',
+          side: user.tenantId ? 'tenant' : 'platform',
+          role: fromPrismaUserRole(user.role),
+          tokenVersion,
+          permissionVersion,
+          requiresPasswordReset: user.requiresPasswordReset,
+        }),
+      );
+
+      return {
+        accessToken,
+        expiresIn: ACCESS_TOKEN_TTL,
+        refreshToken,
+        user: userProfile,
+      };
+    } catch (error) {
+      const reason = getAuthFailureReason(error);
+      const logMessage = formatTraceLog('auth.login.failure', { accountHash: hashAuthAccount(account), reason });
+      if (reason === 'unknown') {
+        this.logger.error(logMessage, getErrorStack(error));
+      } else {
+        this.logger.warn(logMessage);
+      }
+      throw error;
+    }
   }
 
   // 使用 refresh token 续签会话 并返回新的 token 对
@@ -105,28 +141,64 @@ export class AuthService {
 
   // 读取当前登录用户资料与 Tenant 权限快照 平台用户不进入 Tenant RBAC
   async getMe(currentUser: JwtPayload): Promise<AuthMeResponse> {
-    const user = await this.getAvailableUserById(currentUser.userId);
-    const profile = this.toUserProfile(user);
-    if (!user.tenantId) {
+    try {
+      const user = await this.getAvailableUserById(currentUser.userId);
+      const profile = this.toUserProfile(user);
+      if (!user.tenantId) {
+        this.logger.log(
+          formatTraceLog('auth.me.success', {
+            userId: user.id,
+            tenantId: 'null',
+            side: 'platform',
+            roleCode: UserRoleEnum.OS_SUPER_ADMIN,
+            permissionVersion: 0,
+            permissionCount: 0,
+          }),
+        );
+
+        return {
+          ...profile,
+          roleId: null,
+          roleCode: UserRoleEnum.OS_SUPER_ADMIN,
+          roleName: '平台超级管理员',
+          permissions: [],
+          permissionVersion: 0,
+        };
+      }
+
+      const snapshot = await this.permissionService.getTenantPermissionSnapshot(user.tenantId, user.id);
+      this.logger.log(
+        formatTraceLog('auth.me.success', {
+          userId: user.id,
+          tenantId: user.tenantId,
+          side: 'tenant',
+          roleId: snapshot.roleId,
+          roleCode: snapshot.roleCode,
+          permissionVersion: snapshot.permissionVersion,
+          permissionCount: snapshot.permissions.length,
+        }),
+      );
+
       return {
         ...profile,
-        roleId: null,
-        roleCode: UserRoleEnum.OS_SUPER_ADMIN,
-        roleName: '平台超级管理员',
-        permissions: [],
-        permissionVersion: 0,
+        roleId: snapshot.roleId,
+        roleCode: snapshot.roleCode,
+        roleName: snapshot.roleName,
+        permissions: snapshot.permissions,
+        permissionVersion: snapshot.permissionVersion,
       };
+    } catch (error) {
+      const reason = getAuthFailureReason(error);
+      const logMessage = formatTraceLog('auth.me.failure', {
+        userId: currentUser.userId,
+        tenantId: currentUser.tenantId ?? 'null',
+        side: currentUser.side,
+        role: currentUser.role,
+        reason,
+      });
+      this.logger.warn(logMessage);
+      throw error;
     }
-
-    const snapshot = await this.permissionService.getTenantPermissionSnapshot(user.tenantId, user.id);
-    return {
-      ...profile,
-      roleId: snapshot.roleId,
-      roleCode: snapshot.roleCode,
-      roleName: snapshot.roleName,
-      permissions: snapshot.permissions,
-      permissionVersion: snapshot.permissionVersion,
-    };
   }
 
   // 修改当前登录用户密码 并使全部旧会话失效
@@ -309,4 +381,17 @@ export class AuthService {
       requiresPasswordReset: user.requiresPasswordReset,
     };
   }
+}
+
+function hashAuthAccount(account: string): string {
+  return crypto.createHash('sha256').update(account).digest('hex').slice(0, 12);
+}
+
+function getAuthFailureReason(error: unknown): string {
+  const message = error instanceof Error ? error.message : '';
+  return AUTH_FAILURE_REASONS[message as keyof typeof AUTH_FAILURE_REASONS] ?? 'unknown';
+}
+
+function getErrorStack(error: unknown): string | undefined {
+  return error instanceof Error ? error.stack : undefined;
 }

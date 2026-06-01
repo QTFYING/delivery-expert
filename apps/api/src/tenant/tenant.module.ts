@@ -11,6 +11,7 @@ import { OsUserController } from './os-user.controller';
 import { OsUserService } from './os-user.service';
 import { TenantCertificationController } from './tenant-certification.controller';
 import { TenantCertificationService } from './tenant-certification.service';
+import { TenantPhoneIdentityService } from './tenant-phone-identity.service';
 import { TenantSelfController } from './tenant-self.controller';
 import { TenantService } from './tenant.service';
 
@@ -25,6 +26,7 @@ import { TenantService } from './tenant.service';
     OsTenantLifecycleService,
     OsTenantQueryService,
     OsTenantPaymentConfigService,
+    TenantPhoneIdentityService,
   ],
   exports: [
     TenantService,
@@ -34,6 +36,7 @@ import { TenantService } from './tenant.service';
     OsTenantLifecycleService,
     OsTenantQueryService,
     OsTenantPaymentConfigService,
+    TenantPhoneIdentityService,
   ],
 })
 export class TenantModule {}

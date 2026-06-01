@@ -5,6 +5,7 @@ import { authConfig } from './auth.config';
 import { importConfig } from './import.config';
 import { paymentConfig } from './payment.config';
 import { redisConfig } from './redis.config';
+import { smsConfig } from './sms.config';
 import { validateEnv } from './env.validation';
 
 @Global()
@@ -15,7 +16,7 @@ import { validateEnv } from './env.validation';
       cache: true,
       expandVariables: true,
       envFilePath: ['.env.local', '.env'],
-      load: [appConfig, authConfig, redisConfig, paymentConfig, importConfig],
+      load: [appConfig, authConfig, redisConfig, paymentConfig, importConfig, smsConfig],
       validate: validateEnv,
     }),
   ],

@@ -20,13 +20,17 @@ import type { JwtPayload } from '../auth/decorators/current-user.decorator';
 import { formatDateTime, normalizePage, normalizePageSize, normalizeText } from '../common/validators';
 import { PrismaService } from '../prisma/prisma.service';
 import { resolveUserRoleForUpsert, toPrismaUserRole, toPrismaUserStatus, toUserRecordItem } from './mapping/tenant.mapper';
+import { TenantPhoneIdentityService } from './tenant-phone-identity.service';
 import { createTenantAuditLog } from './tenant.shared';
 
 const DEFAULT_USER_PASSWORD = '123456';
 
 @Injectable()
 export class OsUserService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantPhoneIdentity: TenantPhoneIdentityService,
+  ) {}
 
   // 获取平台用户分页列表
   async getAdminUsers(query: UserListQuery): Promise<PaginatedResponse<UserRecordItem>> {
@@ -83,12 +87,16 @@ export class OsUserService {
     const tenantId = await this.resolveTenantIdForUser(request.tenantType, request.tenant);
     const role = resolveUserRoleForUpsert(request.tenantType, request.role);
     const status = toPrismaUserStatus(request.status ?? UserStatusEnum.ACTIVE);
+    const phone = normalizeText(request.phone, 'phone', 20);
+    if (tenantId && status === PrismaUserStatusEnum.ACTIVE) {
+      await this.tenantPhoneIdentity.assertTenantPhoneAvailable(phone);
+    }
 
     const created = await this.prisma.user.create({
       data: {
         tenantId,
         account,
-        phone: normalizeText(request.phone, 'phone', 20),
+        phone,
         passwordHash: await bcrypt.hash(DEFAULT_USER_PASSWORD, 10),
         realName: normalizeText(request.name, 'name', 50),
         role,
@@ -122,12 +130,16 @@ export class OsUserService {
     const role = resolveUserRoleForUpsert(request.tenantType, request.role);
     const nextStatus = request.status ? toPrismaUserStatus(request.status) : existing.status;
     await this.assertOwnerMutationAllowed(existing, tenantId, role, nextStatus);
+    const phone = normalizeText(request.phone, 'phone', 20);
+    if (tenantId && nextStatus === PrismaUserStatusEnum.ACTIVE) {
+      await this.tenantPhoneIdentity.assertTenantPhoneAvailable(phone, existing.id);
+    }
     const updated = await this.prisma.user.update({
       where: { id: existing.id },
       data: {
         tenantId,
         account,
-        phone: normalizeText(request.phone, 'phone', 20),
+        phone,
         realName: normalizeText(request.name, 'name', 50),
         role,
         scope: normalizeText(request.scope, 'scope', 100),

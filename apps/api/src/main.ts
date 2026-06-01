@@ -8,6 +8,7 @@ import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/business-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { LocalizedConsoleLogger } from './common/logger/localized-console.logger';
+import { TRACE_ID_HEADER } from './common/request-trace';
 import { IMPORT_PREVIEW_BODY_LIMIT, PRINTING_CONFIG_BODY_LIMIT } from './import/import.constants';
 
 type RequestWithRawBody = Request & { rawBody?: string };
@@ -62,6 +63,7 @@ async function bootstrap() {
       }
     },
     credentials: true,
+    exposedHeaders: [TRACE_ID_HEADER],
   });
 
   // 2. 配置 Swagger 在线接口文档
