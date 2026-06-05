@@ -42,6 +42,9 @@ RUN pnpm run build
 # pnpm deploy 生成独立部署目录（无 symlink，node_modules 完整平铺）
 RUN pnpm --filter api deploy --prod --legacy /deploy/api
 
+# 防止本地环境变量文件被 pnpm deploy 带入运行时镜像
+RUN rm -f /deploy/api/.env /deploy/api/.env.*
+
 # 把 dist 和 prisma schema 复制进去
 RUN cp -r /app/apps/api/dist /deploy/api/dist && \
     cp -r /app/apps/api/prisma /deploy/api/prisma
@@ -62,6 +65,6 @@ WORKDIR /app
 COPY --from=build /deploy/api ./
 COPY --from=build /app/scripts ./scripts
 
-EXPOSE 3000
+EXPOSE 3000 3001
 
 CMD ["node", "dist/main"]

@@ -29,9 +29,9 @@ export class ImportTemplateController {
     description:
       '返回系统内置的 14 个标准字段，前 7 个为订单头字段（type: list），后 7 个为订单明细字段（type: line）。\n' +
       '- isRequired：控制模板创建/更新时 mapStr 是否必填；也用于前端 UI 展示（红星）\n' +
-      '- isValueRequired：服务端 /preview 是否强制该列必须有值。前端可省略不传，服务端以系统定义为权威\n' +
+      '- isValueRequired：服务端 /preview 是否强制该列必须有值。保存模板时不允许前端配置\n' +
       '- 订单明细 lineItems 至少需要 1 条，否则预检失败\n' +
-      '创建/更新模板时：defaultFields 必须完整包含 14 个字段，label/isRequired 不可改写；mapStr 允许重复，不再做全局去重。',
+      '创建/更新模板时：defaultFields 必须完整包含 14 个字段，key/label/type 不可改写；mapStr 允许重复，不再做全局去重。',
   })
   @ApiOkResponse({
     type: [OrderImportTemplateFieldSwagger],
@@ -47,7 +47,7 @@ export class ImportTemplateController {
           key: 'customerAddress',
           mapStr: '',
           isRequired: false,
-          isValueRequired: true,
+          isValueRequired: false,
           type: 'list',
         },
         { label: '总金额', key: 'totalAmount', mapStr: '', isRequired: false, isValueRequired: true, type: 'list' },
@@ -65,6 +65,7 @@ export class ImportTemplateController {
   })
   @Get('import/default-template')
   @Permissions(TenantPermissionCodeEnum.TEMPLATES_MANAGE)
+  // 返回系统默认导入模板字段，字段是否值必填以服务端定义为准
   async getDefaultTemplate(): Promise<OrderImportTemplateField[]> {
     return this.importTemplateService.getDefaultTemplate();
   }

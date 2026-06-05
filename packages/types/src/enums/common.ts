@@ -50,18 +50,6 @@ export const UserSimpleStatusEnum = {
 export type UserSimpleStatus = EnumValue<typeof UserSimpleStatusEnum>;
 
 /**
- * 公告发布时间类型
- */
-export const PublishTimingEnum = {
-  /** 立即发布 */
-  IMMEDIATE: 'immediate',
-  /** 定时发布 */
-  SCHEDULED: 'scheduled',
-} as const;
-
-export type PublishTiming = EnumValue<typeof PublishTimingEnum>;
-
-/**
  * 审计对象类型
  */
 export const AuditTargetTypeEnum = {

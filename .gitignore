@@ -37,7 +37,7 @@ yarn.lock
 .turbo/
 .runtime
 
-# Vite / mock temp modules
+# mock temp modules
 *.timestamp-*.mjs
 .edge-cdp-tenant-inspect
 
@@ -56,3 +56,5 @@ static_alias
 .dbhub/*
 !.dbhub/*.toml
 
+# Release
+release/

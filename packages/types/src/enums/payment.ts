@@ -48,7 +48,7 @@ export const PaymentOrderStatusEnum = {
   UNPAID: 'unpaid',
   /** 支付中 */
   PAYING: 'paying',
-  /** 待核销 */
+  /** 待确认 */
   PENDING_VERIFICATION: 'pending_verification',
   /** 已完成 */
   PAID: 'paid',
@@ -59,16 +59,16 @@ export const PaymentOrderStatusEnum = {
 export type PaymentOrderStatus = EnumValue<typeof PaymentOrderStatusEnum>;
 
 /**
- * 现金核销状态
+ * 线下登记确认状态
  */
-export const CashVerifyStatusEnum = {
-  /** 待核销 */
+export const OfflinePaymentVerifyStatusEnum = {
+  /** 待确认 */
   PENDING: 'pending',
-  /** 已核销 */
+  /** 已确认 */
   VERIFIED: 'verified',
 } as const;
 
-export type CashVerifyStatus = EnumValue<typeof CashVerifyStatusEnum>;
+export type OfflinePaymentVerifyStatus = EnumValue<typeof OfflinePaymentVerifyStatusEnum>;
 
 /**
  * 支付流水状态

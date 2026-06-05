@@ -4,57 +4,30 @@
 
 当前核心范围：
 
-- `apps/api`：统一后端 API，以及 `import-worker` 的主实现与运行入口，服务 Admin / Tenant / H5 三端。
+- `apps/api`：统一后端 API、`payment-api` 与 `import-worker` 的实现和运行入口，服务 Admin / Tenant / H5 三端。
 - `packages/types`：枚举与接口结构投影。
 - `packages/utils`：金额等纯工具函数。
 
-## 共享层约定
+## 仓库规则入口
 
-新增工具代码时，优先按下面三条判断放置位置：
-
-- 纯函数、无 Nest 依赖、可跨 app 复用的工具，放 `packages/utils`
-- 依赖 Nest、Prisma、Config、HTTP 语义、Exception、Pipe、Filter 的工具，放 `apps/api/src/common`
-- 只服务单个业务域的 helper、校验、映射、查询条件，留在对应业务域目录，不上提为共享
-
-## 项目事实源
-
-涉及接口、字段、枚举、状态机、数据模型时，按以下顺序判断：
-
-1. `docs/api/*.md`
-2. `packages/types/src/enums`
-3. `packages/types/src/contracts`
-4. `docs/prisma/data-model-reference.md`
-5. `apps/api` 实现代码
-6. Swagger / OpenAPI
-
-补充说明：
-
-- `docs/api` 定义业务语义、状态流转与字段含义。
-- `enums` 定义枚举值。
-- `contracts` 只做共享结构投影与消费，不独立发明语义。
-- `data-model-reference` 只做建模同步。
-- Swagger / OpenAPI 只作为传输结构与联调产物，不反向推动接口改义。
-- `docs/architecture/`、`docs/deployment/`、`notes/`、`review/`、`docs/archived/` 只作背景参考，不作为编码事实源。
-
-更多仓库级约束见 [AGENTS.md](./AGENTS.md)。
+本仓库的事实源顺序、编码边界、分层约定、文档同步规则与 agent 工作流统一维护在 [AGENTS.md](./AGENTS.md)。README 只维护项目概览、本地启动、常用脚本与部署入口，避免与仓库规则重复漂移。
 
 ## 目录概览
 
 ```text
 .
-├── apps/api                 # NestJS API 与 import-worker
+├── apps/api                 # NestJS API、payment-api 与 import-worker
 ├── packages/types           # 枚举与接口结构投影
 ├── packages/utils           # 通用工具函数
-├── docs/api                 # API 事实源
+├── docs/api                 # API 业务语义事实源
 ├── docs/architecture        # 已稳定的架构说明
 ├── docs/deployment          # 部署手册
-├── docs/prisma              # 数据模型参考
 ├── notes                    # 非事实源笔记、接力文档、排障记录与方案草案
 ├── review                   # 评审报告与施工计划
 ├── scripts                  # 数据初始化脚本
 ├── AGENTS.md                # 智能代理约束
-├── Dockerfile               # API / Worker 镜像构建
-└── docker-compose.yml       # 阿里云 + 1Panel 场景下的 API / Worker 编排
+├── Dockerfile               # API / payment-api / Worker 镜像构建
+└── docker-compose.yml       # 阿里云 + 1Panel 场景下的 API / payment-api / Worker 编排
 ```
 
 ## 本地无 Docker 快速启动

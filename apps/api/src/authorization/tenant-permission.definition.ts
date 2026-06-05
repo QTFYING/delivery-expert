@@ -59,7 +59,7 @@ export const TENANT_PERMISSION_DEFINITIONS = [
     description: '收款域',
     permissions: [
       { code: TenantPermissionCodeEnum.PAYMENTS_READ, description: '查看收款流水' },
-      { code: TenantPermissionCodeEnum.PAYMENTS_CASH_VERIFY_CREATE, description: '创建现金核销记录' },
+      { code: TenantPermissionCodeEnum.PAYMENTS_OFFLINE_PAYMENT_VERIFY_CREATE, description: '确认线下登记支付' },
     ],
   },
   {
@@ -116,7 +116,7 @@ export const DEFAULT_TENANT_ROLE_PERMISSIONS = {
     TenantPermissionCodeEnum.CREDIT_READ,
     TenantPermissionCodeEnum.CREDIT_RECEIPT_CREATE,
     TenantPermissionCodeEnum.PAYMENTS_READ,
-    TenantPermissionCodeEnum.PAYMENTS_CASH_VERIFY_CREATE,
+    TenantPermissionCodeEnum.PAYMENTS_OFFLINE_PAYMENT_VERIFY_CREATE,
     TenantPermissionCodeEnum.FINANCE_READ,
     TenantPermissionCodeEnum.FINANCE_EXPORT,
     TenantPermissionCodeEnum.SETTINGS_PAYMENT_CONFIGS_READ,

@@ -4,7 +4,7 @@ import { TenantPermissionCodeEnum, UserRoleEnum } from '@shou/types/enums';
 import type { PaginatedResponse } from '@shou/types/common';
 import type {
   AdminPaymentRecordItem,
-  CreateCashVerificationResponse,
+  CreateOfflinePaymentVerificationResponse,
   PaymentListQuery,
   PaymentSummaryResponse,
   TenantPaymentRecordItem,
@@ -19,7 +19,7 @@ import { ListPaymentsQueryDto } from './dto/list-payments.query.dto';
 import { PaymentService } from './payment.service';
 import {
   AdminPaymentListResponseSwagger,
-  CreateCashVerificationResponseSwagger,
+  CreateOfflinePaymentVerificationResponseSwagger,
   PaymentSummaryResponseSwagger,
   TenantPaymentListResponseSwagger,
 } from './payment.swagger';
@@ -30,7 +30,7 @@ import {
   TenantPaymentListResponseSwagger,
   AdminPaymentListResponseSwagger,
   PaymentSummaryResponseSwagger,
-  CreateCashVerificationResponseSwagger,
+  CreateOfflinePaymentVerificationResponseSwagger,
 )
 @Controller()
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
@@ -64,13 +64,16 @@ export class TenantPaymentController {
     return this.paymentService.getPaymentSummary(currentUser);
   }
 
-  // 为指定订单创建现金核销记录，收口租户财务人工核销入口
-  @ApiOperation({ summary: '创建现金核销记录' })
+  // 为指定订单确认 H5 线下登记支付，收口租户财务人工确认入口
+  @ApiOperation({ summary: '确认线下登记支付' })
   @ApiParam({ name: 'id', description: '订单 ID' })
-  @ApiOkResponse({ type: CreateCashVerificationResponseSwagger })
-  @Post('orders/:id/cash-verifications')
-  @Permissions(TenantPermissionCodeEnum.PAYMENTS_CASH_VERIFY_CREATE)
-  async createCashVerification(@CurrentUser() currentUser: JwtPayload, @Param('id') orderId: string): Promise<CreateCashVerificationResponse> {
-    return this.paymentService.createCashVerification(currentUser, orderId);
+  @ApiOkResponse({ type: CreateOfflinePaymentVerificationResponseSwagger })
+  @Post('orders/:id/offline-payment-verifications')
+  @Permissions(TenantPermissionCodeEnum.PAYMENTS_OFFLINE_PAYMENT_VERIFY_CREATE)
+  async createOfflinePaymentVerification(
+    @CurrentUser() currentUser: JwtPayload,
+    @Param('id') orderId: string,
+  ): Promise<CreateOfflinePaymentVerificationResponse> {
+    return this.paymentService.createOfflinePaymentVerification(currentUser, orderId);
   }
 }

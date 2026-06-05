@@ -1,5 +1,5 @@
 import {
-  CashVerifyStatusEnum as PrismaCashVerifyStatusEnum,
+  OfflinePaymentVerifyStatusEnum as PrismaOfflinePaymentVerifyStatusEnum,
   OrderPayTypeEnum as PrismaOrderPayTypeEnum,
   OrderStatusEnum as PrismaOrderStatusEnum,
   PaymentChannelEnum as PrismaPaymentChannelEnum,
@@ -9,14 +9,14 @@ import {
 } from '@prisma/client';
 
 import {
-  CashVerifyStatusEnum,
+  OfflinePaymentVerifyStatusEnum,
   OrderPayTypeEnum,
   OrderStatusEnum,
   PaymentChannelEnum,
   PaymentMethodEnum,
   PaymentOrderStatusEnum,
   PaymentRecordStatusEnum,
-  type CashVerifyStatus,
+  type OfflinePaymentVerifyStatus,
   type OrderPayType,
   type OrderStatus,
   type PaymentChannel,
@@ -73,22 +73,22 @@ export function toPrismaPaymentOrderStatus(status: PaymentOrderStatus): PrismaPa
   return PAYMENT_ORDER_STATUS_TO_PRISMA[status] ?? PrismaPaymentOrderStatusEnum.UNPAID;
 }
 
-const PRISMA_TO_CASH_VERIFY_STATUS: Record<PrismaCashVerifyStatusEnum, CashVerifyStatus> = {
-  [PrismaCashVerifyStatusEnum.PENDING]: CashVerifyStatusEnum.PENDING,
-  [PrismaCashVerifyStatusEnum.VERIFIED]: CashVerifyStatusEnum.VERIFIED,
+const PRISMA_TO_OFFLINE_PAYMENT_VERIFY_STATUS: Record<PrismaOfflinePaymentVerifyStatusEnum, OfflinePaymentVerifyStatus> = {
+  [PrismaOfflinePaymentVerifyStatusEnum.PENDING]: OfflinePaymentVerifyStatusEnum.PENDING,
+  [PrismaOfflinePaymentVerifyStatusEnum.VERIFIED]: OfflinePaymentVerifyStatusEnum.VERIFIED,
 };
 
-const CASH_VERIFY_STATUS_TO_PRISMA: Record<CashVerifyStatus, PrismaCashVerifyStatusEnum> = {
-  [CashVerifyStatusEnum.PENDING]: PrismaCashVerifyStatusEnum.PENDING,
-  [CashVerifyStatusEnum.VERIFIED]: PrismaCashVerifyStatusEnum.VERIFIED,
+const OFFLINE_PAYMENT_VERIFY_STATUS_TO_PRISMA: Record<OfflinePaymentVerifyStatus, PrismaOfflinePaymentVerifyStatusEnum> = {
+  [OfflinePaymentVerifyStatusEnum.PENDING]: PrismaOfflinePaymentVerifyStatusEnum.PENDING,
+  [OfflinePaymentVerifyStatusEnum.VERIFIED]: PrismaOfflinePaymentVerifyStatusEnum.VERIFIED,
 };
 
-export function fromPrismaCashVerifyStatus(status: PrismaCashVerifyStatusEnum): CashVerifyStatus {
-  return PRISMA_TO_CASH_VERIFY_STATUS[status] ?? CashVerifyStatusEnum.PENDING;
+export function fromPrismaOfflinePaymentVerifyStatus(status: PrismaOfflinePaymentVerifyStatusEnum): OfflinePaymentVerifyStatus {
+  return PRISMA_TO_OFFLINE_PAYMENT_VERIFY_STATUS[status] ?? OfflinePaymentVerifyStatusEnum.PENDING;
 }
 
-export function toPrismaCashVerifyStatus(status: CashVerifyStatus): PrismaCashVerifyStatusEnum {
-  return CASH_VERIFY_STATUS_TO_PRISMA[status] ?? PrismaCashVerifyStatusEnum.PENDING;
+export function toPrismaOfflinePaymentVerifyStatus(status: OfflinePaymentVerifyStatus): PrismaOfflinePaymentVerifyStatusEnum {
+  return OFFLINE_PAYMENT_VERIFY_STATUS_TO_PRISMA[status] ?? PrismaOfflinePaymentVerifyStatusEnum.PENDING;
 }
 
 const PRISMA_TO_PAYMENT_CHANNEL: Record<PrismaPaymentChannelEnum, PaymentChannel> = {
@@ -122,10 +122,10 @@ export function fromPrismaPaymentRecordStatus(status: PrismaPaymentRecordStatusE
   return PRISMA_TO_PAYMENT_RECORD_STATUS[status] ?? PaymentRecordStatusEnum.SUCCESS;
 }
 
-export function cashVerifyStatusText(status: PrismaCashVerifyStatusEnum | null): string {
-  if (status === PrismaCashVerifyStatusEnum.VERIFIED) return '已核销';
-  if (status === PrismaCashVerifyStatusEnum.PENDING) return '待核销';
-  return '无需核销';
+export function offlineVerifyStatusText(status: PrismaOfflinePaymentVerifyStatusEnum | null): string {
+  if (status === PrismaOfflinePaymentVerifyStatusEnum.VERIFIED) return '已确认';
+  if (status === PrismaOfflinePaymentVerifyStatusEnum.PENDING) return '待确认';
+  return '无需确认';
 }
 
 const PRISMA_TO_ORDER_PAY_TYPE: Record<PrismaOrderPayTypeEnum, OrderPayType> = {
@@ -141,7 +141,7 @@ const PRISMA_TO_ORDER_STATUS: Record<PrismaOrderStatusEnum, OrderStatus> = {
   [PrismaOrderStatusEnum.PARTIAL]: OrderStatusEnum.PARTIAL,
   [PrismaOrderStatusEnum.PAID]: OrderStatusEnum.PAID,
   [PrismaOrderStatusEnum.EXPIRED]: OrderStatusEnum.EXPIRED,
-  [PrismaOrderStatusEnum.CREDIT]: OrderStatusEnum.CREDIT,
+  [PrismaOrderStatusEnum.VOIDED]: OrderStatusEnum.VOIDED,
   [PrismaOrderStatusEnum.PENDING]: OrderStatusEnum.PENDING,
 };
 
@@ -149,7 +149,7 @@ const ORDER_STATUS_TO_PRISMA: Record<OrderStatus, PrismaOrderStatusEnum> = {
   [OrderStatusEnum.PARTIAL]: PrismaOrderStatusEnum.PARTIAL,
   [OrderStatusEnum.PAID]: PrismaOrderStatusEnum.PAID,
   [OrderStatusEnum.EXPIRED]: PrismaOrderStatusEnum.EXPIRED,
-  [OrderStatusEnum.CREDIT]: PrismaOrderStatusEnum.CREDIT,
+  [OrderStatusEnum.VOIDED]: PrismaOrderStatusEnum.VOIDED,
   [OrderStatusEnum.PENDING]: PrismaOrderStatusEnum.PENDING,
 };
 
@@ -220,6 +220,6 @@ export function toPrismaPaymentOrderUpdateData(data: PaymentOrderUpdateData) {
     status: data.status ? toPrismaPaymentOrderStatus(data.status) : undefined,
     paymentMethod: data.paymentMethod ? toPrismaPaymentMethod(data.paymentMethod) : undefined,
     channel: data.channel ? toPrismaPaymentChannel(data.channel) : undefined,
-    cashVerifyStatus: data.cashVerifyStatus ? toPrismaCashVerifyStatus(data.cashVerifyStatus) : undefined,
+    offlineVerifyStatus: data.offlineVerifyStatus ? toPrismaOfflinePaymentVerifyStatus(data.offlineVerifyStatus) : undefined,
   };
 }

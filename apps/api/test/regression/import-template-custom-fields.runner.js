@@ -24,28 +24,31 @@ const resultPath = path.join(runtimeDir, 'import-template-custom-fields-result.j
 function templatePayload(overrides = {}) {
   const payload = buildImportTemplatePayload();
   payload.name = overrides.name ?? `模板自定义字段回归-${Date.now()}`;
-  payload.defaultFields = payload.defaultFields.map((field) => {
-    if (field.isRequired) {
-      return field;
-    }
-    const { mapStr, ...rest } = field;
-    return rest;
-  });
+  payload.defaultFields = payload.defaultFields.map(({ key, label, mapStr, type }) => ({ key, label, mapStr, type }));
   payload.customerFields = overrides.customerFields ?? [
     {
       label: '客户编码',
       mapStr: '客商编码',
-      isValueRequired: false,
       type: 'list',
     },
     {
       label: '商品批次',
       mapStr: '批次号',
-      isValueRequired: true,
       type: 'line',
     },
   ];
   return payload;
+}
+
+async function loadTemplate(baseUrl, token, templateId, results, stepName) {
+  const response = await apiRequest(results, stepName, {
+    method: 'GET',
+    url: baseUrl + '/import/templates',
+    token,
+  });
+  const template = response.data.find((item) => item.id === String(templateId));
+  assert.ok(template, '未找到导入模板 ' + templateId);
+  return template;
 }
 
 function assertInvalidReason(response, expectedPart) {
@@ -108,12 +111,13 @@ async function main() {
       body: templatePayload(),
     });
     const templateId = created.data.id;
-    const cf1 = created.data.customerFields.find((field) => field.label === '客户编码');
-    const cf2 = created.data.customerFields.find((field) => field.label === '商品批次');
+    const createdTemplate = await loadTemplate(baseUrl, token, templateId, results, 'T08-1b Load Created Template');
+    const cf1 = createdTemplate.customerFields.find((field) => field.label === '客户编码');
+    const cf2 = createdTemplate.customerFields.find((field) => field.label === '商品批次');
     assert.equal(cf1.key, 'cf1');
     assert.equal(cf2.key, 'cf2');
     assert.equal(cf2.type, 'line');
-    assert.equal(cf2.isValueRequired, true);
+    assert.equal(cf2.isValueRequired, false);
 
     await expectHttpFailure(
       results,
@@ -130,6 +134,21 @@ async function main() {
       400,
     );
 
+    await expectHttpFailure(
+      results,
+      'T08-2b Create Template Reject Customer Field Value Required Config',
+      {
+        method: 'POST',
+        url: `${baseUrl}/import/templates`,
+        token,
+        body: templatePayload({
+          name: `模板非法值必填-${Date.now()}`,
+          customerFields: [{ label: '客户编码', mapStr: '客商编码', isValueRequired: true, type: 'list' }],
+        }),
+      },
+      400,
+    );
+
     const renameOnly = await apiRequest(results, 'T08-3 Update Name Preserve Customer Fields', {
       method: 'PUT',
       url: `${baseUrl}/import/templates/${templateId}`,
@@ -138,8 +157,10 @@ async function main() {
         name: `模板自定义字段回归-改名-${Date.now()}`,
       },
     });
-    assert.equal(renameOnly.data.customerFields.find((field) => field.key === 'cf2').type, 'line');
-    assert.equal(renameOnly.data.customerFields.find((field) => field.key === 'cf2').isValueRequired, true);
+    assert.equal(renameOnly.data.id, String(templateId));
+    const renameOnlyTemplate = await loadTemplate(baseUrl, token, templateId, results, 'T08-3b Load Renamed Template');
+    assert.equal(renameOnlyTemplate.customerFields.find((field) => field.key === 'cf2').type, 'line');
+    assert.equal(renameOnlyTemplate.customerFields.find((field) => field.key === 'cf2').isValueRequired, false);
 
     const reordered = await apiRequest(results, 'T08-4 Update Reorder Preserve Existing Keys', {
       method: 'PUT',
@@ -147,13 +168,17 @@ async function main() {
       token,
       body: {
         customerFields: [
-          { key: 'cf2', label: '商品批次', mapStr: '批次号', isValueRequired: true, type: 'line' },
-          { key: 'cf1', label: '客户编码', mapStr: '客商编码', isValueRequired: false, type: 'list' },
+          { key: 'cf2', label: '商品批次', mapStr: '批次号', type: 'line' },
+          { key: 'cf1', label: '客户编码', mapStr: '客商编码', type: 'list' },
         ],
       },
     });
-    assert.equal(reordered.data.customerFields[0].key, 'cf2');
-    assert.equal(reordered.data.customerFields[1].key, 'cf1');
+    assert.equal(reordered.data.id, String(templateId));
+    const reorderedTemplate = await loadTemplate(baseUrl, token, templateId, results, 'T08-4b Load Reordered Template');
+    assert.equal(reorderedTemplate.customerFields[0].key, 'cf2');
+    assert.equal(reorderedTemplate.customerFields[1].key, 'cf1');
+    assert.equal(reorderedTemplate.customerFields[0].isValueRequired, false);
+    assert.equal(reorderedTemplate.customerFields[1].isValueRequired, false);
 
     const withNewField = await apiRequest(results, 'T08-5 Update Add Customer Field Assign Next Key', {
       method: 'PUT',
@@ -161,13 +186,15 @@ async function main() {
       token,
       body: {
         customerFields: [
-          { key: 'cf2', label: '商品批次', mapStr: '批次号', isValueRequired: true, type: 'line' },
-          { key: 'cf1', label: '客户编码', mapStr: '客商编码', isValueRequired: false, type: 'list' },
-          { label: '行备注', mapStr: '行备注', isValueRequired: false, type: 'line' },
+          { key: 'cf2', label: '商品批次', mapStr: '批次号', type: 'line' },
+          { key: 'cf1', label: '客户编码', mapStr: '客商编码', type: 'list' },
+          { label: '行备注', mapStr: '行备注', type: 'line' },
         ],
       },
     });
-    const cf3 = withNewField.data.customerFields.find((field) => field.label === '行备注');
+    assert.equal(withNewField.data.id, String(templateId));
+    const withNewFieldTemplate = await loadTemplate(baseUrl, token, templateId, results, 'T08-5b Load Template With New Field');
+    const cf3 = withNewFieldTemplate.customerFields.find((field) => field.label === '行备注');
     assert.equal(cf3.key, 'cf3');
 
     await expectHttpFailure(

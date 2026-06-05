@@ -79,12 +79,7 @@ export class ImportTemplateService {
     const tenantId = this.requireTenantId(currentUser);
     const existing = await this.getScopedTemplate(tenantId, templateId);
     const current = toTemplate(existing);
-    const normalized = this.normalizeUpdateTemplatePayload(current, {
-      name: request.name ?? current.name,
-      isDefault: request.isDefault ?? current.isDefault,
-      defaultFields: request.defaultFields ?? current.defaultFields,
-      customerFields: request.customerFields,
-    });
+    const normalized = this.normalizeUpdateTemplatePayload(current, request);
     await this.ensureTemplateNameAvailable(tenantId, normalized.name, templateId);
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -142,7 +137,7 @@ export class ImportTemplateService {
     payload: UpdateOrderImportTemplateRequest,
   ): Pick<OrderImportTemplate, 'name' | 'isDefault' | 'defaultFields' | 'customerFields'> {
     const name = normalizeText(payload.name ?? current.name, 'name', 100);
-    const defaultFields = this.normalizeDefaultFields(payload.defaultFields ?? current.defaultFields);
+    const defaultFields = payload.defaultFields === undefined ? current.defaultFields : this.normalizeDefaultFields(payload.defaultFields);
     const customerFields =
       payload.customerFields === undefined
         ? current.customerFields
@@ -156,8 +151,8 @@ export class ImportTemplateService {
     };
   }
 
-  // 规范化系统字段，固定 key、label、isRequired 和 type，仅允许按 isRequired 规则填写 mapStr
-  private normalizeDefaultFields(incomingDefaultFields: OrderImportTemplateField[]): OrderImportTemplateField[] {
+  // 规范化系统字段，固定 key、label 和 type，仅允许按服务端内置规则填写 mapStr
+  private normalizeDefaultFields(incomingDefaultFields: CreateOrderImportTemplateRequest['defaultFields']): OrderImportTemplateField[] {
     if (incomingDefaultFields.length !== DEFAULT_TEMPLATE_FIELDS.length) {
       throw new BadRequestException(`系统默认字段必须完整提交，共 ${DEFAULT_TEMPLATE_FIELDS.length} 项，请刷新模板后重试`);
     }
@@ -167,8 +162,8 @@ export class ImportTemplateService {
       '系统默认字段',
     );
 
-    const defaultFieldMap = new Map<string, OrderImportTemplateField>(
-      incomingDefaultFields.map((field: OrderImportTemplateField) => [field.key, field]),
+    const defaultFieldMap = new Map<string, CreateOrderImportTemplateRequest['defaultFields'][number]>(
+      incomingDefaultFields.map((field) => [field.key, field]),
     );
 
     const defaultFields = DEFAULT_TEMPLATE_FIELDS.map((field) => {
@@ -178,9 +173,6 @@ export class ImportTemplateService {
       }
       if (input.label !== field.label) {
         throw new BadRequestException(`系统字段「${field.label}」不允许修改显示名，请刷新模板后重试`);
-      }
-      if (input.isRequired !== field.isRequired) {
-        throw new BadRequestException(`系统字段「${field.label}」不允许修改映射必填配置，请刷新模板后重试`);
       }
       if ((input.type ?? 'list') !== field.type) {
         throw new BadRequestException(`系统字段「${field.label}」必须保持为${this.describeFieldType(field.type)}，请刷新模板后重试`);
@@ -200,7 +192,7 @@ export class ImportTemplateService {
     });
 
     const unexpectedDefaultField = incomingDefaultFields.find(
-      (field: OrderImportTemplateField) => !DEFAULT_TEMPLATE_FIELDS.some((item) => item.key === field.key),
+      (field) => !DEFAULT_TEMPLATE_FIELDS.some((item) => item.key === field.key),
     );
     if (unexpectedDefaultField) {
       throw new BadRequestException(`不支持的系统字段 key：${unexpectedDefaultField.key}，请刷新模板后重试`);
@@ -250,7 +242,7 @@ export class ImportTemplateService {
     return normalized;
   }
 
-  // 规范化单个自定义字段，新增字段使用默认值，已有字段在字段未提交时沿用旧配置
+  // 规范化单个自定义字段，保存请求只接收映射信息，值必填规则统一由服务端固定为 false
   private normalizeCustomerField(
     field: OrderImportCustomerFieldCreateRequest | OrderImportCustomerFieldUpdateRequest,
     index: number,
@@ -259,7 +251,7 @@ export class ImportTemplateService {
   ): OrderImportTemplateField {
     const label = normalizeText(field.label, `第 ${index + 1} 个自定义字段名称`, 100);
     const mapStr = field.mapStr === undefined ? (existing?.mapStr ?? '') : (readString(field.mapStr) ?? '');
-    const type = field.type ?? existing?.type ?? 'list';
+    const type = field.type;
     if (!['list', 'line'].includes(type)) {
       throw new BadRequestException(`自定义字段「${label}」的字段位置不正确，仅支持 list（订单级）或 line（商品行）`);
     }
@@ -269,7 +261,7 @@ export class ImportTemplateService {
       key,
       mapStr,
       isRequired: false,
-      isValueRequired: field.isValueRequired ?? existing?.isValueRequired ?? false,
+      isValueRequired: false,
       type,
     };
   }

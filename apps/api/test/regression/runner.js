@@ -575,23 +575,23 @@ async function main() {
     financeSession.token = financeLogin.data.accessToken;
     financeSession.cookie = financeLogin.cookie;
 
-    // --- P2-1: 现金核销并发幂等测试 ---
+    // --- P2-1: 线下登记确认并发幂等测试 ---
     const verifyPromises = [
-      apiRequest(results, 'Cash Verification Create Concurrent 1', {
+      apiRequest(results, 'Offline Payment Verification Create Concurrent 1', {
         method: 'POST',
-        url: `${baseUrl}/orders/${orderId}/cash-verifications`,
+        url: `${baseUrl}/orders/${orderId}/offline-payment-verifications`,
         token: financeSession.token,
       }).catch((e) => e),
-      apiRequest(results, 'Cash Verification Create Concurrent 2', {
+      apiRequest(results, 'Offline Payment Verification Create Concurrent 2', {
         method: 'POST',
-        url: `${baseUrl}/orders/${orderId}/cash-verifications`,
+        url: `${baseUrl}/orders/${orderId}/offline-payment-verifications`,
         token: financeSession.token,
       }).catch((e) => e),
     ];
     const verifyResults = await Promise.all(verifyPromises);
     const successVerifies = verifyResults.filter((r) => !(r instanceof Error) && r.data);
     if (successVerifies.length !== 1) {
-      throw new Error(`现金核销并发幂等测试失败，预期只有1次成功，实际成功了 ${successVerifies.length} 次`);
+      throw new Error(`线下登记确认并发幂等测试失败，预期只有1次成功，实际成功了 ${successVerifies.length} 次`);
     }
 
     await apiRequest(results, 'H5 Payment Status Paid', {

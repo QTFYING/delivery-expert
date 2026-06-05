@@ -59,6 +59,8 @@ export interface AuthUserProfile {
   realName: string;
   /** 所属租户 ID；平台用户为 `null` */
   tenantId: string | null;
+  /** 当前头像公开访问 URL */
+  avatarUrl: string | null;
   /** 是否要求先修改密码 */
   requiresPasswordReset: boolean;
 }
@@ -70,6 +72,11 @@ export interface LoginResponse {
   expiresIn: number;
   /** 当前登录用户信息 */
   user: AuthUserProfile;
+}
+
+export interface UpdateMyProfileRequest {
+  /** 已完成上传确认的头像 uploadId；传 null 表示清空头像 */
+  avatarUploadId?: string | null;
 }
 
 export interface RefreshTokenResponse {

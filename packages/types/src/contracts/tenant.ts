@@ -79,7 +79,7 @@ export interface TenantProfile {
   /** 最大账期天数 */
   maxCreditDays: number;
   /** 账期提醒提前天数 */
-  creditReminderDays: number;
+  creditRemindDays: number;
   /** 创建时间 */
   createdAt: string;
   /** 更新时间 */

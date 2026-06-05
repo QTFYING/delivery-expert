@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { PaginatedResponse } from '@shou/types/common';
 import type {
   AdminPaymentRecordItem,
-  CreateCashVerificationResponse,
+  CreateOfflinePaymentVerificationResponse,
   InitiatePaymentResponse,
   PaymentListQuery,
   PaymentOrderDetailResponse,
@@ -41,7 +41,7 @@ export class PaymentService {
     return this.operationService.submitOfflinePayment(token, request);
   }
 
-  // 查询订单维度的 H5 收款状态，不把入口 token 当作支付单 token 使用
+  // 查询订单维度的 H5 支付状态，不把入口 token 当作支付单 token 使用
   async getPaymentStatus(token: string): Promise<PaymentStatusResponse> {
     return this.queryService.getPaymentStatus(token);
   }
@@ -56,9 +56,9 @@ export class PaymentService {
     return this.queryService.getPaymentSummary(currentUser);
   }
 
-  // 租户财务核销现金待确认支付单，并写入统一收款流水
-  async createCashVerification(currentUser: JwtPayload, orderId: string): Promise<CreateCashVerificationResponse> {
-    return this.operationService.createCashVerification(currentUser, orderId);
+  // 租户财务确认线下登记支付单，并写入统一收款流水
+  async createOfflinePaymentVerification(currentUser: JwtPayload, orderId: string): Promise<CreateOfflinePaymentVerificationResponse> {
+    return this.operationService.createOfflinePaymentVerification(currentUser, orderId);
   }
 
   // 处理拉卡拉 Webhook 请求快照，入口解析与业务结算由 webhook service 负责

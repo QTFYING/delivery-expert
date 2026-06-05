@@ -1,9 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import type {
   AdminPaymentRecordItem as AdminPaymentRecordItemContract,
-  CreateCashVerificationResponse as CreateCashVerificationResponseContract,
+  CreateOfflinePaymentVerificationResponse as CreateOfflinePaymentVerificationResponseContract,
   InitiatePaymentResponse as InitiatePaymentResponseContract,
   OfflinePaymentInfo as OfflinePaymentInfoContract,
+  OfflinePaymentAction as OfflinePaymentActionContract,
   PaymentAction as PaymentActionContract,
   PaymentOrderDetailResponse as PaymentOrderDetailResponseContract,
   PaymentOrderLineItem as PaymentOrderLineItemContract,
@@ -14,7 +15,7 @@ import type {
 } from '@shou/types/contracts';
 import type { PaginatedResponse } from '@shou/types/common';
 import {
-  CashVerifyStatusEnum,
+  OfflinePaymentVerifyStatusEnum,
   OfflinePaymentMethodEnum,
   OrderStatusEnum,
   PaymentMethodEnum,
@@ -62,19 +63,19 @@ export class OfflinePaymentInfoSwagger implements OfflinePaymentInfoContract {
 
   @ApiPropertyOptional({
     description: '线下登记确认状态',
-    enum: Object.values(CashVerifyStatusEnum),
-    example: CashVerifyStatusEnum.PENDING,
+    enum: Object.values(OfflinePaymentVerifyStatusEnum),
+    example: OfflinePaymentVerifyStatusEnum.PENDING,
     nullable: true,
   })
-  cashVerifyStatus!: OfflinePaymentInfoContract['cashVerifyStatus'];
+  offlineVerifyStatus!: OfflinePaymentInfoContract['offlineVerifyStatus'];
 
   @ApiProperty({ description: '确认状态文案', example: '待确认' })
-  cashVerifyStatusText!: string;
+  offlineVerifyStatusText!: string;
 
   @ApiProperty({ description: '提交时间', example: '2026-04-11T09:00:00.000Z' })
   submittedAt!: string;
 
-  @ApiPropertyOptional({ description: '核销时间', example: '2026-04-11T10:00:00.000Z', nullable: true })
+  @ApiPropertyOptional({ description: '确认时间', example: '2026-04-11T10:00:00.000Z', nullable: true })
   verifiedAt?: string | null;
 }
 
@@ -93,11 +94,23 @@ export class PaymentActionSwagger implements PaymentActionContract {
   canInitiate!: boolean;
 
   @ApiPropertyOptional({
-    description: '当前支付尝试过期时间；无有效支付尝试时为 null',
+    description: '订单可发起支付的最大时间；以租户支付有效期配置计算',
     example: '2026-05-06T12:35:00.000Z',
     nullable: true,
   })
   expiresAt!: string | null;
+}
+
+export class OfflinePaymentActionSwagger implements OfflinePaymentActionContract {
+  @ApiProperty({ description: '是否允许提交新的线下支付登记', example: true })
+  canSubmit!: boolean;
+
+  @ApiPropertyOptional({
+    description: '不允许线下登记时的原因；允许时为 null',
+    example: '当前商户已暂停收款，请联系商户处理',
+    nullable: true,
+  })
+  reason!: string | null;
 }
 
 export class PaymentOrderDetailResponseSwagger implements PaymentOrderDetailResponseContract {
@@ -123,7 +136,7 @@ export class PaymentOrderDetailResponseSwagger implements PaymentOrderDetailResp
   date!: string;
 
   @ApiProperty({
-    description: '当前 H5 页面应展示的订单收款状态',
+    description: '当前 H5 页面应展示的 H5 支付状态',
     enum: Object.values(PaymentOrderStatusEnum),
     example: PaymentOrderStatusEnum.UNPAID,
   })
@@ -149,6 +162,9 @@ export class PaymentOrderDetailResponseSwagger implements PaymentOrderDetailResp
   @ApiProperty({ description: '当前订单允许的在线支付动作', type: PaymentActionSwagger })
   paymentAction!: PaymentActionSwagger;
 
+  @ApiProperty({ description: '当前订单允许的线下登记动作', type: OfflinePaymentActionSwagger })
+  offlinePaymentAction!: OfflinePaymentActionSwagger;
+
   @ApiProperty({ description: '订单明细', type: [PaymentOrderLineItemSwagger] })
   items!: PaymentOrderLineItemSwagger[];
 }
@@ -169,13 +185,13 @@ export class SubmitOfflinePaymentResponseSwagger implements SubmitOfflinePayment
   orderNo!: string;
 
   @ApiProperty({
-    description: '更新后的订单 H5 收款状态',
+    description: '更新后的 H5 支付状态',
     enum: Object.values(PaymentOrderStatusEnum),
     example: PaymentOrderStatusEnum.PENDING_VERIFICATION,
   })
   status!: SubmitOfflinePaymentResponseContract['status'];
 
-  @ApiPropertyOptional({ description: '状态说明', example: '已提交线下支付，等待核销' })
+  @ApiPropertyOptional({ description: '状态说明', example: '已提交线下登记，等待商户确认' })
   statusMessage?: string;
 
   @ApiPropertyOptional({
@@ -195,7 +211,7 @@ export class PaymentStatusResponseSwagger implements PaymentStatusResponseContra
   orderNo!: string;
 
   @ApiProperty({
-    description: '当前 H5 页面应展示的订单收款状态，由订单状态、已收金额与最新支付单状态综合推导',
+    description: '当前 H5 页面应展示的 H5 支付状态，由订单主状态、已收金额与最新支付单状态综合推导',
     enum: Object.values(PaymentOrderStatusEnum),
     example: PaymentOrderStatusEnum.PAID,
   })
@@ -219,23 +235,26 @@ export class PaymentStatusResponseSwagger implements PaymentStatusResponseContra
 
   @ApiProperty({ description: '当前订单允许的在线支付动作', type: PaymentActionSwagger })
   paymentAction!: PaymentActionSwagger;
+
+  @ApiProperty({ description: '当前订单允许的线下登记动作', type: OfflinePaymentActionSwagger })
+  offlinePaymentAction!: OfflinePaymentActionSwagger;
 }
 
-export class CreateCashVerificationResponseSwagger implements CreateCashVerificationResponseContract {
+export class CreateOfflinePaymentVerificationResponseSwagger implements CreateOfflinePaymentVerificationResponseContract {
   @ApiProperty({ description: '订单 ID' })
   orderId!: string;
 
   @ApiProperty({ description: '订单状态', enum: Object.values(OrderStatusEnum), example: OrderStatusEnum.PAID })
-  orderStatus!: CreateCashVerificationResponseContract['orderStatus'];
+  orderStatus!: CreateOfflinePaymentVerificationResponseContract['orderStatus'];
 
   @ApiProperty({
     description: '支付状态',
     enum: Object.values(PaymentOrderStatusEnum),
     example: PaymentOrderStatusEnum.PAID,
   })
-  paymentStatus!: CreateCashVerificationResponseContract['paymentStatus'];
+  paymentStatus!: CreateOfflinePaymentVerificationResponseContract['paymentStatus'];
 
-  @ApiProperty({ description: '核销时间', example: '2026-04-11T10:00:00.000Z' })
+  @ApiProperty({ description: '确认时间', example: '2026-04-11T10:00:00.000Z' })
   verifiedAt!: string;
 }
 

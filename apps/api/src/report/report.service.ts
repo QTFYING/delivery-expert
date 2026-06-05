@@ -7,6 +7,7 @@ import dayjs from 'dayjs';
 import { JwtPayload } from '../auth/decorators/current-user.decorator';
 import { fromPrismaPaymentRecordStatus } from '../payment/mapping/payment.mapper';
 import { PrismaService } from '../prisma/prisma.service';
+import { getTenantCreditRemindDays } from '../order/order-settings.query';
 
 const LIVE_PAYMENT_STATUS: Record<PaymentRecordStatus, string> = {
   [PaymentRecordStatusEnum.SUCCESS]: 'paid',
@@ -141,7 +142,8 @@ export class ReportService {
     const tenantId = this.getTenantId(currentUser);
     const todayStart = dayjs().startOf('day');
     const todayEnd = dayjs().endOf('day');
-    const weekEnd = dayjs().add(7, 'day').endOf('day');
+    const remindDays = await getTenantCreditRemindDays(this.prisma, tenantId);
+    const remindEnd = dayjs().add(remindDays, 'day').endOf('day');
 
     const [todayOrders, todayPayments, pendingPrintCount, creditDueSoonCount, partialPaymentCount] = await Promise.all([
       this.prisma.order.findMany({
@@ -165,7 +167,7 @@ export class ReportService {
           deletedAt: null,
           voided: false,
           prints: 0,
-          status: { in: [PrismaOrderStatusEnum.PENDING, PrismaOrderStatusEnum.PARTIAL, PrismaOrderStatusEnum.CREDIT] },
+          status: { in: [PrismaOrderStatusEnum.PENDING, PrismaOrderStatusEnum.PARTIAL] },
         },
       }),
       this.prisma.order.count({
@@ -175,7 +177,7 @@ export class ReportService {
           voided: false,
           payType: PrismaOrderPayTypeEnum.CREDIT,
           status: { not: PrismaOrderStatusEnum.PAID },
-          creditDueDate: { gte: todayStart.toDate(), lte: weekEnd.toDate() },
+          creditDueDate: { gte: todayStart.toDate(), lte: remindEnd.toDate() },
         },
       }),
       this.prisma.order.count({

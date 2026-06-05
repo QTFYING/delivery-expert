@@ -9,17 +9,18 @@ const {
 } = require('../../dist/import/import-job.worker.helpers');
 const { nextProgressForFailure, nextProgressForOutcome } = require('../../dist/import/import-job-runner.helpers');
 const { buildPreviewSummary, normalizePreviewOrder, uniqueDuplicateOrders } = require('../../dist/import/import.normalizer');
-const { toImportOrderCreateInput } = require('../../dist/import/import-job-order.persistence');
+const { toImportOrderCreateInput, toImportOrderUpdateInput } = require('../../dist/import/import-job-order.persistence');
 const { DEFAULT_TEMPLATE_FIELDS } = require('../../dist/import/import-template.fields');
 const { ImportTemplateService } = require('../../dist/import/import-template.service');
 const { readDate, readMoney, readPayType, readString } = require('../../dist/import/mapping/import.mapper');
-const { toLineItemCreateInput, toAdminOrder, toTenantOrder } = require('../../dist/order/mapping/order.mapper');
+const { toLineItemCreateInput, toAdminOrder, toTenantOrder, toCreditOrderItem } = require('../../dist/order/mapping/order.mapper');
 const { normalizeOrderLineItem } = require('../../dist/order/order.validation');
+const { buildOrderListWhere } = require('../../dist/order/order.query');
 const { deriveOrderStatus, resolveCreditOrderStatus } = require('../../dist/order/order.domain');
 const {
   PAYMENT_PAYING_EXPIRE_MINUTES,
-  buildCashPaymentSubmittedTransition,
-  buildCashPaymentVerifiedTransition,
+  buildOfflinePaymentSubmittedTransition,
+  buildOfflinePaymentVerifiedTransition,
   resolvePaymentOrderStatus,
   shouldExpirePayingPaymentOrder,
 } = require('../../dist/payment/payment.domain');
@@ -30,12 +31,18 @@ const OrderPayTypeEnum = {
   CREDIT: 'credit',
 };
 
+const CreditTypeEnum = {
+  MONTH: 'month',
+  WEEK: 'week',
+  PERIOD: 'period',
+};
+
 const OrderStatusEnum = {
   PENDING: 'pending',
   PARTIAL: 'partial',
   PAID: 'paid',
   EXPIRED: 'expired',
-  CREDIT: 'credit',
+  VOIDED: 'voided',
 };
 
 const CreditOrderStatusEnum = {
@@ -164,6 +171,89 @@ run('导入字段解析覆盖字符串、时间、金额与结算方式规范化
   assert.equal(readPayType('现金'), OrderPayTypeEnum.CASH);
 });
 
+run('导入预检标准化月结、周结、普通账期与滚结', () => {
+  const valueRequiredMap = new Map([
+    ['sourceOrderNo', true],
+    ['customer', true],
+    ['customerPhone', false],
+    ['customerAddress', false],
+    ['totalAmount', true],
+    ['orderTime', true],
+    ['payType', true],
+  ]);
+  const baseOrder = {
+    sourceOrderNo: 'SO-CREDIT-TYPE-001',
+    customer: '账期客户',
+    customerAddress: '深圳市南山区',
+    totalAmount: 100,
+    orderTime: '2026-04-15 09:30:00',
+    customerFieldValues: {},
+    lineItems: [{ skuName: '商品', unit: '件', quantity: 1, unitPrice: 100, lineAmount: 100 }],
+  };
+  const normalizePayType = (payType, index) =>
+    normalizePreviewOrder(
+      { ...baseOrder, sourceOrderNo: `SO-CREDIT-TYPE-${index}`, payType },
+      index,
+      '1',
+      new Map(),
+      new Map(),
+      new Map(),
+      defaultFieldLabelMap,
+      valueRequiredMap,
+    );
+
+  const month = normalizePayType('月结', 1);
+  assert.equal('value' in month, true);
+  assert.equal(month.value.payType, OrderPayTypeEnum.CREDIT);
+  assert.equal(month.value.creditType, CreditTypeEnum.MONTH);
+  assert.equal(month.value.creditDays, 30);
+  assert.equal(month.value.creditDueDate, '2026-05-15 09:30:00');
+
+  const week = normalizePayType('周结', 2);
+  assert.equal('value' in week, true);
+  assert.equal(week.value.creditType, CreditTypeEnum.WEEK);
+  assert.equal(week.value.creditDays, 7);
+  assert.equal(week.value.creditDueDate, '2026-04-22 09:30:00');
+
+  const period = normalizePayType('赊账', 3);
+  assert.equal('value' in period, true);
+  assert.equal(period.value.creditType, CreditTypeEnum.PERIOD);
+  assert.equal(period.value.creditDays, 30);
+
+  const rolling = normalizePayType('滚结', 4);
+  assert.equal('value' in rolling, true);
+  assert.equal(rolling.value.payType, OrderPayTypeEnum.CASH);
+  assert.equal(rolling.value.creditType, null);
+  assert.equal(rolling.value.creditDays, null);
+  assert.equal(rolling.value.creditDueDate, null);
+
+  const cashCases = ['现款', '现金', 'cash'];
+  cashCases.forEach((payType, offset) => {
+    const result = normalizePayType(payType, 6 + offset);
+    assert.equal('value' in result, true);
+    assert.equal(result.value.payType, OrderPayTypeEnum.CASH);
+    assert.equal(result.value.creditType, null);
+    assert.equal(result.value.creditDays, null);
+    assert.equal(result.value.creditDueDate, null);
+  });
+
+  const periodCases = ['账期', 'credit'];
+  periodCases.forEach((payType, offset) => {
+    const result = normalizePayType(payType, 9 + offset);
+    assert.equal('value' in result, true);
+    assert.equal(result.value.payType, OrderPayTypeEnum.CREDIT);
+    assert.equal(result.value.creditType, CreditTypeEnum.PERIOD);
+    assert.equal(result.value.creditDays, 30);
+  });
+
+  const missing = normalizePayType('', 11);
+  assert.equal('error' in missing, true);
+  assert.equal(
+    missing.error.some((item) => item.field === 'payType' && item.reason === '结算方式不能为空'),
+    true,
+  );
+});
+
 run('导入预检摘要统计覆盖有效、无效与重复订单去重', () => {
   const duplicateOrders = uniqueDuplicateOrders([{ sourceOrderNo: 'SO-001' }, { sourceOrderNo: 'SO-001' }, { sourceOrderNo: 'SO-002' }]);
 
@@ -174,7 +264,6 @@ run('导入预检摘要统计覆盖有效、无效与重复订单去重', () => 
       [{ sourceOrderNo: 'SO-001' }, { sourceOrderNo: 'SO-002' }],
       [
         { index: 1, field: 'customer', reason: '客户名称不能为空' },
-        { index: 1, field: 'customerAddress', reason: '客户地址不能为空' },
         { index: 3, field: 'orderTime', reason: '下单时间不能为空' },
       ],
       duplicateOrders,
@@ -184,7 +273,7 @@ run('导入预检摘要统计覆盖有效、无效与重复订单去重', () => 
       validOrders: 2,
       invalidOrders: 2,
       duplicateOrderCount: 2,
-      errorCount: 3,
+      errorCount: 2,
     },
   );
 });
@@ -217,7 +306,7 @@ run('导入预检允许 0 元订单且正式导入落为已结清', () => {
     ['sourceOrderNo', true],
     ['customer', true],
     ['customerPhone', false],
-    ['customerAddress', true],
+    ['customerAddress', false],
     ['totalAmount', true],
     ['orderTime', true],
     ['payType', true],
@@ -278,12 +367,71 @@ run('导入预检允许 0 元订单且正式导入落为已结清', () => {
   assert.equal(negative.error[0].reason, '总金额不能小于 0');
 });
 
+run('正式导入消费预检账期字段并按结算方式落初始状态', () => {
+  const valueRequiredMap = new Map([
+    ['sourceOrderNo', true],
+    ['customer', true],
+    ['customerPhone', false],
+    ['customerAddress', false],
+    ['totalAmount', true],
+    ['orderTime', true],
+    ['payType', true],
+  ]);
+  const baseOrder = {
+    customer: '账期落库客户',
+    customerPhone: '13800138000',
+    customerAddress: '深圳市南山区',
+    totalAmount: 100,
+    orderTime: '2026-04-15 09:30:00',
+    customerFieldValues: {},
+    lineItems: [{ skuName: '商品', unit: '件', quantity: 1, unitPrice: 100, lineAmount: 100 }],
+  };
+
+  const month = normalizePreviewOrder(
+    { ...baseOrder, sourceOrderNo: 'SO-CREDIT-PERSIST-001', payType: '月结' },
+    1,
+    '1',
+    new Map(),
+    new Map(),
+    new Map(),
+    defaultFieldLabelMap,
+    valueRequiredMap,
+  );
+  assert.equal('value' in month, true);
+
+  const createInput = toImportOrderCreateInput('T000000001', month.value);
+  assert.equal(createInput.status, 'PENDING');
+  assert.equal(createInput.payType, 'CREDIT');
+  assert.equal(createInput.creditType, 'MONTH');
+  assert.equal(createInput.creditDays, 30);
+  assert.equal(createInput.creditDueDate.toISOString(), '2026-05-15T09:30:00.000Z');
+
+  const rolling = normalizePreviewOrder(
+    { ...baseOrder, sourceOrderNo: 'SO-CREDIT-PERSIST-002', payType: '滚结' },
+    2,
+    '1',
+    new Map(),
+    new Map(),
+    new Map(),
+    defaultFieldLabelMap,
+    valueRequiredMap,
+  );
+  assert.equal('value' in rolling, true);
+
+  const updateInput = toImportOrderUpdateInput(rolling.value);
+  assert.equal(updateInput.status, 'PENDING');
+  assert.equal(updateInput.payType, 'CASH');
+  assert.equal(updateInput.creditType, null);
+  assert.equal(updateInput.creditDays, null);
+  assert.equal(updateInput.creditDueDate, null);
+});
+
 run('导入预检允许空客户电话且正式导入落为 NULL', () => {
   const valueRequiredMap = new Map([
     ['sourceOrderNo', true],
     ['customer', true],
     ['customerPhone', false],
-    ['customerAddress', true],
+    ['customerAddress', false],
     ['totalAmount', true],
     ['orderTime', true],
     ['payType', true],
@@ -317,6 +465,45 @@ run('导入预检允许空客户电话且正式导入落为 NULL', () => {
   assert.equal(createInput.customerPhone, null);
 });
 
+run('导入预检允许空客户地址且正式导入落为空字符串', () => {
+  const valueRequiredMap = new Map([
+    ['sourceOrderNo', true],
+    ['customer', true],
+    ['customerPhone', false],
+    ['customerAddress', false],
+    ['totalAmount', true],
+    ['orderTime', true],
+    ['payType', true],
+  ]);
+
+  const normalized = normalizePreviewOrder(
+    {
+      sourceOrderNo: 'SO-NO-ADDRESS-001',
+      customer: '无地址客户',
+      customerPhone: '13800138000',
+      customerAddress: '',
+      totalAmount: 1,
+      orderTime: '2026-04-15 09:30:00',
+      payType: OrderPayTypeEnum.CASH,
+      customerFieldValues: {},
+      lineItems: [{ skuName: '商品', unit: '件', quantity: 1, unitPrice: 1, lineAmount: 1 }],
+    },
+    1,
+    '1',
+    new Map(),
+    new Map(),
+    new Map(),
+    defaultFieldLabelMap,
+    valueRequiredMap,
+  );
+
+  assert.equal('value' in normalized, true);
+  assert.equal(normalized.value.customerAddress, '');
+
+  const createInput = toImportOrderCreateInput('T000000001', normalized.value);
+  assert.equal(createInput.customerAddress, '');
+});
+
 run('正式导入订单明细保留包装规格和行级自定义字段', () => {
   const createInput = toImportOrderCreateInput('T000000001', {
     sourceOrderNo: 'SO-LINE-PERSIST-001',
@@ -328,6 +515,9 @@ run('正式导入订单明细保留包装规格和行级自定义字段', () => 
     totalAmount: 97,
     orderTime: '2026-04-15 09:30:00',
     payType: OrderPayTypeEnum.CASH,
+    creditType: null,
+    creditDays: null,
+    creditDueDate: null,
     customerFieldValues: {},
     lineItems: [
       {
@@ -345,6 +535,18 @@ run('正式导入订单明细保留包装规格和行级自定义字段', () => 
 
   assert.equal(createInput.lineItems.create[0].packSpec, '24桶');
   assert.deepEqual(createInput.lineItems.create[0].customerFieldValues, { cf2: '批次A' });
+});
+
+run('订单列表账期子类型筛选隐含 credit 并拒绝现款组合', () => {
+  const monthWhere = buildOrderListWhere('T000000001', { creditType: CreditTypeEnum.MONTH });
+  assert.equal(monthWhere.tenantId, 'T000000001');
+  assert.equal(monthWhere.payType, 'CREDIT');
+  assert.equal(monthWhere.creditType, 'MONTH');
+
+  assert.throws(
+    () => buildOrderListWhere('T000000001', { payType: OrderPayTypeEnum.CASH, creditType: CreditTypeEnum.MONTH }),
+    /payType=cash 时不能同时按 creditType 筛选/,
+  );
 });
 
 run('订单明细读写映射保留包装规格和行级自定义字段', () => {
@@ -379,11 +581,14 @@ run('订单明细读写映射保留包装规格和行级自定义字段', () => 
     customerFieldValues: {},
     status: 'PENDING',
     payType: 'CASH',
+    creditType: null,
+    creditDays: null,
+    creditDueDate: null,
     prints: 0,
     lastPrintedAt: null,
     printFailedCount: 0,
     lastFailedAt: null,
-    orderTime: new Date('2026-04-15 09:30:00'),
+    orderTime: new Date('2026-04-15T09:30:00.000Z'),
     voided: false,
     voidReason: null,
     voidedAt: null,
@@ -405,15 +610,30 @@ run('订单明细读写映射保留包装规格和行级自定义字段', () => 
 
   assert.equal(toTenantOrder(orderRow).lineItems[0].packSpec, '24桶');
   assert.deepEqual(toTenantOrder(orderRow).lineItems[0].customerFieldValues, { cf2: '批次A' });
+  assert.equal(toTenantOrder(orderRow).creditType, null);
+  assert.equal(toTenantOrder(orderRow).creditDays, null);
+  assert.equal(toTenantOrder(orderRow).dueDate, null);
   assert.equal(toAdminOrder({ ...orderRow, tenant: { name: '测试租户' } }).lineItems[0].packSpec, '24桶');
   assert.deepEqual(toAdminOrder({ ...orderRow, tenant: { name: '测试租户' } }).lineItems[0].customerFieldValues, { cf2: '批次A' });
+
+  const creditRow = {
+    ...orderRow,
+    status: 'PENDING',
+    payType: 'CREDIT',
+    creditType: 'WEEK',
+    creditDays: null,
+    creditDueDate: null,
+  };
+  assert.equal(toTenantOrder(creditRow).creditType, CreditTypeEnum.WEEK);
+  assert.equal(toTenantOrder(creditRow).creditDays, 7);
+  assert.equal(toTenantOrder(creditRow).dueDate, '2026-04-22T09:30:00.000Z');
 });
 
 run('导入预检商品行字段错误使用模板中文名', () => {
   const valueRequiredMap = new Map([
     ['sourceOrderNo', true],
     ['customer', true],
-    ['customerAddress', true],
+    ['customerAddress', false],
     ['totalAmount', true],
     ['orderTime', true],
     ['payType', true],
@@ -487,7 +707,7 @@ run('导入预检商品行自定义字段校验区分字段位置并使用中文
     new Map([
       ['sourceOrderNo', true],
       ['customer', true],
-      ['customerAddress', true],
+      ['customerAddress', false],
       ['totalAmount', true],
       ['orderTime', true],
       ['payType', true],
@@ -527,7 +747,7 @@ run('导入预检商品行自定义字段校验区分字段位置并使用中文
     new Map([
       ['sourceOrderNo', true],
       ['customer', true],
-      ['customerAddress', true],
+      ['customerAddress', false],
       ['totalAmount', true],
       ['orderTime', true],
       ['payType', true],
@@ -567,7 +787,7 @@ run('导入预检商品行自定义字段校验区分字段位置并使用中文
     new Map([
       ['sourceOrderNo', true],
       ['customer', true],
-      ['customerAddress', true],
+      ['customerAddress', false],
       ['totalAmount', true],
       ['orderTime', true],
       ['payType', true],
@@ -599,7 +819,9 @@ run('导入模板维护错误提示面向业务字段', () => {
         name: '错误模板',
         isDefault: false,
         defaultFields: DEFAULT_TEMPLATE_FIELDS.map((field) =>
-          field.key === 'sourceOrderNo' ? { ...field, label: '订单编号' } : { ...field, mapStr: field.isRequired ? field.label : '' },
+          field.key === 'sourceOrderNo'
+            ? { key: field.key, label: '订单编号', mapStr: field.label, type: field.type }
+            : { key: field.key, label: field.label, mapStr: field.isRequired ? field.label : '', type: field.type },
         ),
         customerFields: [],
       }),
@@ -609,7 +831,12 @@ run('导入模板维护错误提示面向业务字段', () => {
   const duplicateCustomerFieldTemplate = service.normalizeCreateTemplatePayload({
     name: '重复自定义字段模板',
     isDefault: false,
-    defaultFields: DEFAULT_TEMPLATE_FIELDS.map((field) => ({ ...field, mapStr: field.isRequired ? field.label : '' })),
+    defaultFields: DEFAULT_TEMPLATE_FIELDS.map((field) => ({
+      key: field.key,
+      label: field.label,
+      mapStr: field.isRequired ? field.label : '',
+      type: field.type,
+    })),
     customerFields: [
       { label: '备注', mapStr: '订单备注', type: 'list' },
       { label: '备注', mapStr: '备注', type: 'line' },
@@ -617,28 +844,14 @@ run('导入模板维护错误提示面向业务字段', () => {
   });
   assert.equal(duplicateCustomerFieldTemplate.customerFields[0].label, '备注');
   assert.equal(duplicateCustomerFieldTemplate.customerFields[1].label, '备注');
-
-  const duplicateMapStrTemplate = service.normalizeCreateTemplatePayload({
-    name: '重复表头模板',
-    isDefault: false,
-    defaultFields: DEFAULT_TEMPLATE_FIELDS.map((field) =>
-      field.key === 'customerPhone' ? { ...field, mapStr: '备注' } : { ...field, mapStr: field.isRequired ? field.label : '' },
-    ),
-    customerFields: [
-      { label: '订单备注', mapStr: '备注', type: 'list' },
-      { label: '行备注', mapStr: '备注', type: 'line' },
-    ],
-  });
-  assert.equal(duplicateMapStrTemplate.customerFields[0].mapStr, '备注');
-  assert.equal(duplicateMapStrTemplate.customerFields[1].mapStr, '备注');
 });
 
 run('订单状态推导覆盖现金、账期、部分支付、全额支付与作废场景', () => {
   assert.equal(deriveOrderStatus(OrderPayTypeEnum.CASH, '100', '0', false), OrderStatusEnum.PENDING);
-  assert.equal(deriveOrderStatus(OrderPayTypeEnum.CREDIT, '100', '0', false), OrderStatusEnum.CREDIT);
+  assert.equal(deriveOrderStatus(OrderPayTypeEnum.CREDIT, '100', '0', false), OrderStatusEnum.PENDING);
   assert.equal(deriveOrderStatus(OrderPayTypeEnum.CASH, '100', '20', false), OrderStatusEnum.PARTIAL);
   assert.equal(deriveOrderStatus(OrderPayTypeEnum.CASH, '100', '100', false), OrderStatusEnum.PAID);
-  assert.equal(deriveOrderStatus(OrderPayTypeEnum.CASH, '100', '0', true), OrderStatusEnum.EXPIRED);
+  assert.equal(deriveOrderStatus(OrderPayTypeEnum.CASH, '100', '0', true), OrderStatusEnum.VOIDED);
 });
 
 run('账期状态推导覆盖逾期、当天、临近与正常场景', () => {
@@ -647,9 +860,29 @@ run('账期状态推导覆盖逾期、当天、临近与正常场景', () => {
   assert.equal(resolveCreditOrderStatus(new Date('2026-04-11T18:00:00'), now), CreditOrderStatusEnum.TODAY);
   assert.equal(resolveCreditOrderStatus(new Date('2026-04-15T12:00:00'), now), CreditOrderStatusEnum.SOON);
   assert.equal(resolveCreditOrderStatus(new Date('2026-04-25T12:00:00'), now), CreditOrderStatusEnum.NORMAL);
+  assert.equal(resolveCreditOrderStatus(new Date('2026-04-15T12:00:00'), now, 3), CreditOrderStatusEnum.NORMAL);
+  assert.equal(resolveCreditOrderStatus(new Date('2026-04-14T12:00:00'), now, 3), CreditOrderStatusEnum.SOON);
+
+  const futureDueDate = new Date();
+  futureDueDate.setDate(futureDueDate.getDate() + 5);
+  const creditOrder = toCreditOrderItem(
+    {
+      id: 'O202605190002',
+      customer: '账期客户',
+      totalAmount: decimalLike(100),
+      orderTime: new Date('2026-04-11T09:30:00.000Z'),
+      creditType: 'MONTH',
+      creditDays: null,
+      creditDueDate: futureDueDate,
+    },
+    3,
+  );
+  assert.equal(creditOrder.creditType, CreditTypeEnum.MONTH);
+  assert.equal(creditOrder.creditDays, 30);
+  assert.equal(creditOrder.creditStatus, CreditOrderStatusEnum.NORMAL);
 });
 
-run('支付状态推导覆盖已作废、已支付、待支付与待核销场景', () => {
+run('支付状态推导覆盖已作废、已支付、待支付与线下登记待确认场景', () => {
   assert.equal(
     resolvePaymentOrderStatus({ status: OrderStatusEnum.EXPIRED, voided: false, totalAmount: '100', paid: '0' }, null),
     PaymentOrderStatusEnum.EXPIRED,
@@ -672,13 +905,13 @@ run('支付状态推导覆盖已作废、已支付、待支付与待核销场景
 });
 
 run('H5 other_paid 仅登记备注并等待租户确认', () => {
-  const submitted = buildCashPaymentSubmittedTransition(OfflinePaymentMethodEnum.OTHER_PAID, new Date('2026-04-29T12:00:00.000Z'));
+  const submitted = buildOfflinePaymentSubmittedTransition(OfflinePaymentMethodEnum.OTHER_PAID, new Date('2026-04-29T12:00:00.000Z'));
   assert.equal(submitted.allowed, true);
   assert.equal(submitted.data.status, PaymentOrderStatusEnum.PENDING_VERIFICATION);
   assert.equal(submitted.data.paymentMethod, OfflinePaymentMethodEnum.OTHER_PAID);
   assert.equal(submitted.data.paidAt, undefined);
 
-  const verified = buildCashPaymentVerifiedTransition(
+  const verified = buildOfflinePaymentVerifiedTransition(
     {
       status: PaymentOrderStatusEnum.PENDING_VERIFICATION,
       paymentMethod: PaymentMethodEnum.OTHER_PAID,

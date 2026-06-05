@@ -25,6 +25,9 @@ export class AuthUserProfileSwagger implements AuthUserProfileContract {
   })
   tenantId!: string | null;
 
+  @ApiPropertyOptional({ description: '当前头像公开访问 URL', example: 'https://cdn.example.com/avatars/T000000001/upl_xxx.png', nullable: true })
+  avatarUrl!: string | null;
+
   @ApiProperty({ description: '是否要求先修改密码', example: false })
   requiresPasswordReset!: boolean;
 }

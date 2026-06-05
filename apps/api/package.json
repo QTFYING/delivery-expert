@@ -10,6 +10,7 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
+    "start:payment-api": "node dist/payment.main",
     "start:import-worker": "node dist/import-worker.main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "test:smoke": "node test/smoke/runner.js",

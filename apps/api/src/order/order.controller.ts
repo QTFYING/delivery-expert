@@ -2,7 +2,14 @@ import { Body, Controller, Get, Param, Patch, Post, Put, Query, UseGuards } from
 import { ApiBearerAuth, ApiExtraModels, ApiOkResponse, ApiOperation, ApiParam, ApiTags, getSchemaPath } from '@nestjs/swagger';
 import { TenantPermissionCodeEnum, UserRoleEnum } from '@shou/types/enums';
 import type { PaginatedResponse } from '@shou/types/common';
-import type { AdminOrderItem, CreateOrderRequest, TenantOrderItem, UpdateOrderRequest, VoidOrderRequest } from '@shou/types/contracts';
+import type {
+  AdminOrderItem,
+  CreateOrderRequest,
+  TenantOrderItem,
+  TenantOrderListItem,
+  UpdateOrderRequest,
+  VoidOrderRequest,
+} from '@shou/types/contracts';
 import { CurrentUser, JwtPayload } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Permissions } from '../authorization/permissions.decorator';
@@ -37,7 +44,7 @@ export class OrderController {
   async findAll(
     @CurrentUser() currentUser: JwtPayload,
     @Query() query: ListOrdersQueryDto,
-  ): Promise<PaginatedResponse<TenantOrderItem | AdminOrderItem>> {
+  ): Promise<PaginatedResponse<TenantOrderListItem | AdminOrderItem>> {
     return this.orderService.findAll(currentUser, query);
   }
 

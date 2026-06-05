@@ -7,7 +7,7 @@ import {
 } from '@prisma/client';
 
 import type {
-  CreateCashVerificationResponse,
+  CreateOfflinePaymentVerificationResponse,
   InitiatePaymentResponse,
   SubmitOfflinePaymentRequest,
   SubmitOfflinePaymentResponse,
@@ -35,8 +35,9 @@ import {
 import { PaymentInitiationService } from './payment-initiation.service';
 import { PaymentLedgerService } from './payment-ledger.service';
 import { PaymentQueryService } from './payment-query.service';
+import { PaymentTenantLifecycleService } from './payment-tenant-lifecycle.service';
 import { PaymentWindowService } from './payment-window.service';
-import { buildCashPaymentSubmittedTransition, buildCashPaymentVerifiedTransition, resolvePaymentOrderStatus } from './payment.domain';
+import { buildOfflinePaymentSubmittedTransition, buildOfflinePaymentVerifiedTransition, resolvePaymentOrderStatus } from './payment.domain';
 import { getPaymentTenantId } from './payment.shared';
 
 const PAYMENT_REQUEST_LOCK_SECONDS = 10;
@@ -52,6 +53,7 @@ export class PaymentOperationService {
     private readonly queryService: PaymentQueryService,
     private readonly ledgerService: PaymentLedgerService,
     private readonly initiationService: PaymentInitiationService,
+    private readonly paymentTenantLifecycleService: PaymentTenantLifecycleService,
     private readonly paymentWindowService: PaymentWindowService,
   ) {}
 
@@ -74,6 +76,7 @@ export class PaymentOperationService {
     if (order.voided) {
       throw new BusinessException(1002, '二维码路由已过期', 410);
     }
+    await this.assertTenantLifecycleAllowed(order.tenantId);
     await this.assertOrderWithinPaymentWindow(
       {
         tenantId: order.tenantId,
@@ -94,6 +97,7 @@ export class PaymentOperationService {
         if (!currentOrder || currentOrder.deletedAt) {
           throw new BusinessException(40401, '订单不存在', 404);
         }
+        await this.assertTenantLifecycleAllowed(currentOrder.tenantId, tx);
         await this.assertOrderWithinPaymentWindow(
           {
             tenantId: currentOrder.tenantId,
@@ -118,7 +122,7 @@ export class PaymentOperationService {
         }
 
         const now = new Date();
-        const offlineTransition = buildCashPaymentSubmittedTransition(paymentMethod, now);
+        const offlineTransition = buildOfflinePaymentSubmittedTransition(paymentMethod, now);
         if (!offlineTransition.allowed) {
           throw new BusinessException(40001, offlineTransition.reason, 400);
         }
@@ -135,7 +139,7 @@ export class PaymentOperationService {
             paymentMethod: offlineData.paymentMethod,
             statusMessage: offlineData.statusMessage,
             offlineRemark: request.remark?.trim() || null,
-            cashVerifyStatus: offlineData.cashVerifyStatus ?? null,
+            offlineVerifyStatus: offlineData.offlineVerifyStatus ?? null,
             offlineSubmittedAt: now,
             paidAt: offlineData.paidAt ?? null,
           },
@@ -155,10 +159,10 @@ export class PaymentOperationService {
   }
 
   /**
-   * 由租户财务确认线下款项已到账，并以统一账务逻辑完成核销入账
+   * 由租户财务确认线下款项已到账，并以统一账务逻辑完成确认入账
    * 线下确认只允许处理仍处于 PENDING_VERIFICATION 的线下登记支付单
    */
-  async createCashVerification(currentUser: JwtPayload, orderId: string): Promise<CreateCashVerificationResponse> {
+  async createOfflinePaymentVerification(currentUser: JwtPayload, orderId: string): Promise<CreateOfflinePaymentVerificationResponse> {
     const tenantId = getPaymentTenantId(currentUser);
 
     return this.prisma.$transaction(async (tx) => {
@@ -185,11 +189,11 @@ export class PaymentOperationService {
       const remaining = this.ledgerService.getRemainingAmount(order);
       const payable = decimal(paymentOrder.amount);
       if (remaining.lt(payable) || remaining.lte(0)) {
-        throw new ConflictException('订单当前可核销金额异常，无法完成现金核销');
+        throw new ConflictException('订单当前可确认金额异常，无法完成线下登记确认');
       }
 
       const verifiedAt = new Date();
-      const verifiedTransition = buildCashPaymentVerifiedTransition(toPaymentDomainTransitionSnapshot(paymentOrder), verifiedAt);
+      const verifiedTransition = buildOfflinePaymentVerifiedTransition(toPaymentDomainTransitionSnapshot(paymentOrder), verifiedAt);
       if (!verifiedTransition.allowed) {
         throw new ConflictException(verifiedTransition.reason);
       }
@@ -203,7 +207,7 @@ export class PaymentOperationService {
       });
 
       if (updatedPaymentOrder.count === 0) {
-        throw new ConflictException('现金核销已被处理或状态已变化，请勿重复提交');
+        throw new ConflictException('线下登记确认已被处理或状态已变化，请勿重复提交');
       }
 
       const updatedOrder = await this.ledgerService.createPaymentRecordAndApplyOrder(tx, order, {
@@ -235,6 +239,12 @@ export class PaymentOperationService {
     if (value === OfflinePaymentMethodEnum.CASH) return OfflinePaymentMethodEnum.CASH;
     if (value === OfflinePaymentMethodEnum.OTHER_PAID) return OfflinePaymentMethodEnum.OTHER_PAID;
     throw new BusinessException(40001, 'paymentMethod 不是合法值', 400);
+  }
+
+  /** 线下登记必须先确认租户仍允许 H5 收款 */
+  private async assertTenantLifecycleAllowed(tenantId: string, client: Prisma.TransactionClient | PrismaService = this.prisma): Promise<void> {
+    const decision = await this.paymentTenantLifecycleService.resolveH5PaymentLifecycleByTenantId(tenantId, client);
+    this.paymentTenantLifecycleService.assertH5PaymentLifecycleAllowed(decision);
   }
 
   /**

@@ -135,6 +135,28 @@ export function validateEnv(rawEnv: Record<string, unknown>): Record<string, unk
     env.ALIYUN_CAPTCHA_ENDPOINT = 'captcha.cn-shanghai.aliyuncs.com';
   }
 
+  // OSS 上传配置 默认只校验数值项 完整性在填写任意 OSS 核心配置时收紧
+  if (!env.OSS_POLICY_EXPIRES_SECONDS || typeof env.OSS_POLICY_EXPIRES_SECONDS !== 'string') {
+    env.OSS_POLICY_EXPIRES_SECONDS = '600';
+  }
+  parsePositiveInteger('OSS_POLICY_EXPIRES_SECONDS', env.OSS_POLICY_EXPIRES_SECONDS as string);
+
+  if (!env.OSS_AVATAR_MAX_SIZE_BYTES || typeof env.OSS_AVATAR_MAX_SIZE_BYTES !== 'string') {
+    env.OSS_AVATAR_MAX_SIZE_BYTES = '81920';
+  }
+  parsePositiveInteger('OSS_AVATAR_MAX_SIZE_BYTES', env.OSS_AVATAR_MAX_SIZE_BYTES as string);
+
+  const ossCoreKeys = ['OSS_BUCKET', 'OSS_REGION', 'OSS_ENDPOINT', 'OSS_PUBLIC_BASE_URL'] as const;
+  const ossRequiredKeys = [...ossCoreKeys, 'ALIYUN_ACCESS_KEY_ID', 'ALIYUN_ACCESS_KEY_SECRET'] as const;
+  const hasOssConfig = ossCoreKeys.some((key) => hasValue(env[key]));
+  if (hasOssConfig) {
+    for (const key of ossRequiredKeys) {
+      if (!hasValue(env[key])) {
+        throw new Error(`${key} 环境变量必填`);
+      }
+    }
+  }
+
   const smsRequiredKeys = ['ALIYUN_ACCESS_KEY_ID', 'ALIYUN_ACCESS_KEY_SECRET'] as const;
   if (env.SMS_SEND_ENABLED === 'true') {
     for (const key of smsRequiredKeys) {

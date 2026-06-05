@@ -60,12 +60,18 @@ enum OrderStatusEnum {
   PARTIAL @map("partial")
   PAID    @map("paid")
   EXPIRED @map("expired")
-  CREDIT  @map("credit")
+  VOIDED  @map("voided")
 }
 
 enum OrderPayTypeEnum {
   CASH   @map("cash")
   CREDIT @map("credit")
+}
+
+enum OrderCreditTypeEnum {
+  MONTH  @map("month")
+  WEEK   @map("week")
+  PERIOD @map("period")
 }
 
 enum OrderImportJobStatusEnum {
@@ -107,7 +113,7 @@ enum PaymentOrderStatusEnum {
   EXPIRED              @map("expired")
 }
 
-enum CashVerifyStatusEnum {
+enum OfflinePaymentVerifyStatusEnum {
   PENDING  @map("pending")
   VERIFIED @map("verified")
 }
@@ -148,6 +154,20 @@ enum NoticeStatusEnum {
   OFFLINE   @map("offline")
 }
 
+// 通用上传场景 第一版仅开放用户头像
+enum UploadSceneEnum {
+  USER_AVATAR @map("user_avatar")
+}
+
+// 上传对象生命周期状态
+enum UploadObjectStatus {
+  ISSUED   @map("issued")
+  UPLOADED @map("uploaded")
+  USED     @map("used")
+  EXPIRED  @map("expired")
+  DELETED  @map("deleted")
+}
+
 model Tenant {
   id                   String                    @id @db.VarChar(10)
   name                 String                    @db.VarChar(100)
@@ -161,7 +181,7 @@ model Tenant {
   freezeReason         String?                   @db.VarChar(255)
   serviceExpireAt      DateTime?                 @db.Timestamptz(3)
   maxCreditDays        Int                       @default(30)
-  creditReminderDays   Int                       @default(3)
+  creditRemindDays     Int                       @default(3)
   activePaymentChannel PaymentChannelEnum?
   importRevision       Int                       @default(0)
   createdAt            DateTime                  @default(now()) @db.Timestamptz(3)
@@ -203,22 +223,49 @@ model User {
   scope                 String?        @db.VarChar(100)
   status                UserStatusEnum @default(ACTIVE)
   requiresPasswordReset Boolean        @default(false)
+  avatarObjectKey       String?        @db.VarChar(255)
   loginAt               DateTime?      @db.Timestamptz(3)
   createdAt             DateTime       @default(now()) @db.Timestamptz(3)
   updatedAt             DateTime       @updatedAt @db.Timestamptz(3)
   deletedAt             DateTime?      @db.Timestamptz(3)
 
-  tenant            Tenant?            @relation(fields: [tenantId], references: [id])
-  orderPrintRecords OrderPrintRecord[] @relation("OrderPrintRecordOperator")
+  tenant            Tenant?              @relation(fields: [tenantId], references: [id])
+  orderPrintRecords OrderPrintRecord[]   @relation("OrderPrintRecordOperator")
   noticeReads       NoticeRead[]
-  orderReminders    OrderReminder[]    @relation("OrderReminderOperator")
+  orderReminders    OrderReminder[]      @relation("OrderReminderOperator")
   roleAssignments   UserRoleAssignment[]
+  uploadObjects     UploadObject[]
 
   @@unique([tenantId, id])
   @@index([deletedAt, createdAt])
   @@index([tenantId, deletedAt, role, status])
   @@index([status])
   @@map("users")
+}
+
+model UploadObject {
+  id               String             @id @db.VarChar(40)
+  scene            UploadSceneEnum
+  tenantId         String?            @db.VarChar(10)
+  userId           String             @db.Uuid
+  objectKey        String             @unique @db.VarChar(255)
+  publicUrl        String             @db.VarChar(500)
+  originalFileName String             @db.VarChar(255)
+  contentType      String             @db.VarChar(100)
+  size             Int
+  status           UploadObjectStatus @default(ISSUED)
+  expiresAt        DateTime           @db.Timestamptz(3)
+  uploadedAt       DateTime?          @db.Timestamptz(3)
+  usedAt           DateTime?          @db.Timestamptz(3)
+  createdAt        DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime           @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, scene, status, createdAt])
+  @@index([status, expiresAt])
+  @@index([tenantId, scene, status, createdAt])
+  @@map("upload_objects")
 }
 
 model TenantRole {
@@ -390,33 +437,34 @@ model ImportJob {
 }
 
 model Order {
-  id                  String           @id @db.VarChar(20)
-  tenantId            String           @db.VarChar(10)
-  sourceOrderNo       String?          @db.VarChar(100)
-  groupKey            String?          @db.VarChar(100)
+  id                  String               @id @db.VarChar(20)
+  tenantId            String               @db.VarChar(10)
+  sourceOrderNo       String?              @db.VarChar(100)
+  groupKey            String?              @db.VarChar(100)
   mappingTemplateId   BigInt?
-  qrCodeToken         String           @unique @db.VarChar(64)
-  customer            String           @db.VarChar(100)
-  customerPhone       String?          @db.VarChar(30)
-  customerAddress     String           @default("") @db.VarChar(255)
-  totalAmount         Decimal          @db.Decimal(12, 2)
-  paid                Decimal          @default(0.00) @db.Decimal(12, 2)
-  customerFieldValues Json?            @default("{}")
-  status              OrderStatusEnum  @default(PENDING)
-  payType             OrderPayTypeEnum @default(CASH)
-  prints              Int              @default(0)
-  lastPrintedAt       DateTime?        @db.Timestamptz(3)
-  printFailedCount    Int              @default(0)
-  lastFailedAt        DateTime?        @db.Timestamptz(3)
+  qrCodeToken         String               @unique @db.VarChar(64)
+  customer            String               @db.VarChar(100)
+  customerPhone       String?              @db.VarChar(30)
+  customerAddress     String               @default("") @db.VarChar(255)
+  totalAmount         Decimal              @db.Decimal(12, 2)
+  paid                Decimal              @default(0.00) @db.Decimal(12, 2)
+  customerFieldValues Json?                @default("{}")
+  status              OrderStatusEnum      @default(PENDING)
+  payType             OrderPayTypeEnum     @default(CASH)
+  creditType          OrderCreditTypeEnum?
+  prints              Int                  @default(0)
+  lastPrintedAt       DateTime?            @db.Timestamptz(3)
+  printFailedCount    Int                  @default(0)
+  lastFailedAt        DateTime?            @db.Timestamptz(3)
   creditDays          Int?
-  creditDueDate       DateTime?        @db.Timestamptz(3)
-  orderTime           DateTime         @db.Timestamp(3)
-  voided              Boolean          @default(false)
-  voidReason          String?          @db.VarChar(255)
-  voidedAt            DateTime?        @db.Timestamptz(3)
-  createdAt           DateTime         @default(now()) @db.Timestamptz(3)
-  updatedAt           DateTime         @updatedAt @db.Timestamptz(3)
-  deletedAt           DateTime?        @db.Timestamptz(3)
+  creditDueDate       DateTime?            @db.Timestamptz(3)
+  orderTime           DateTime             @db.Timestamp(3)
+  voided              Boolean              @default(false)
+  voidReason          String?              @db.VarChar(255)
+  voidedAt            DateTime?            @db.Timestamptz(3)
+  createdAt           DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime             @updatedAt @db.Timestamptz(3)
+  deletedAt           DateTime?            @db.Timestamptz(3)
 
   tenant               Tenant                @relation(fields: [tenantId], references: [id])
   mappingTemplate      ImportTemplate?       @relation(fields: [tenantId, mappingTemplateId], references: [tenantId, id], onDelete: Restrict)
@@ -431,6 +479,7 @@ model Order {
   @@index([tenantId, deletedAt, orderTime])
   @@index([tenantId, deletedAt, status, orderTime])
   @@index([tenantId, deletedAt, payType, creditDueDate])
+  @@index([tenantId, payType, creditType])
   @@index([tenantId, mappingTemplateId])
   @@map("orders")
 }
@@ -481,26 +530,26 @@ model Payment {
 }
 
 model PaymentOrder {
-  id                 String                 @id @db.VarChar(20)
-  tenantId           String                 @db.VarChar(10)
-  orderId            String                 @db.VarChar(20)
-  amount             Decimal                @db.Decimal(12, 2)
-  status             PaymentOrderStatusEnum @default(UNPAID)
-  paymentMethod      PaymentMethodEnum?
-  channel            PaymentChannelEnum?
-  statusMessage      String?                @db.VarChar(255)
-  offlineRemark      String?                @db.VarChar(255)
-  cashVerifyStatus   CashVerifyStatusEnum?
-  offlineSubmittedAt DateTime?              @db.Timestamptz(3)
-  cashVerifiedAt     DateTime?              @db.Timestamptz(3)
-  onlineAttemptNo    Int?
-  gatewayTradeNo     String?                @unique @db.VarChar(100)
-  lastInitiatedAt    DateTime?              @db.Timestamptz(3)
-  cashierUrl         String?                @db.Text
-  cashierExpiresAt   DateTime?              @db.Timestamptz(3)
-  paidAt             DateTime?              @db.Timestamptz(3)
-  createdAt          DateTime               @default(now()) @db.Timestamptz(3)
-  updatedAt          DateTime               @updatedAt @db.Timestamptz(3)
+  id                  String                          @id @db.VarChar(20)
+  tenantId            String                          @db.VarChar(10)
+  orderId             String                          @db.VarChar(20)
+  amount              Decimal                         @db.Decimal(12, 2)
+  status              PaymentOrderStatusEnum          @default(UNPAID)
+  paymentMethod       PaymentMethodEnum?
+  channel             PaymentChannelEnum?
+  statusMessage       String?                         @db.VarChar(255)
+  offlineRemark       String?                         @db.VarChar(255)
+  offlineVerifyStatus OfflinePaymentVerifyStatusEnum?
+  offlineSubmittedAt  DateTime?                       @db.Timestamptz(3)
+  offlineVerifiedAt   DateTime?                       @db.Timestamptz(3)
+  onlineAttemptNo     Int?
+  gatewayTradeNo      String?                         @unique @db.VarChar(100)
+  lastInitiatedAt     DateTime?                       @db.Timestamptz(3)
+  cashierUrl          String?                         @db.Text
+  cashierExpiresAt    DateTime?                       @db.Timestamptz(3)
+  paidAt              DateTime?                       @db.Timestamptz(3)
+  createdAt           DateTime                        @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime                        @updatedAt @db.Timestamptz(3)
 
   tenant        Tenant                @relation(fields: [tenantId], references: [id])
   order         Order                 @relation(fields: [orderId], references: [id])

@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { type Prisma, OrderPayTypeEnum as PrismaOrderPayTypeEnum, PaymentRecordStatusEnum as PrismaPaymentRecordStatusEnum } from '@prisma/client';
-import { OrderPayTypeEnum, OrderStatusEnum, type OrderPayType, type OrderStatus } from '@shou/types/enums';
+import { OrderStatusEnum, type OrderStatus } from '@shou/types/enums';
 import Decimal from 'decimal.js';
 import { cut } from '../common/validators';
 import { decimal, toPrismaDecimal } from '../common/money';
 import { ID_CONFIG } from '../id-generator/id-generator.constants';
 import { IdGeneratorService } from '../id-generator/id-generator.service';
-import { fromPrismaOrderPayType, toPrismaOrderStatus } from './mapping/payment.mapper';
+import { toPrismaOrderStatus } from './mapping/payment.mapper';
 
 const APPLY_ORDER_PAID_MAX_RETRIES = 5;
 
@@ -108,7 +108,7 @@ export class PaymentLedgerService {
     delta: Decimal,
   ) {
     const newPaid = decimal(order.paid).plus(delta);
-    const nextStatus = this.deriveOrderStatus(fromPrismaOrderPayType(order.payType), decimal(order.totalAmount), newPaid);
+    const nextStatus = this.deriveOrderStatus(decimal(order.totalAmount), newPaid);
 
     return tx.order.update({
       where: { id: order.id },
@@ -148,7 +148,7 @@ export class PaymentLedgerService {
       }
 
       const newPaid = decimal(currentOrder.paid).plus(input.delta);
-      const nextStatus = this.deriveOrderStatus(fromPrismaOrderPayType(currentOrder.payType), decimal(currentOrder.totalAmount), newPaid);
+      const nextStatus = this.deriveOrderStatus(decimal(currentOrder.totalAmount), newPaid);
 
       const updated = await tx.order.updateMany({
         where: {
@@ -177,10 +177,9 @@ export class PaymentLedgerService {
   }
 
   // 根据累计已收金额推导订单聚合状态，不区分线上回调还是线下核销来源
-  private deriveOrderStatus(payType: OrderPayType, amount: Decimal, paid: Decimal): OrderStatus {
+  private deriveOrderStatus(amount: Decimal, paid: Decimal): OrderStatus {
     if (amount.gt(0) && paid.gte(amount)) return OrderStatusEnum.PAID;
     if (paid.gt(0)) return OrderStatusEnum.PARTIAL;
-    if (payType === OrderPayTypeEnum.CREDIT) return OrderStatusEnum.CREDIT;
     return OrderStatusEnum.PENDING;
   }
 }

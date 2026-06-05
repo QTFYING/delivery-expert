@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { Prisma, OrderStatusEnum as PrismaOrderStatusEnum } from '@prisma/client';
+import { Prisma, OrderPayTypeEnum as PrismaOrderPayTypeEnum } from '@prisma/client';
 import type { PaginatedResponse } from '@shou/types/common';
 import type {
   AdminReconciliationDailyRecordItem,
@@ -32,7 +32,7 @@ export class FinanceService {
         _sum: { amount: true, fee: true, net: true },
       }),
       this.prisma.order.count({
-        where: { tenantId, deletedAt: null, voided: false, status: PrismaOrderStatusEnum.CREDIT },
+        where: { tenantId, deletedAt: null, voided: false, payType: PrismaOrderPayTypeEnum.CREDIT },
       }),
     ]);
 

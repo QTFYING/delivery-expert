@@ -6,6 +6,7 @@ import type {
   OrderImportJobResponse as OrderImportJobResponseContract,
   OrderImportPreviewError as OrderImportPreviewErrorContract,
   OrderImportPreviewOrder as OrderImportPreviewOrderContract,
+  OrderImportPreviewOrderResult as OrderImportPreviewOrderResultContract,
   OrderImportPreviewResponse as OrderImportPreviewResponseContract,
   OrderImportPreviewSummary as OrderImportPreviewSummaryContract,
   OrderImportSubmitResponse as OrderImportSubmitResponseContract,
@@ -14,6 +15,7 @@ import type {
   OrderImportTemplateMutationResponse as OrderImportTemplateMutationResponseContract,
 } from '@shou/types/contracts';
 import {
+  CreditTypeEnum,
   OrderImportConflictPolicyEnum,
   OrderImportJobStatusEnum,
   OrderImportTemplateFieldSourceTypeEnum,
@@ -79,11 +81,6 @@ export class OrderImportTemplateMutationResponseSwagger implements OrderImportTe
   @ApiProperty({ description: '最近更新时间', example: '2026-04-15T09:00:00.000Z' })
   updatedAt!: string;
 
-  @ApiProperty({
-    description: '服务端生成的自定义字段列表（含 cfN）',
-    type: [OrderImportTemplateFieldSwagger],
-  })
-  customerFields!: OrderImportTemplateFieldSwagger[];
 }
 
 export class OrderImportPreviewOrderSwagger implements OrderImportPreviewOrderContract {
@@ -99,8 +96,8 @@ export class OrderImportPreviewOrderSwagger implements OrderImportPreviewOrderCo
   @ApiPropertyOptional({ description: '客户电话；无值时为 null', example: '13800138000', nullable: true })
   customerPhone!: string | null;
 
-  @ApiProperty({ description: '客户地址', example: '深圳市福田区深南大道1001号' })
-  customerAddress!: string;
+  @ApiPropertyOptional({ description: '客户地址；请求无值时预检响应归一化为空字符串', example: '深圳市福田区深南大道1001号', nullable: true })
+  customerAddress?: string | null;
 
   @ApiProperty({ description: '订单总金额（元，允许为 0，不允许为负数）', example: 48 })
   totalAmount!: number;
@@ -109,9 +106,8 @@ export class OrderImportPreviewOrderSwagger implements OrderImportPreviewOrderCo
   orderTime!: string;
 
   @ApiProperty({
-    description: '结算方式',
-    enum: Object.values(OrderPayTypeEnum),
-    example: OrderPayTypeEnum.CASH,
+    description: '原始结算方式文本，必填；若源文件为空，前端应按用户选择补入 cash 或其他明确结算方式',
+    example: '月结',
   })
   payType!: OrderImportPreviewOrderContract['payType'];
 
@@ -128,6 +124,32 @@ export class OrderImportPreviewOrderSwagger implements OrderImportPreviewOrderCo
 
   @ApiProperty({ description: '订单明细', type: [OrderLineItemSwagger] })
   lineItems!: OrderLineItemSwagger[];
+}
+
+export class OrderImportPreviewOrderResultSwagger extends OrderImportPreviewOrderSwagger implements OrderImportPreviewOrderResultContract {
+  @ApiProperty({ description: '客户地址；无值时为空字符串', example: '' })
+  customerAddress!: string;
+
+  @ApiProperty({
+    description: '标准化后的结算方式',
+    enum: Object.values(OrderPayTypeEnum),
+    example: OrderPayTypeEnum.CREDIT,
+  })
+  payType!: OrderImportPreviewOrderResultContract['payType'];
+
+  @ApiPropertyOptional({
+    description: '标准化后的账期子类型；现款订单为 null',
+    enum: Object.values(CreditTypeEnum),
+    example: CreditTypeEnum.MONTH,
+    nullable: true,
+  })
+  creditType?: OrderImportPreviewOrderResultContract['creditType'];
+
+  @ApiPropertyOptional({ description: '标准化后的账期天数；现款订单为 null', example: 30, nullable: true })
+  creditDays?: OrderImportPreviewOrderResultContract['creditDays'];
+
+  @ApiPropertyOptional({ description: '标准化后的应收款到期日；现款订单为 null', example: '2026-05-15T00:00:00.000Z', nullable: true })
+  dueDate?: OrderImportPreviewOrderResultContract['dueDate'];
 }
 
 export class OrderImportPreviewSummarySwagger implements OrderImportPreviewSummaryContract {
@@ -195,8 +217,8 @@ export class OrderImportPreviewResponseSwagger implements OrderImportPreviewResp
   @ApiProperty({ description: '汇总信息', type: OrderImportPreviewSummarySwagger })
   summary!: OrderImportPreviewSummarySwagger;
 
-  @ApiProperty({ description: '服务端规范化后的订单预览', type: [OrderImportPreviewOrderSwagger] })
-  orders!: OrderImportPreviewOrderSwagger[];
+  @ApiProperty({ description: '服务端规范化后的订单预览', type: [OrderImportPreviewOrderResultSwagger] })
+  orders!: OrderImportPreviewOrderResultSwagger[];
 
   @ApiProperty({ description: '重复订单信息', type: [OrderImportDuplicateOrderSwagger] })
   duplicateOrders!: OrderImportDuplicateOrderSwagger[];

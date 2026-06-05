@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthorizationModule } from '../authorization/authorization.module';
-import { PaymentModule } from '../payment/payment.module';
+import { PaymentCoreModule } from '../payment/payment-core.module';
 import { OrderFinanceController } from './order-finance.controller';
 import { OrderFinanceService } from './order-finance.service';
 import { OrderOSQueryService } from './order-os-query.service';
@@ -12,7 +12,7 @@ import { OrderService } from './order.service';
 import { OrderController } from './order.controller';
 
 @Module({
-  imports: [AuthorizationModule, PaymentModule],
+  imports: [AuthorizationModule, PaymentCoreModule],
   controllers: [OrderPrintController, OrderFinanceController, OrderController],
   providers: [OrderService, OrderOSQueryService, OrderTenantQueryService, OrderFinanceService, OrderPrintService, OrderPrintQueryService],
   exports: [OrderService, OrderFinanceService, OrderPrintService, OrderPrintQueryService],

@@ -1,7 +1,7 @@
 # 阿里云单机 ECS 部署：1Panel + Docker
 
 > 日期：2026-05-14
-> 适用范围：单机 ECS、1Panel 托管 PostgreSQL / Redis / OpenResty，Docker Compose 仅运行 `api` 与 `import-worker`
+> 适用范围：单机 ECS、1Panel 托管 PostgreSQL / Redis / OpenResty，Docker Compose 仅运行 `api`、`payment-api` 与 `import-worker`
 
 本文档是通用部署与运维手册，不承载某一次具体数据库迁移的 SQL 和过程性执行记录。
 
@@ -9,7 +9,7 @@
 
 - 1Panel 托管 PostgreSQL、Redis、OpenResty
 - OpenResty 对外提供 HTTPS 与反向代理
-- Docker Compose 只启动 `api` 与 `import-worker`
+- Docker Compose 只启动 `api`、`payment-api` 与 `import-worker`
 - 不使用 PM2
 - 应用部署与数据库迁移分离
 
@@ -17,12 +17,9 @@
 
 根目录 [docker-compose.yml](../../docker-compose.yml) 是本场景使用的编排文件。
 
-它只包含：
+后端服务清单、容器名、端口和环境变量转发以根目录 [docker-compose.yml](../../docker-compose.yml) 为准。
 
-- `shou-api`
-- `shou-import-worker`
-
-它不包含：
+当前该编排不包含：
 
 - PostgreSQL
 - Redis
@@ -43,12 +40,12 @@
   |-- api.shoudanba.cn -> http://127.0.0.1:3000
                               |
                               v
-                       Docker: shou-api
-                              |
-                              +--> host.docker.internal:5432 PostgreSQL
-                              +--> host.docker.internal:6379 Redis
+                       Docker: 后端容器
+                               |
+                               +--> host.docker.internal:5432 PostgreSQL
+                               +--> host.docker.internal:6379 Redis
 
-Docker: shou-import-worker -> PostgreSQL / Redis
+Docker: import-worker -> PostgreSQL / Redis
 ```
 
 ## 4. 单机边界
@@ -185,13 +182,13 @@ docker compose logs -f import-worker
 首次部署后执行：
 
 ```bash
-docker exec -it shou-api node scripts/db-seed.js
+docker exec -it shou-api-server node scripts/db-seed.js
 ```
 
 如果只想初始化最小管理员数据：
 
 ```bash
-docker exec -it shou-api node scripts/db-init.js
+docker exec -it shou-api-server node scripts/db-init.js
 ```
 
 ## 11. 配置 API 反向代理

@@ -12,12 +12,13 @@ import { CaptchaService } from '../sms/captcha.service';
 import { SmsCodeStore } from '../sms/sms-code.store';
 import { SmsService } from '../sms/sms.service';
 import { fromPrismaTenantStatus, fromPrismaUserRole, fromPrismaUserStatus } from '../tenant/mapping/tenant.mapper';
+import { UploadService } from '../upload/upload.service';
 import { ACCESS_TOKEN_TTL, REFRESH_TOKEN_TTL } from './auth-session.util';
+import { JwtPayload } from './decorators/current-user.decorator';
 import { DebugSmsCodeQueryDto } from './dto/debug-sms-code-query.dto';
 import { PasswordResetDto } from './dto/password-reset.dto';
 import { SendSmsCodeDto } from './dto/send-sms-code.dto';
 import { SmsLoginDto } from './dto/sms-login.dto';
-import { JwtPayload } from './decorators/current-user.decorator';
 
 const SMS_AUTH_INVALID_MESSAGE = '手机号或验证码错误';
 const ACCOUNT_UNAVAILABLE_MESSAGE = '账号不可用';
@@ -39,6 +40,7 @@ export class AuthSmsService {
     private readonly captchaService: CaptchaService,
     private readonly smsCodeStore: SmsCodeStore,
     private readonly smsService: SmsService,
+    private readonly uploadService: UploadService,
   ) {}
 
   /** 发送 Tenant 短信验证码；手机号无法唯一定位有效用户时静默返回，避免暴露账号存在性 */
@@ -272,6 +274,7 @@ export class AuthSmsService {
       account: user.account,
       realName: user.realName,
       tenantId: user.tenantId,
+      avatarUrl: this.uploadService.buildPublicUrl(user.avatarObjectKey),
       requiresPasswordReset: user.requiresPasswordReset,
     };
   }

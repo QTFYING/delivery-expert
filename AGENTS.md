@@ -12,34 +12,38 @@
 
 以下内容对项目持续生效：
 
-1. `README.md`
-2. `AGENTS.md`
-3. `.codex/skills/*`
-4. `docs/api/*.md`
-
-## 3. 事实源顺序
-
-涉及接口、字段、枚举、状态机、数据模型时，按以下顺序判断：
-
-1. `docs/api/*.md`
-2. `packages/types/src/enums`
-3. `packages/types/src/contracts`
-4. `docs/prisma/data-model-reference.md`
-5. `apps/api` 实现代码
-6. Swagger / OpenAPI
+1. `AGENTS.md`
+2. `.codex/skills/*`
+3. `docs/api/*.md`
 
 补充：
 
-- `docs/api` 定义业务语义、状态流转与字段含义
+- `README.md` 只作为项目概览、启动、脚本与部署入口，不承载独立工程规则。
+
+## 3. 事实源顺序
+
+涉及接口、字段、枚举、状态机、数据模型时，先按职责判断事实源，不把所有变更套成同一固定顺序：
+
+1. `docs/api/*.md`
+2. `packages/types/src/enums`
+3. Swagger / DTO
+4. `packages/types/src/contracts`
+5. `apps/api/prisma/schema.prisma`
+6. `apps/api` 实现代码
+
+补充：
+
+- `docs/api` 定义业务语义、状态流转、权限边界与字段含义
 - `enums` 定义枚举值
+- Swagger / DTO 定义传输结构、可选项、`nullable` 与示例
 - `contracts` 只做共享结构投影与消费，不独立发明语义
 - 公开 `contracts` 默认保持平铺、可读、可直接复制给前端，不依赖 `generated/*` 或其他内部中间态
-- `data-model-reference` 只做建模同步
+- `apps/api/prisma/schema.prisma` 是数据模型的可执行基准
 - Swagger / OpenAPI 只做传输结构与联调展示，不得反向推动接口改义
 - 若 Swagger 与共享 `contracts` 存在稳定一一对应关系，优先通过 `implements` 等方式在编译期收紧字段漂移
 - `docs/api` 应逐步回收到业务语义层，不长期维护与 Swagger 完全重复的机械参数表、响应字段表与分页包装镜像
 - 上述顺序用于回溯业务语义争议，不等于所有变更都按同一固定链路修改
-- 改语义：`docs/api -> enums -> Swagger/DTO -> contracts -> data-model-reference`
+- 改语义：`docs/api -> enums -> Swagger/DTO -> contracts`，影响持久化时再改 `schema.prisma`
 - 改结构：先确认 `docs/api` 语义不变，再改 `Swagger/DTO -> contracts`
 - 改枚举：`packages/types/src/enums -> docs/api -> Swagger/DTO -> contracts`
 
@@ -53,7 +57,7 @@
 - 不让旧字段重新进入主链路，例如 `erpOrderNo`、`customFields`、旧 `payStatus` 主流程。`templateId` 仅保留在当前文档已定义的导入/映射链路，不得回流成旧订单主链路语义。
 - 打印配置只存黑盒 JSON，不在服务端解析模板内部结构。
 - 多租户隔离、支付金额正确性、状态机一致性高于“先把功能写出来”。
-- 注意文件大小，单个 `.ts` 文件默认不超过 500 行，`*.service.ts` 不超过 400 行。
+- 注意文件大小，目标态单个 `.ts` 文件默认不超过 500 行，`*.service.ts` 不超过 400 行；历史超标文件按增量口径治理，触及时不得继续堆入新职责。
 
 ## 6. 默认分层
 
@@ -73,14 +77,14 @@
 - 改结构字段或响应包装：先确认 `docs/api` 语义不变，再检查 `contracts`、Swagger。
 - 改共享读模型且 Swagger 与 `contracts` 可稳定对齐时，优先显式增加编译期约束，不只靠人工同步记忆。
 - 改枚举：检查 `packages/types/src/enums`、`docs/api`、`contracts`。
-- 改数据模型：检查 `docs/prisma/data-model-reference.md` 与 `schema.prisma`。
+- 改数据模型：检查并维护 `apps/api/prisma/schema.prisma`，同时确认对应 `docs/api`、`enums`、`contracts` 的业务语义没有漂移。
 - 改仓库级规则：检查 `README.md`、`AGENTS.md` 与相关 `.codex/skills/*`。
 
 ## 8. 默认动作
 
-1. 先读 `README.md` 与 `AGENTS.md`。
+1. 先读 `README.md` 了解项目入口，再读 `AGENTS.md` 获取仓库规则。
 2. 再读对应业务域的 `docs/api/*.md`。
-3. 必要时继续看 `enums`、`contracts`、`data-model-reference`。
+3. 必要时继续看 `enums`、`contracts`、`schema.prisma`。
 4. 最后再看当前实现代码。
 
 ## 9. 工作流约定

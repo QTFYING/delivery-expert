@@ -289,7 +289,7 @@ export function toTenantProfile(tenant: {
   freezeReason: string | null;
   serviceExpireAt: Date | null;
   maxCreditDays: number;
-  creditReminderDays: number;
+  creditRemindDays: number;
   createdAt: Date;
   updatedAt: Date;
 }): TenantProfile {
@@ -307,7 +307,7 @@ export function toTenantProfile(tenant: {
     freezeReason: tenant.freezeReason,
     serviceExpireAt: tenant.serviceExpireAt?.toISOString() ?? null,
     maxCreditDays: tenant.maxCreditDays,
-    creditReminderDays: tenant.creditReminderDays,
+    creditRemindDays: tenant.creditRemindDays,
     createdAt: tenant.createdAt.toISOString(),
     updatedAt: tenant.updatedAt.toISOString(),
   };

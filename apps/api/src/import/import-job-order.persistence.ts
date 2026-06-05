@@ -4,9 +4,11 @@ import Decimal from 'decimal.js';
 import { toDecimal, toMoney, toPrismaDecimal } from '../common/money';
 import { generateQrCodeToken } from '../common/tokens';
 import { cut, normalizeNullableText, parseLocalDateTime } from '../common/validators';
+import { deriveOrderStatus } from '../order/order.domain';
+import { toPrismaOrderStatus } from '../order/mapping/order-enum.mapper';
 import { PrismaService } from '../prisma/prisma.service';
 import type { PreparedImportOrder } from './import.normalizer';
-import { toPrismaOrderPayType } from './mapping/import.mapper';
+import { toPrismaOrderCreditType, toPrismaOrderPayType } from './mapping/import.mapper';
 
 /**
  * 将预检通过的导入订单转换为 Prisma 新建订单输入
@@ -27,8 +29,11 @@ export function toImportOrderCreateInput(tenantId: string, order: PreparedImport
     totalAmount: toPrismaDecimal(totalAmount),
     paid: toPrismaDecimal(new Decimal(0)),
     customerFieldValues: order.customerFieldValues as unknown as Prisma.InputJsonValue,
-    status: resolveImportedOrderStatus(totalAmount),
+    status: resolveImportedOrderStatus(order.payType, totalAmount),
     payType: toPrismaOrderPayType(order.payType),
+    creditType: toPrismaOrderCreditType(order.creditType),
+    creditDays: order.creditDays ?? null,
+    creditDueDate: parseImportCreditDueDate(order.creditDueDate),
     prints: 0,
     orderTime: parseImportOrderTime(order.orderTime),
     voided: false,
@@ -54,8 +59,11 @@ export function toImportOrderUpdateInput(order: PreparedImportOrder): Prisma.Ord
     totalAmount: toPrismaDecimal(totalAmount),
     paid: toPrismaDecimal(new Decimal(0)),
     customerFieldValues: order.customerFieldValues as unknown as Prisma.InputJsonValue,
-    status: resolveImportedOrderStatus(totalAmount),
+    status: resolveImportedOrderStatus(order.payType, totalAmount),
     payType: toPrismaOrderPayType(order.payType),
+    creditType: toPrismaOrderCreditType(order.creditType),
+    creditDays: order.creditDays ?? null,
+    creditDueDate: parseImportCreditDueDate(order.creditDueDate),
     orderTime: parseImportOrderTime(order.orderTime),
     voided: false,
     voidReason: null,
@@ -99,11 +107,15 @@ export async function hasSettledImportOrderFlow(client: Prisma.TransactionClient
 }
 
 /**
- * 根据导入订单金额推导初始订单状态
- * 0 元订单视为无需收款，直接进入已结清状态
+ * 根据导入订单金额和结算方式推导初始订单状态
+ * 0 元订单视为无需收款，非 0 元订单复用订单领域状态规则
  */
-function resolveImportedOrderStatus(totalAmount: Decimal): PrismaOrderStatusEnum {
-  return totalAmount.isZero() ? PrismaOrderStatusEnum.PAID : PrismaOrderStatusEnum.PENDING;
+function resolveImportedOrderStatus(payType: PreparedImportOrder['payType'], totalAmount: Decimal): PrismaOrderStatusEnum {
+  if (totalAmount.isZero()) {
+    return PrismaOrderStatusEnum.PAID;
+  }
+
+  return toPrismaOrderStatus(deriveOrderStatus(payType, totalAmount, new Decimal(0), false));
 }
 
 /** 将导入预检产物转成 Prisma timestamp 载体，预检已保证格式合法 */
@@ -111,6 +123,20 @@ function parseImportOrderTime(value: string): Date {
   const parsed = parseLocalDateTime(value);
   if (!parsed) {
     throw new Error(`导入订单下单时间格式异常：${value}`);
+  }
+
+  return parsed;
+}
+
+/** 将导入预检账期到期时间转成 Prisma timestamp 载体，现款订单保持 null */
+function parseImportCreditDueDate(value: string | null | undefined): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = parseLocalDateTime(value);
+  if (!parsed) {
+    throw new Error(`导入订单账期到期时间格式异常：${value}`);
   }
 
   return parsed;

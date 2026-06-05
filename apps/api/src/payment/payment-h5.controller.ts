@@ -65,15 +65,15 @@ export class H5PaymentController {
     return this.paymentService.submitOfflinePayment(token, request as SubmitOfflinePaymentRequest);
   }
 
-  // 查询订单在 H5 页面当前应展示的综合收款状态
-  @ApiOperation({ summary: '查询订单当前 H5 收款状态' })
+  // 查询订单在 H5 页面当前应展示的 H5 支付状态
+  @ApiOperation({ summary: '查询订单当前 H5 支付状态' })
   @ApiParam({
     name: 'token',
     description: '订单 H5 入口令牌，业务语义等同 h5EntryToken，当前实现字段为 orders.qrCodeToken；用于定位订单，不代表某次支付尝试',
   })
   @ApiOkResponse({
     type: PaymentStatusResponseSwagger,
-    description: '返回订单当前在 H5 页面应展示的收款状态，而不是某一条支付单的原始状态直传',
+    description: '返回订单当前在 H5 页面应展示的 H5 支付状态，而不是某一条支付单的原始状态直传',
   })
   @Header('Cache-Control', 'no-store')
   @Header('Pragma', 'no-cache')

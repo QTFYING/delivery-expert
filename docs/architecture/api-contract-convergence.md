@@ -37,9 +37,9 @@
 
 所有状态值、操作值、固定分类值，都应先在这里定义，再同步到其他层。
 
-### 2.3 Swagger / OpenAPI 与 DTO：传输结构层
+### 2.3 Swagger 与 DTO：传输结构层
 
-Swagger / OpenAPI 与 DTO 负责定义 HTTP 传输结构，包括：
+Swagger 与 DTO 负责定义 HTTP 传输结构，包括：
 
 1. 请求字段
 2. 响应字段
@@ -128,7 +128,7 @@ Swagger / OpenAPI 与 DTO 负责定义 HTTP 传输结构，包括：
 以下规则长期成立：
 
 1. 不从 `contracts`、代码实现或 Swagger 反向定义 `docs/api`。
-2. 不把 Swagger / OpenAPI 当成业务语义裁决层。
+2. 不把 Swagger 当成业务语义裁决层。
 3. 不把 `docs/api` 维护成第二份 Swagger 式参数表或响应结构表。
 4. 不把公开 `contracts` 自动生成作为默认目标。
 5. 不让公开 `contracts` 依赖内部生成产物。

@@ -1,10 +1,13 @@
 import type { ListParams } from '../common';
+import type { OfflinePaymentInfo } from './payment';
 import type {
   CreditOrderStatus,
+  CreditType,
   OrderImportConflictPolicy,
   OrderImportJobStatus,
   OrderImportTemplateFieldSourceType,
   OrderPayType,
+  OrderSearchStatus,
   OrderStatus,
   PrintRecordResult,
 } from '../enums';
@@ -53,10 +56,18 @@ export interface TenantOrderItem {
   totalAmount: number;
   /** 已收金额 单位元 */
   paid: number;
+  /** H5 线下登记信息；未登记时为 null */
+  offlinePayment: OfflinePaymentInfo | null;
   /** 订单状态 */
   status: OrderStatus;
   /** 结算方式 */
   payType: OrderPayType;
+  /** 账期子类型，现款订单为 null */
+  creditType?: CreditType | null;
+  /** 账期天数，现款订单为 null */
+  creditDays?: number | null;
+  /** 应收款到期日，现款订单为 null */
+  dueDate?: string | null;
   /** 打印成功次数 */
   prints: number;
   /** 最近打印成功时间 */
@@ -78,6 +89,8 @@ export interface TenantOrderItem {
   /** 作废时间 */
   voidedAt?: string;
 }
+
+export type TenantOrderListItem = Omit<TenantOrderItem, 'lineItems'>;
 
 export interface AdminOrderItem {
   /** 订单 ID */
@@ -106,6 +119,12 @@ export interface AdminOrderItem {
   status: OrderStatus;
   /** 结算方式 */
   payType: OrderPayType;
+  /** 账期子类型，现款订单为 null */
+  creditType?: CreditType | null;
+  /** 账期天数，现款订单为 null */
+  creditDays?: number | null;
+  /** 应收款到期日，现款订单为 null */
+  dueDate?: string | null;
   /** 下单时间 */
   orderTime: string;
   /** 订单商品明细 */
@@ -121,12 +140,14 @@ export interface AdminOrderItem {
 }
 
 export interface OrderListQuery extends ListParams {
-  /** 状态筛选 */
-  status?: OrderStatus;
+  /** 订单状态筛选；本期仅开放 pending / paid / expired */
+  status?: OrderSearchStatus;
   /** 结算方式筛选 */
   payType?: OrderPayType;
-  /** 导入模板筛选 */
-  templateId?: string;
+  /** 账期子类型筛选；有值时仅适用于 payType=credit */
+  creditType?: CreditType;
+  /** 导入映射模板筛选 */
+  mappingTemplateId?: string;
   /** 源订单号筛选 */
   sourceOrderNo?: string;
   /** 开始日期 */
@@ -186,8 +207,8 @@ export interface UpdateOrderRequest {
   date?: string;
   /** 商品明细 */
   lineItems?: OrderLineItem[];
-  /** 自定义字段值 */
-  customFieldValues?: Record<string, string>;
+  /** 订单级自定义字段值 */
+  customerFieldValues?: Record<string, string>;
 }
 
 export interface VoidOrderRequest {
@@ -214,8 +235,7 @@ export interface OrderImportTemplateField {
   isRequired: boolean;
   /**
    * 服务端 /preview 校验开关`true` 表示导入预检时该列必须有值；`false` 则允许空值通过
-   * 请求侧：前端可省略，服务端以系统定义为权威来源；
-   * 响应侧：服务端始终填充该字段
+   * 保存请求不接收该字段；响应侧由服务端始终填充
    */
   isValueRequired?: boolean;
   /**
@@ -225,9 +245,13 @@ export interface OrderImportTemplateField {
   type?: OrderImportTemplateFieldSourceType;
 }
 
-export interface OrderImportCustomerFieldCreateRequest {
+export interface OrderImportTemplateFieldMappingRequest {
   /**
-   * 自定义字段展示名
+   * 字段 key系统字段使用稳定 key，自定义字段更新时传回服务端生成的 `cfN`
+   */
+  key?: string;
+  /**
+   * 字段展示名
    */
   label: string;
   /**
@@ -235,16 +259,21 @@ export interface OrderImportCustomerFieldCreateRequest {
    */
   mapStr?: string | null;
   /**
-   * 服务端 /preview 校验开关未传时默认 `false`，即该自定义列允许空值通过
+   * 字段来源：`list` 表示订单头，`line` 表示订单明细
    */
-  isValueRequired?: boolean;
-  /**
-   * 字段来源，默认 `list`
-   */
-  type?: OrderImportTemplateFieldSourceType;
+  type: OrderImportTemplateFieldSourceType;
 }
 
-export interface OrderImportCustomerFieldUpdateRequest extends OrderImportCustomerFieldCreateRequest {
+export interface OrderImportDefaultFieldMappingRequest extends OrderImportTemplateFieldMappingRequest {
+  /**
+   * 系统字段稳定 key，必须命中服务端内置默认模板字段
+   */
+  key: string;
+}
+
+export interface OrderImportCustomerFieldCreateRequest extends OrderImportTemplateFieldMappingRequest {}
+
+export interface OrderImportCustomerFieldUpdateRequest extends OrderImportTemplateFieldMappingRequest {
   /**
    * 自定义字段 key；已有字段编辑时必须传回原 key，新增字段不传，由服务端生成 `cfN`
    */
@@ -275,8 +304,6 @@ export interface OrderImportTemplateMutationResponse {
   isDefault: boolean;
   /** 最近更新时间 */
   updatedAt: string;
-  /** 租户自定义字段 */
-  customerFields: OrderImportTemplateField[];
 }
 
 export interface CreateOrderImportTemplateRequest {
@@ -285,7 +312,7 @@ export interface CreateOrderImportTemplateRequest {
   /** 是否设为默认模板 */
   isDefault: boolean;
   /** 系统默认字段映射 */
-  defaultFields: OrderImportTemplateField[];
+  defaultFields: OrderImportDefaultFieldMappingRequest[];
   /** 租户自定义字段 */
   customerFields: OrderImportCustomerFieldCreateRequest[];
 }
@@ -296,7 +323,7 @@ export interface UpdateOrderImportTemplateRequest {
   /** 是否设为默认模板 */
   isDefault?: boolean;
   /** 系统默认字段映射 */
-  defaultFields?: OrderImportTemplateField[];
+  defaultFields?: OrderImportDefaultFieldMappingRequest[];
   /** 租户自定义字段 */
   customerFields?: OrderImportCustomerFieldUpdateRequest[];
 }
@@ -310,14 +337,14 @@ export interface OrderImportPreviewOrder {
   customer: string;
   /** 客户电话 */
   customerPhone?: string | null;
-  /** 客户地址 */
-  customerAddress: string;
+  /** 客户地址，可省略；服务端预检响应会归一化为空字符串 */
+  customerAddress?: string | null;
   /** 订单总金额，导入预检允许为 0，不允许为负数 */
   totalAmount: number | string;
   /** 下单时间 */
   orderTime: string;
-  /** 结算方式 */
-  payType: OrderPayType;
+  /** 原始结算方式文本，必填；若源文件为空，前端应按用户选择补入 cash 或其他明确结算方式 */
+  payType: string;
   /** 订单级自定义字段值，仅承载导入模板 type=list 的自定义字段 */
   customerFieldValues?: Record<string, string>;
   /** 商品明细 */
@@ -339,8 +366,14 @@ export interface OrderImportPreviewOrderResult {
   totalAmount: number;
   /** 下单时间 */
   orderTime: string;
-  /** 结算方式 */
+  /** 标准化后的结算方式 */
   payType: OrderPayType;
+  /** 标准化后的账期子类型，现款订单为 null */
+  creditType?: CreditType | null;
+  /** 标准化后的账期天数，现款订单为 null */
+  creditDays?: number | null;
+  /** 标准化后的应收款到期日，现款订单为 null */
+  dueDate?: string | null;
   /** 订单级自定义字段值，仅承载导入模板 type=list 的自定义字段 */
   customerFieldValues: Record<string, string>;
   /** 映射模板 ID */
@@ -661,6 +694,10 @@ export interface CreditOrderItem {
   customer: string;
   /** 金额 */
   amount: number;
+  /** 结算方式，账期管理列表固定为 credit */
+  payType: 'credit';
+  /** 账期子类型 */
+  creditType: CreditType;
   /** 下单日期 */
   date: string;
   /** 账期天数 */
@@ -671,7 +708,10 @@ export interface CreditOrderItem {
   creditStatus: CreditOrderStatus;
 }
 
-export type CreditOrderListQuery = ListParams;
+export interface CreditOrderListQuery extends ListParams {
+  /** 订单状态筛选；本期仅开放 pending / paid / expired */
+  status?: OrderSearchStatus;
+}
 
 export interface CreateOrderReceiptRequest {
   /** 本次内部收款金额 单位元 */

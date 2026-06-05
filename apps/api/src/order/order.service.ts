@@ -1,7 +1,14 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, OrderStatusEnum as PrismaOrderStatusEnum } from '@prisma/client';
 import type { PaginatedResponse } from '@shou/types/common';
-import type { AdminOrderItem, CreateOrderRequest, TenantOrderItem, UpdateOrderRequest, VoidOrderRequest } from '@shou/types/contracts';
+import type {
+  AdminOrderItem,
+  CreateOrderRequest,
+  TenantOrderItem,
+  TenantOrderListItem,
+  UpdateOrderRequest,
+  VoidOrderRequest,
+} from '@shou/types/contracts';
 import { OrderPayTypeEnum } from '@shou/types/enums';
 import { JwtPayload } from '../auth/decorators/current-user.decorator';
 import { decimal, toMoney, toPrismaDecimal } from '../common/money';
@@ -29,7 +36,7 @@ export class OrderService {
   ) {}
 
   // 按登录态分派订单列表查询，租户侧自动注入 tenantId，OS 侧委托专用查询服务
-  async findAll(currentUser: JwtPayload, query: ListOrdersQueryDto): Promise<PaginatedResponse<TenantOrderItem | AdminOrderItem>> {
+  async findAll(currentUser: JwtPayload, query: ListOrdersQueryDto): Promise<PaginatedResponse<TenantOrderListItem | AdminOrderItem>> {
     if (!currentUser.tenantId) {
       return this.osQueryService.findAll(query);
     }
@@ -131,7 +138,8 @@ export class OrderService {
           status: toPrismaOrderStatus(status),
           payType: toPrismaOrderPayType(payType),
           orderTime,
-          customerFieldValues: request.customFieldValues !== undefined ? (request.customFieldValues as unknown as Prisma.InputJsonValue) : undefined,
+          customerFieldValues:
+            request.customerFieldValues !== undefined ? (request.customerFieldValues as unknown as Prisma.InputJsonValue) : undefined,
           lineItems: normalizedLineItems
             ? {
                 deleteMany: {},
@@ -172,7 +180,7 @@ export class OrderService {
           voided: true,
           voidReason: normalizeText(request.voidReason, 'voidReason', 255),
           voidedAt: new Date(),
-          status: PrismaOrderStatusEnum.EXPIRED,
+          status: PrismaOrderStatusEnum.VOIDED,
         },
         include: { lineItems: true },
       });

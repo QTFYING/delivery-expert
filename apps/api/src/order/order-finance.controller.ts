@@ -36,7 +36,7 @@ export class OrderFinanceController {
     @CurrentUser() currentUser: JwtPayload,
     @Query() query: ListCreditOrdersQueryDto,
   ): Promise<PaginatedResponse<CreditOrderItem>> {
-    return this.orderFinanceService.getCreditOrders(currentUser, query.page, query.pageSize);
+    return this.orderFinanceService.getCreditOrders(currentUser, query.page, query.pageSize, query.status);
   }
 
   // 创建催款提醒记录，并由 finance service 收口通知渠道语义

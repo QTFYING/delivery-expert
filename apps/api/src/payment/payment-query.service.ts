@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   type Prisma,
-  CashVerifyStatusEnum as PrismaCashVerifyStatusEnum,
+  OfflinePaymentVerifyStatusEnum as PrismaOfflinePaymentVerifyStatusEnum,
   OrderStatusEnum as PrismaOrderStatusEnum,
   PaymentChannelEnum as PrismaPaymentChannelEnum,
   PaymentMethodEnum as PrismaPaymentMethodEnum,
@@ -12,6 +12,7 @@ import {
 import type { PaginatedResponse } from '@shou/types/common';
 import type {
   AdminPaymentRecordItem,
+  OfflinePaymentAction,
   OfflinePaymentInfo,
   PaymentAction,
   PaymentListQuery,
@@ -21,7 +22,7 @@ import type {
   TenantPaymentRecordItem,
 } from '@shou/types/contracts';
 
-import { OfflinePaymentMethodEnum, OrderStatusEnum, PaymentMethodEnum, PaymentOrderStatusEnum } from '@shou/types/enums';
+import { OfflinePaymentMethodEnum, OrderStatusEnum, PaymentMethodEnum, PaymentOrderStatusEnum, type OrderStatus } from '@shou/types/enums';
 import dayjs from 'dayjs';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
 import { BusinessException } from '../common/exceptions/business.exception';
@@ -30,8 +31,8 @@ import { formatDateTime, normalizePage, normalizePageSize } from '../common/vali
 import { PrismaService } from '../prisma/prisma.service';
 
 import {
-  cashVerifyStatusText,
-  fromPrismaCashVerifyStatus,
+  offlineVerifyStatusText,
+  fromPrismaOfflinePaymentVerifyStatus,
   fromPrismaPaymentMethod,
   fromPrismaPaymentRecordStatus,
   toPaymentDomainExpirableSnapshot,
@@ -40,9 +41,10 @@ import {
   toPrismaPaymentOrderUpdateData,
 } from './mapping/payment.mapper';
 
-import { buildExpirePayingPaymentOrderTransition, resolvePaymentOrderStatus, shouldExpirePayingPaymentOrder } from './payment.domain';
 import { PaymentTenantConfigService } from './payment-tenant-config.service';
+import { PaymentTenantLifecycleService } from './payment-tenant-lifecycle.service';
 import { PaymentWindowService } from './payment-window.service';
+import { buildExpirePayingPaymentOrderTransition, resolvePaymentOrderStatus, shouldExpirePayingPaymentOrder } from './payment.domain';
 import { buildPaymentOrderSummary, getPaymentTenantId, isUuid } from './payment.shared';
 
 @Injectable()
@@ -50,10 +52,11 @@ export class PaymentQueryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly paymentTenantConfigService: PaymentTenantConfigService,
+    private readonly paymentTenantLifecycleService: PaymentTenantLifecycleService,
     private readonly paymentWindowService: PaymentWindowService,
   ) {}
 
-  // 查询 H5 公开订单详情，并合成页面当前收款状态与支付动作
+  // 查询 H5 公开订单详情，并合成页面当前 H5 支付状态与支付动作
   async getPaymentDetail(token: string): Promise<PaymentOrderDetailResponse> {
     const order = await this.getPublicOrderByToken(token);
     if (order.voided) {
@@ -70,12 +73,17 @@ export class PaymentQueryService {
       tenantId: order.tenantId,
       activePaymentChannel: order.tenant.activePaymentChannel,
     });
+    const tenantLifecycle = this.paymentTenantLifecycleService.resolveH5PaymentLifecycle({
+      tenantId: order.tenantId,
+      status: order.tenant.status,
+    });
     const paymentWindowState = await this.applyPaymentWindowOverride({
       tenantId: order.tenantId,
       createdAt: order.createdAt,
       status: resolvedStatus,
-      statusMessage: currentPaymentOrder?.statusMessage ?? undefined,
-      paymentAction: this.buildPaymentAction(order, currentPaymentOrder, resolvedStatus, activePaymentChannel),
+      statusMessage: this.resolveLifecycleStatusMessage(resolvedStatus, currentPaymentOrder?.statusMessage ?? undefined, tenantLifecycle),
+      paymentAction: this.buildPaymentAction(order, currentPaymentOrder, resolvedStatus, activePaymentChannel, tenantLifecycle),
+      offlinePaymentAction: this.buildOfflinePaymentAction(order, currentPaymentOrder, resolvedStatus, tenantLifecycle),
     });
 
     return {
@@ -91,6 +99,7 @@ export class PaymentQueryService {
       servicePhone: order.tenant.contactPhone,
       selectedPaymentMethod: currentPaymentOrder ? fromPrismaPaymentMethod(currentPaymentOrder.paymentMethod) : null,
       paymentAction: paymentWindowState.paymentAction,
+      offlinePaymentAction: paymentWindowState.offlinePaymentAction,
       offlinePayment: this.toOfflinePaymentInfo(currentPaymentOrder),
       items: order.lineItems.map((item) => ({
         itemId: String(item.id),
@@ -105,7 +114,7 @@ export class PaymentQueryService {
     };
   }
 
-  // 查询订单维度的 H5 收款状态，供前端轮询网关回调结果
+  // 查询订单维度的 H5 支付状态，供前端轮询网关回调结果
   async getPaymentStatus(token: string): Promise<PaymentStatusResponse> {
     const order = await this.getPublicOrderByToken(token);
     if (order.voided) {
@@ -122,6 +131,10 @@ export class PaymentQueryService {
       tenantId: order.tenantId,
       activePaymentChannel: order.tenant.activePaymentChannel,
     });
+    const tenantLifecycle = this.paymentTenantLifecycleService.resolveH5PaymentLifecycle({
+      tenantId: order.tenantId,
+      status: order.tenant.status,
+    });
     const latestPayment =
       resolvedStatus === PaymentOrderStatusEnum.PAID
         ? await this.prisma.payment.findFirst({
@@ -133,8 +146,9 @@ export class PaymentQueryService {
       tenantId: order.tenantId,
       createdAt: order.createdAt,
       status: resolvedStatus,
-      statusMessage: currentPaymentOrder?.statusMessage ?? undefined,
-      paymentAction: this.buildPaymentAction(order, currentPaymentOrder, resolvedStatus, activePaymentChannel),
+      statusMessage: this.resolveLifecycleStatusMessage(resolvedStatus, currentPaymentOrder?.statusMessage ?? undefined, tenantLifecycle),
+      paymentAction: this.buildPaymentAction(order, currentPaymentOrder, resolvedStatus, activePaymentChannel, tenantLifecycle),
+      offlinePaymentAction: this.buildOfflinePaymentAction(order, currentPaymentOrder, resolvedStatus, tenantLifecycle),
     });
 
     return {
@@ -145,6 +159,7 @@ export class PaymentQueryService {
       paidAt: formatDateTime(latestPayment?.paidAt ?? currentPaymentOrder?.paidAt),
       selectedPaymentMethod: currentPaymentOrder ? (fromPrismaPaymentMethod(currentPaymentOrder.paymentMethod) ?? undefined) : undefined,
       paymentAction: paymentWindowState.paymentAction,
+      offlinePaymentAction: paymentWindowState.offlinePaymentAction,
     };
   }
 
@@ -278,10 +293,14 @@ export class PaymentQueryService {
       return paymentOrder;
     }
 
-    return client.paymentOrder.update({
-      where: { id: paymentOrder.id },
+    const result = await client.paymentOrder.updateMany({
+      where: { id: paymentOrder.id, status: PrismaPaymentOrderStatusEnum.PAYING },
       data: toPrismaPaymentOrderUpdateData(transition.data),
     });
+    if (result.count === 0) {
+      return paymentOrder;
+    }
+    return client.paymentOrder.findUnique({ where: { id: paymentOrder.id } });
   }
 
   // 将最新线下支付单投影成 H5 可展示的线下登记信息
@@ -289,9 +308,9 @@ export class PaymentQueryService {
     paymentOrder: {
       paymentMethod: PrismaPaymentMethodEnum | null;
       offlineRemark: string | null;
-      cashVerifyStatus: PrismaCashVerifyStatusEnum | null;
+      offlineVerifyStatus: PrismaOfflinePaymentVerifyStatusEnum | null;
       offlineSubmittedAt: Date | null;
-      cashVerifiedAt: Date | null;
+      offlineVerifiedAt: Date | null;
     } | null,
   ): OfflinePaymentInfo | null {
     if (!paymentOrder?.offlineSubmittedAt || !paymentOrder.paymentMethod) {
@@ -306,21 +325,21 @@ export class PaymentQueryService {
     return {
       method: selected === PaymentMethodEnum.CASH ? OfflinePaymentMethodEnum.CASH : OfflinePaymentMethodEnum.OTHER_PAID,
       remark: paymentOrder.offlineRemark ?? '',
-      cashVerifyStatus: paymentOrder.cashVerifyStatus ? fromPrismaCashVerifyStatus(paymentOrder.cashVerifyStatus) : null,
-      cashVerifyStatusText:
+      offlineVerifyStatus: paymentOrder.offlineVerifyStatus ? fromPrismaOfflinePaymentVerifyStatus(paymentOrder.offlineVerifyStatus) : null,
+      offlineVerifyStatusText:
         selected === PaymentMethodEnum.OTHER_PAID
-          ? paymentOrder.cashVerifyStatus === PrismaCashVerifyStatusEnum.VERIFIED
+          ? paymentOrder.offlineVerifyStatus === PrismaOfflinePaymentVerifyStatusEnum.VERIFIED
             ? '已确认'
             : '待确认'
-          : cashVerifyStatusText(paymentOrder.cashVerifyStatus),
+          : offlineVerifyStatusText(paymentOrder.offlineVerifyStatus),
       submittedAt: paymentOrder.offlineSubmittedAt.toISOString(),
-      verifiedAt: paymentOrder.cashVerifiedAt?.toISOString() ?? null,
+      verifiedAt: paymentOrder.offlineVerifiedAt?.toISOString() ?? null,
     };
   }
 
   /**
    * 当订单超过租户支付有效期时，统一覆写 H5 页面的状态和支付动作
-   * 已完成支付或已进入待核销的订单保留原始业务终态
+   * 已完成支付或已进入线下登记待确认的订单保留原始业务终态
    */
   private async applyPaymentWindowOverride(input: {
     tenantId: string;
@@ -328,28 +347,37 @@ export class PaymentQueryService {
     status: PaymentOrderDetailResponse['status'];
     statusMessage?: string;
     paymentAction: PaymentAction;
+    offlinePaymentAction: OfflinePaymentAction;
   }): Promise<{
     status: PaymentOrderDetailResponse['status'];
     statusMessage?: string;
     paymentAction: PaymentAction;
+    offlinePaymentAction: OfflinePaymentAction;
   }> {
-    if (input.status === PaymentOrderStatusEnum.PAID || input.status === PaymentOrderStatusEnum.PENDING_VERIFICATION) {
-      return {
-        status: input.status,
-        statusMessage: input.statusMessage,
-        paymentAction: input.paymentAction,
-      };
-    }
-
     const paymentWindow = await this.paymentWindowService.resolveOrderPaymentWindow({
       tenantId: input.tenantId,
       createdAt: input.createdAt,
     });
+    const paymentAction = {
+      ...input.paymentAction,
+      expiresAt: paymentWindow.payableUntilAt.toISOString(),
+    };
+
+    if (input.status === PaymentOrderStatusEnum.PAID || input.status === PaymentOrderStatusEnum.PENDING_VERIFICATION) {
+      return {
+        status: input.status,
+        statusMessage: input.statusMessage,
+        paymentAction,
+        offlinePaymentAction: input.offlinePaymentAction,
+      };
+    }
+
     if (!paymentWindow.isExpired) {
       return {
         status: input.status,
         statusMessage: input.statusMessage,
-        paymentAction: input.paymentAction,
+        paymentAction,
+        offlinePaymentAction: input.offlinePaymentAction,
       };
     }
 
@@ -360,9 +388,67 @@ export class PaymentQueryService {
         canResume: false,
         resumeUrl: null,
         canInitiate: false,
-        expiresAt: null,
+        expiresAt: paymentWindow.payableUntilAt.toISOString(),
+      },
+      offlinePaymentAction: {
+        canSubmit: false,
+        reason: paymentWindow.expiredMessage ?? '订单已超过商户设置的支付有效期，请联系商户处理',
       },
     };
+  }
+
+  // 基于订单、支付窗口前状态和租户生命周期裁决 H5 是否允许提交线下登记
+  private buildOfflinePaymentAction(
+    order: {
+      voided: boolean;
+      status: PrismaOrderStatusEnum;
+      totalAmount: Prisma.Decimal;
+      paid: Prisma.Decimal;
+    },
+    paymentOrder: {
+      status: PrismaPaymentOrderStatusEnum;
+    } | null,
+    status: PaymentStatusResponse['status'],
+    tenantLifecycle: ReturnType<PaymentTenantLifecycleService['resolveH5PaymentLifecycle']>,
+  ): OfflinePaymentAction {
+    const orderSnapshot = toPaymentDomainOrderSnapshot(order);
+    const orderClosed = this.isOrderClosed(order.voided, orderSnapshot.status);
+    const orderPaid = decimal(order.paid).gte(order.totalAmount.toString()) || orderSnapshot.status === OrderStatusEnum.PAID;
+
+    if (!tenantLifecycle.canAcceptPayment) {
+      return { canSubmit: false, reason: tenantLifecycle.failureMessage ?? '当前商户暂不可收款，请联系商户处理' };
+    }
+
+    if (orderClosed) {
+      return { canSubmit: false, reason: '订单已关闭，无法提交线下登记' };
+    }
+
+    if (orderPaid || status === PaymentOrderStatusEnum.PAID) {
+      return { canSubmit: false, reason: '订单已支付完成，不允许重复登记' };
+    }
+
+    if (status === PaymentOrderStatusEnum.PENDING_VERIFICATION || paymentOrder?.status === PrismaPaymentOrderStatusEnum.PENDING_VERIFICATION) {
+      return { canSubmit: false, reason: '订单已登记线下支付，等待商户确认' };
+    }
+
+    if (status !== PaymentOrderStatusEnum.UNPAID) {
+      return { canSubmit: false, reason: '当前状态不允许提交线下登记' };
+    }
+
+    return { canSubmit: true, reason: null };
+  }
+
+  // 租户生命周期阻断时覆盖可继续支付的非终态提示，已完成和线下登记待确认终态保持原业务文案
+  private resolveLifecycleStatusMessage(
+    status: PaymentOrderDetailResponse['status'],
+    statusMessage: string | undefined,
+    tenantLifecycle: ReturnType<PaymentTenantLifecycleService['resolveH5PaymentLifecycle']>,
+  ): string | undefined {
+    if (tenantLifecycle.canAcceptPayment || status === PaymentOrderStatusEnum.PAID || status === PaymentOrderStatusEnum.PENDING_VERIFICATION) {
+      return statusMessage;
+    }
+
+    return tenantLifecycle.failureMessage ?? statusMessage;
   }
 
   // 基于订单事实和最新支付单裁决 H5 当前可执行的在线支付动作
@@ -385,11 +471,13 @@ export class PaymentQueryService {
     } | null,
     status: PaymentStatusResponse['status'],
     activePaymentChannel: Awaited<ReturnType<PaymentTenantConfigService['getActivePaymentChannelSnapshot']>>,
+    tenantLifecycle: ReturnType<PaymentTenantLifecycleService['resolveH5PaymentLifecycle']>,
   ): PaymentAction {
     const orderSnapshot = toPaymentDomainOrderSnapshot(order);
-    const orderClosed = order.voided || orderSnapshot.status === OrderStatusEnum.EXPIRED;
+    const orderClosed = this.isOrderClosed(order.voided, orderSnapshot.status);
     const orderPaid = decimal(order.paid).gte(order.totalAmount.toString()) || orderSnapshot.status === OrderStatusEnum.PAID;
     const isActiveOnlineAttempt =
+      tenantLifecycle.canAcceptPayment &&
       status === PaymentOrderStatusEnum.PAYING &&
       paymentOrder?.status === PrismaPaymentOrderStatusEnum.PAYING &&
       paymentOrder.paymentMethod === PrismaPaymentMethodEnum.ONLINE &&
@@ -402,12 +490,13 @@ export class PaymentQueryService {
         canResume: true,
         resumeUrl: paymentOrder.cashierUrl,
         canInitiate: false,
-        expiresAt: paymentOrder.cashierExpiresAt?.toISOString() ?? null,
+        expiresAt: null,
       };
     }
 
     const onlinePaymentAvailability = this.paymentTenantConfigService.resolveOnlinePaymentAvailability(activePaymentChannel);
     const canInitiate =
+      tenantLifecycle.canAcceptPayment &&
       !orderClosed &&
       !orderPaid &&
       (status === PaymentOrderStatusEnum.UNPAID || status === PaymentOrderStatusEnum.EXPIRED) &&
@@ -502,5 +591,10 @@ export class PaymentQueryService {
       totalCount,
       abnormalCount,
     };
+  }
+
+  // 判断订单是否已关闭，统一覆盖作废与过期两类终止态
+  private isOrderClosed(voided: boolean, status: OrderStatus): boolean {
+    return voided || status === OrderStatusEnum.EXPIRED || status === OrderStatusEnum.VOIDED;
   }
 }

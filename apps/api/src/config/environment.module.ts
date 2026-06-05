@@ -2,11 +2,12 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { appConfig } from './app.config';
 import { authConfig } from './auth.config';
+import { validateEnv } from './env.validation';
 import { importConfig } from './import.config';
 import { paymentConfig } from './payment.config';
 import { redisConfig } from './redis.config';
 import { smsConfig } from './sms.config';
-import { validateEnv } from './env.validation';
+import { uploadConfig } from './upload.config';
 
 @Global()
 @Module({
@@ -16,7 +17,7 @@ import { validateEnv } from './env.validation';
       cache: true,
       expandVariables: true,
       envFilePath: ['.env.local', '.env'],
-      load: [appConfig, authConfig, redisConfig, paymentConfig, importConfig, smsConfig],
+      load: [appConfig, authConfig, redisConfig, paymentConfig, importConfig, smsConfig, uploadConfig],
       validate: validateEnv,
     }),
   ],

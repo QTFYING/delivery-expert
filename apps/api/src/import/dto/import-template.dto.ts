@@ -21,18 +21,6 @@ export class ImportTemplateFieldDto {
   @IsString()
   mapStr?: string | null;
 
-  @ApiProperty({ description: '是否系统必填（仅前端 UI 展示用）', example: true })
-  @IsBoolean()
-  isRequired!: boolean;
-
-  @ApiPropertyOptional({
-    description: '服务端 /preview 是否强制该列有值；服务端以系统定义为准，前端传入值仅作参考',
-    example: true,
-  })
-  @IsOptional()
-  @IsBoolean()
-  isValueRequired?: boolean;
-
   @ApiProperty({
     description: '字段来源',
     enum: Object.values(OrderImportTemplateFieldSourceTypeEnum),
@@ -55,23 +43,14 @@ export class ImportTemplateCustomerFieldCreateDto {
   @IsString()
   mapStr?: string | null;
 
-  @ApiPropertyOptional({
-    description: '服务端 /preview 是否强制该自定义列有值，未传默认 false',
-    example: false,
-  })
-  @IsOptional()
-  @IsBoolean()
-  isValueRequired?: boolean;
-
-  @ApiPropertyOptional({
-    description: '字段来源，默认 list',
+  @ApiProperty({
+    description: '字段来源',
     enum: Object.values(OrderImportTemplateFieldSourceTypeEnum),
     example: OrderImportTemplateFieldSourceTypeEnum.LIST,
   })
-  @IsOptional()
   @IsString()
   @IsIn(Object.values(OrderImportTemplateFieldSourceTypeEnum))
-  type?: (typeof OrderImportTemplateFieldSourceTypeEnum)[keyof typeof OrderImportTemplateFieldSourceTypeEnum];
+  type!: (typeof OrderImportTemplateFieldSourceTypeEnum)[keyof typeof OrderImportTemplateFieldSourceTypeEnum];
 }
 
 export class ImportTemplateCustomerFieldUpdateDto extends ImportTemplateCustomerFieldCreateDto {

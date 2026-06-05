@@ -68,7 +68,7 @@ export class TenantProfileSwagger implements TenantProfileContract {
   maxCreditDays!: number;
 
   @ApiProperty({ description: '账期提醒天数', example: 3 })
-  creditReminderDays!: number;
+  creditRemindDays!: number;
 
   @ApiProperty({ description: '创建时间', example: '2026-04-11T09:00:00.000Z' })
   createdAt!: string;

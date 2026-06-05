@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Post, Query, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Patch, Post, Query, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import { Request, Response } from 'express';
@@ -14,6 +14,7 @@ import { LoginDto } from './dto/login.dto';
 import { PasswordResetDto } from './dto/password-reset.dto';
 import { SendSmsCodeDto } from './dto/send-sms-code.dto';
 import { SmsLoginDto } from './dto/sms-login.dto';
+import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @ApiTags('Auth - 鉴权中心')
@@ -140,6 +141,19 @@ export class AuthController {
   @ApiOkResponse({ description: '返回用户信息', type: AuthMeResponseSwagger })
   async me(@CurrentUser() currentUser: JwtPayload) {
     return this.authService.getMe(currentUser);
+  }
+
+  // 更新当前登录用户资料 当前仅消费头像 uploadId
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: '更新当前用户资料',
+    description: '当前仅支持消费 user_avatar 上传结果更新或清空头像',
+  })
+  @ApiOkResponse({ description: '返回更新后的用户信息', type: AuthMeResponseSwagger })
+  async updateMe(@CurrentUser() currentUser: JwtPayload, @Body() request: UpdateMyProfileDto) {
+    return this.authService.updateMe(currentUser, request);
   }
 
   // 修改当前登录用户密码并清理旧会话

@@ -27,6 +27,7 @@ import {
 import { PaymentLedgerService } from './payment-ledger.service';
 import { PaymentQueryService } from './payment-query.service';
 import { PaymentTenantConfigService } from './payment-tenant-config.service';
+import { PaymentTenantLifecycleService } from './payment-tenant-lifecycle.service';
 import { PaymentWindowService } from './payment-window.service';
 import { buildActivateOnlinePaymentAttemptTransition, buildGatewayCreateFailedTransition, resolvePaymentOrderStatus } from './payment.domain';
 import type { ActivatedOnlinePaymentAttempt, PreparedOnlinePaymentAttempt } from './payment-initiation.types';
@@ -45,6 +46,7 @@ export class PaymentInitiationService {
     private readonly queryService: PaymentQueryService,
     private readonly ledgerService: PaymentLedgerService,
     private readonly paymentTenantConfigService: PaymentTenantConfigService,
+    private readonly paymentTenantLifecycleService: PaymentTenantLifecycleService,
     private readonly paymentWindowService: PaymentWindowService,
     private readonly gatewayRegistry: PaymentGatewayRegistry,
   ) {}
@@ -58,6 +60,7 @@ export class PaymentInitiationService {
     if (order.voided) {
       throw new BusinessException(1002, '二维码路由已过期', 410);
     }
+    await this.assertTenantLifecycleAllowed(order.tenantId);
     await this.paymentWindowService.assertOrderWithinPaymentWindow({
       tenantId: order.tenantId,
       createdAt: order.createdAt,
@@ -107,6 +110,7 @@ export class PaymentInitiationService {
       if (currentOrder.voided) {
         throw new BusinessException(1002, '二维码路由已过期', 410);
       }
+      await this.assertTenantLifecycleAllowed(currentOrder.tenantId, tx);
       await this.assertOrderWithinPaymentWindow(
         {
           tenantId: currentOrder.tenantId,
@@ -163,6 +167,7 @@ export class PaymentInitiationService {
       if (currentOrder.voided) {
         throw new BusinessException(1002, '二维码路由已过期', 410);
       }
+      await this.assertTenantLifecycleAllowed(currentOrder.tenantId, tx);
       await this.assertOrderWithinPaymentWindow(
         {
           tenantId: currentOrder.tenantId,
@@ -291,6 +296,7 @@ export class PaymentInitiationService {
       if (currentOrder.voided) {
         throw new BusinessException(1002, '二维码路由已过期', 410);
       }
+      await this.assertTenantLifecycleAllowed(currentOrder.tenantId, tx);
       await this.assertOrderWithinPaymentWindow(
         {
           tenantId: currentOrder.tenantId,
@@ -392,6 +398,12 @@ export class PaymentInitiationService {
     }
 
     return error.message || '当前商户拉卡拉配置不可用，请联系管理员';
+  }
+
+  /** 在支付发起链路的每个关键节点确认租户仍允许 H5 收款 */
+  private async assertTenantLifecycleAllowed(tenantId: string, client: Prisma.TransactionClient | PrismaService = this.prisma): Promise<void> {
+    const decision = await this.paymentTenantLifecycleService.resolveH5PaymentLifecycleByTenantId(tenantId, client);
+    this.paymentTenantLifecycleService.assertH5PaymentLifecycleAllowed(decision);
   }
 
   /**

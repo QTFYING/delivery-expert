@@ -1,10 +1,20 @@
-import { Prisma, OrderPayTypeEnum as PrismaOrderPayTypeEnum, OrderStatusEnum as PrismaOrderStatusEnum } from '@prisma/client';
-import type { AdminOrderItem, CreditOrderItem, OrderLineItem, TenantOrderItem } from '@shou/types/contracts';
+import {
+  Prisma,
+  OrderCreditTypeEnum as PrismaOrderCreditTypeEnum,
+  OrderPayTypeEnum as PrismaOrderPayTypeEnum,
+  OrderStatusEnum as PrismaOrderStatusEnum,
+  PaymentMethodEnum as PrismaPaymentMethodEnum,
+  OfflinePaymentVerifyStatusEnum as PrismaOfflinePaymentVerifyStatusEnum,
+} from '@prisma/client';
+import type { AdminOrderItem, CreditOrderItem, OfflinePaymentInfo, OrderLineItem, TenantOrderItem, TenantOrderListItem } from '@shou/types/contracts';
+import { CreditTypeEnum, OrderPayTypeEnum, type CreditType } from '@shou/types/enums';
 import dayjs from 'dayjs';
 import { toDecimal, toMoney, toMoneyNumber, toDecimalNumber, toPrismaDecimal } from '../../common/money';
 import { formatDateTime } from '../../common/validators';
 import { resolveCreditOrderStatus } from '../order.domain';
-import { fromPrismaOrderPayType, fromPrismaOrderStatus } from './order-enum.mapper';
+import { resolveCreditDays } from '../order-credit.domain';
+import { fromPrismaOfflinePaymentVerifyStatus, fromPrismaPaymentMethod, offlineVerifyStatusText } from '../../payment/mapping/payment.mapper';
+import { fromPrismaOrderCreditType, fromPrismaOrderPayType, fromPrismaOrderStatus } from './order-enum.mapper';
 
 export function toLineItemCreateInput(item: OrderLineItem): Prisma.OrderItemCreateWithoutOrderInput {
   return {
@@ -46,6 +56,9 @@ interface OrderRowBase {
   customerFieldValues?: Prisma.JsonValue | null;
   status: PrismaOrderStatusEnum;
   payType: PrismaOrderPayTypeEnum;
+  creditType?: PrismaOrderCreditTypeEnum | string | null;
+  creditDays?: number | null;
+  creditDueDate?: Date | null;
   prints: number;
   lastPrintedAt: Date | null;
   printFailedCount: number;
@@ -54,6 +67,13 @@ interface OrderRowBase {
   voided: boolean;
   voidReason: string | null;
   voidedAt: Date | null;
+  paymentOrders?: Array<{
+    paymentMethod: PrismaPaymentMethodEnum | null;
+    offlineRemark: string | null;
+    offlineVerifyStatus: PrismaOfflinePaymentVerifyStatusEnum | null;
+    offlineSubmittedAt: Date | null;
+    offlineVerifiedAt: Date | null;
+  }>;
   lineItems: Array<{
     id: bigint;
     skuId: string | null;
@@ -68,6 +88,56 @@ interface OrderRowBase {
   }>;
 }
 
+type OrderOfflinePaymentRow = NonNullable<OrderRowBase['paymentOrders']>[number];
+
+function toOfflinePaymentInfo(paymentOrder: OrderOfflinePaymentRow | null): OfflinePaymentInfo | null {
+  if (!paymentOrder?.offlineSubmittedAt || !paymentOrder.paymentMethod) {
+    return null;
+  }
+
+  const method = fromPrismaPaymentMethod(paymentOrder.paymentMethod);
+  if (method !== 'cash' && method !== 'other_paid') {
+    return null;
+  }
+
+  return {
+    method,
+    remark: paymentOrder.offlineRemark ?? '',
+    offlineVerifyStatus: paymentOrder.offlineVerifyStatus ? fromPrismaOfflinePaymentVerifyStatus(paymentOrder.offlineVerifyStatus) : null,
+    offlineVerifyStatusText: offlineVerifyStatusText(paymentOrder.offlineVerifyStatus),
+    submittedAt: paymentOrder.offlineSubmittedAt.toISOString(),
+    verifiedAt: paymentOrder.offlineVerifiedAt?.toISOString() ?? null,
+  };
+}
+
+export function toTenantOrderListItem(order: Omit<OrderRowBase, 'lineItems'>): TenantOrderListItem {
+  return {
+    id: order.id,
+    sourceOrderNo: order.sourceOrderNo ?? undefined,
+    groupKey: order.groupKey ?? undefined,
+    mappingTemplateId: order.mappingTemplateId != null ? String(order.mappingTemplateId) : undefined,
+    qrCodeToken: order.qrCodeToken,
+    customer: order.customer,
+    customerPhone: order.customerPhone ?? null,
+    customerAddress: order.customerAddress ?? '',
+    totalAmount: toMoneyNumber(order.totalAmount),
+    paid: toMoneyNumber(order.paid),
+    offlinePayment: toOfflinePaymentInfo(order.paymentOrders?.[0] ?? null),
+    status: fromPrismaOrderStatus(order.status),
+    payType: fromPrismaOrderPayType(order.payType),
+    ...toOrderCreditFields(order),
+    prints: order.prints,
+    lastPrintedAt: formatDateTime(order.lastPrintedAt),
+    printFailedCount: order.printFailedCount,
+    lastFailedAt: formatDateTime(order.lastFailedAt),
+    orderTime: formatDateTime(order.orderTime),
+    customerFieldValues: toCustomerFieldValues(order.customerFieldValues ?? null),
+    voided: order.voided,
+    voidReason: order.voidReason ?? undefined,
+    voidedAt: formatDateTime(order.voidedAt),
+  };
+}
+
 export function toTenantOrder(order: OrderRowBase): TenantOrderItem {
   return {
     id: order.id,
@@ -80,8 +150,10 @@ export function toTenantOrder(order: OrderRowBase): TenantOrderItem {
     customerAddress: order.customerAddress ?? '',
     totalAmount: toMoneyNumber(order.totalAmount),
     paid: toMoneyNumber(order.paid),
+    offlinePayment: toOfflinePaymentInfo(order.paymentOrders?.[0] ?? null),
     status: fromPrismaOrderStatus(order.status),
     payType: fromPrismaOrderPayType(order.payType),
+    ...toOrderCreditFields(order),
     prints: order.prints,
     lastPrintedAt: formatDateTime(order.lastPrintedAt),
     printFailedCount: order.printFailedCount,
@@ -106,27 +178,69 @@ export function toTenantOrder(order: OrderRowBase): TenantOrderItem {
   };
 }
 
-export function toCreditOrderItem(order: {
-  id: string;
-  customer: string;
-  totalAmount: Prisma.Decimal;
-  orderTime: Date;
-  creditDays: number | null;
-  creditDueDate: Date | null;
-}): CreditOrderItem {
-  const dueDate =
-    order.creditDueDate ??
-    dayjs(order.orderTime)
-      .add(order.creditDays ?? 0, 'day')
-      .toDate();
+export function toCreditOrderItem(
+  order: {
+    id: string;
+    customer: string;
+    totalAmount: Prisma.Decimal;
+    orderTime: Date;
+    creditType?: PrismaOrderCreditTypeEnum | string | null;
+    creditDays: number | null;
+    creditDueDate: Date | null;
+  },
+  remindDays?: number,
+): CreditOrderItem {
+  const creditFields = resolveOrderCreditFields({
+    payType: PrismaOrderPayTypeEnum.CREDIT,
+    orderTime: order.orderTime,
+    creditType: order.creditType,
+    creditDays: order.creditDays,
+    creditDueDate: order.creditDueDate,
+  });
+  const dueDate = creditFields.dueDate
+    ? new Date(creditFields.dueDate)
+    : dayjs(order.orderTime)
+        .add(creditFields.creditDays ?? 0, 'day')
+        .toDate();
+
   return {
     id: order.id,
     customer: order.customer,
     amount: toMoneyNumber(order.totalAmount),
+    payType: OrderPayTypeEnum.CREDIT,
+    creditType: creditFields.creditType ?? CreditTypeEnum.PERIOD,
     date: formatDateTime(order.orderTime),
-    creditDays: order.creditDays ?? 0,
+    creditDays: creditFields.creditDays ?? 0,
+    dueDate: creditFields.dueDate ?? formatDateTime(dueDate),
+    creditStatus: resolveCreditOrderStatus(dueDate, new Date(), remindDays),
+  };
+}
+
+function toOrderCreditFields(
+  order: Pick<OrderRowBase, 'payType' | 'orderTime' | 'creditType' | 'creditDays' | 'creditDueDate'>,
+): Pick<TenantOrderItem, 'creditType' | 'creditDays' | 'dueDate'> {
+  return resolveOrderCreditFields(order);
+}
+
+function resolveOrderCreditFields(order: {
+  payType: PrismaOrderPayTypeEnum;
+  orderTime: Date;
+  creditType?: PrismaOrderCreditTypeEnum | string | null;
+  creditDays?: number | null;
+  creditDueDate?: Date | null;
+}): { creditType: CreditType | null; creditDays: number | null; dueDate: string | null } {
+  if (order.payType !== PrismaOrderPayTypeEnum.CREDIT) {
+    return { creditType: null, creditDays: null, dueDate: null };
+  }
+
+  const creditType = fromPrismaOrderCreditType(order.creditType) ?? CreditTypeEnum.PERIOD;
+  const creditDays = order.creditDays ?? resolveCreditDays(creditType) ?? 0;
+  const dueDate = order.creditDueDate ?? dayjs(order.orderTime).add(creditDays, 'day').toDate();
+
+  return {
+    creditType,
+    creditDays,
     dueDate: formatDateTime(dueDate),
-    creditStatus: resolveCreditOrderStatus(dueDate),
   };
 }
 
@@ -158,6 +272,7 @@ export function toAdminOrder(order: OrderRowBase & { tenant: { name: string } })
     paid: toMoneyNumber(order.paid),
     status: fromPrismaOrderStatus(order.status),
     payType: fromPrismaOrderPayType(order.payType),
+    ...toOrderCreditFields(order),
     orderTime: formatDateTime(order.orderTime),
     voided: order.voided,
     voidReason: order.voidReason ?? undefined,

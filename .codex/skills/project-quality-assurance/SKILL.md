@@ -14,14 +14,15 @@ description: 作为本项目的最终质量闸门使用。完成一批接口、�
 
 ## 必做顺序
 
-1. 先对照 `docs/api`、`enums`、`contracts`、`data-model-reference` 检查是否漂移。
+1. 先按 [AGENTS.md](../../../AGENTS.md) 的事实源职责检查文档、枚举、Swagger / DTO、contracts 与 schema 是否漂移。
 2. 再检查多租户隔离、金额口径、状态机和幂等是否自洽。
 3. 再检查是否残留旧字段、旧接口、旧状态或废弃链路。
 4. 能跑验证时，至少执行与改动匹配的 build、smoke 和回归测试；不能跑就明确说明。
 
 ## 硬约束
 
-- 发现事实源冲突时，按 `docs/api -> enums -> contracts -> data-model-reference -> code -> Swagger` 回溯。
+- 发现业务语义冲突时，按 AGENTS 定义的事实源职责回溯。
+- 发现传输结构漂移时，优先核对 `Swagger/DTO <-> contracts` 的字段、可选性、`nullable` 与示例，再判断是否影响 `docs/api` 语义。
 - 旧字段名与新字段名同时存在，默认视为风险。
 - 订单状态、支付状态、账务流水互相打架，默认视为风险。
 - 废弃链路重新进入主流程，默认视为风险。

@@ -4,6 +4,5 @@ export * from './tenant';
 export * from './order';
 export * from './payment';
 export * from './permission';
-export * from './billing';
-export * from './ops';
+export * from './upload';
 export * from './finance';

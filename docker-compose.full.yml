@@ -1,3 +1,36 @@
+x-backend-runtime: &backend-runtime
+  image: shou-backend:latest
+  restart: always
+  depends_on:
+    - postgres
+    - redis
+
+x-backend-build: &backend-build
+  context: .
+  dockerfile: Dockerfile
+  target: api
+
+x-backend-env: &backend-env
+  DATABASE_URL: ${DATABASE_URL}
+  REDIS_URL: ${REDIS_URL}
+  JWT_SECRET: ${JWT_SECRET}
+  CORS_ORIGINS: ${CORS_ORIGINS}
+  NODE_ENV: production
+  TZ: UTC
+  AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
+
+x-lakala-env: &lakala-env
+  LAKALA_BASE_URL: ${LAKALA_BASE_URL:-}
+  LAKALA_APP_ID: ${LAKALA_APP_ID:-}
+  LAKALA_SERIAL_NO: ${LAKALA_SERIAL_NO:-}
+  LAKALA_PRIVATE_KEY: ${LAKALA_PRIVATE_KEY:-}
+  LAKALA_PLATFORM_PUBLIC_KEY: ${LAKALA_PLATFORM_PUBLIC_KEY:-}
+  LAKALA_NOTIFY_URL: ${LAKALA_NOTIFY_URL:-}
+
+x-import-env: &import-env
+  IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS: ${IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS:-900}
+  IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS: ${IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS:-60}
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -22,59 +55,34 @@ services:
     restart: always
 
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: api
-    container_name: shou-api
+    <<: *backend-runtime
+    build: *backend-build
+    container_name: shou-api-server
     ports:
       - '3000:3000'
     environment:
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
-      JWT_SECRET: ${JWT_SECRET}
-      CORS_ORIGINS: ${CORS_ORIGINS}
-      NODE_ENV: production
+      <<: [*backend-env, *lakala-env, *import-env]
       PORT: 3000
-      TZ: UTC
-      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
       IMPORT_JOB_WORKER_ENABLED: 'false'
-      IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS: ${IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS:-900}
-      IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS: ${IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS:-60}
-      LAKALA_BASE_URL: ${LAKALA_BASE_URL:-}
-      LAKALA_APP_ID: ${LAKALA_APP_ID:-}
-      LAKALA_SERIAL_NO: ${LAKALA_SERIAL_NO:-}
-      LAKALA_PRIVATE_KEY: ${LAKALA_PRIVATE_KEY:-}
-      LAKALA_PLATFORM_PUBLIC_KEY: ${LAKALA_PLATFORM_PUBLIC_KEY:-}
-      LAKALA_NOTIFY_URL: ${LAKALA_NOTIFY_URL:-}
-    depends_on:
-      - postgres
-      - redis
-    restart: always
+
+  payment-api:
+    <<: *backend-runtime
+    container_name: shou-pay-server
+    command: ['node', 'dist/payment.main']
+    ports:
+      - '3001:3001'
+    environment:
+      <<: [*backend-env, *lakala-env]
+      PAYMENT_PORT: 3001
 
   import-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: api
+    <<: *backend-runtime
     container_name: shou-import-worker
     command: ['node', 'dist/import-worker.main']
     environment:
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
-      JWT_SECRET: ${JWT_SECRET}
-      CORS_ORIGINS: ${CORS_ORIGINS}
-      NODE_ENV: production
+      <<: [*backend-env, *import-env]
       PORT: 3000
-      TZ: UTC
-      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
       IMPORT_JOB_WORKER_ENABLED: 'true'
-      IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS: ${IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS:-900}
-      IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS: ${IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS:-60}
-    depends_on:
-      - postgres
-      - redis
-    restart: always
 
   nginx:
     image: nginx:1.27-alpine
@@ -85,11 +93,13 @@ services:
       - '5003:5003'
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./proxy-common.conf:/etc/nginx/proxy-common.conf:ro
       - ./deploy/frontend/admin:/usr/share/nginx/admin:ro
       - ./deploy/frontend/tenant:/usr/share/nginx/tenant:ro
       - ./deploy/frontend/pay-h5:/usr/share/nginx/pay-h5:ro
     depends_on:
       - api
+      - payment-api
     restart: always
 
 volumes:

@@ -4,8 +4,9 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuthorizationModule } from '../authorization/authorization.module';
 import { authConfig } from '../config/auth.config';
 import { SmsModule } from '../sms/sms.module';
-import { AuthController } from './auth.controller';
+import { UploadModule } from '../upload/upload.module';
 import { AuthSmsService } from './auth-sms.service';
+import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 
@@ -13,6 +14,7 @@ import { JwtStrategy } from './jwt.strategy';
   imports: [
     AuthorizationModule,
     SmsModule,
+    UploadModule,
     JwtModule.registerAsync({
       inject: [authConfig.KEY],
       useFactory: (settings: ConfigType<typeof authConfig>) => ({

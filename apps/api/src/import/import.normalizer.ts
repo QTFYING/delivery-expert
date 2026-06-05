@@ -7,10 +7,11 @@ import type {
   OrderImportTemplateField,
   OrderLineItem,
 } from '@shou/types/contracts';
-import type { OrderPayType } from '@shou/types/enums';
+import type { CreditType, OrderPayType } from '@shou/types/enums';
 import Decimal from 'decimal.js';
-import { cut } from '../common/validators';
-import { readLocalDateTime, readMoney, readPayType, readString } from './mapping/import.mapper';
+import { cut, formatLocalDateTime, parseLocalDateTime } from '../common/validators';
+import { normalizeSettlementType, resolveCreditDays, resolveCreditDueDate } from '../order/order-credit.domain';
+import { readLocalDateTime, readMoney, readString } from './mapping/import.mapper';
 
 export type ImportCustomerFieldMap = Map<string, OrderImportTemplateField>;
 export type ImportFieldLabelMap = Map<string, string>;
@@ -34,6 +35,9 @@ export interface PreparedImportOrder {
   totalAmount: number;
   orderTime: string;
   payType: OrderPayType;
+  creditType: CreditType | null;
+  creditDays: number | null;
+  creditDueDate: string | null;
   customerFieldValues: Record<string, string>;
   mappingTemplateId?: string;
   lineItems: OrderLineItem[];
@@ -53,11 +57,11 @@ export function normalizePreviewOrder(
   const sourceOrderNo = readString(order.sourceOrderNo);
   const customer = readString(order.customer);
   const customerPhone = readString(order.customerPhone) ?? null;
-  const customerAddress = readString(order.customerAddress);
+  const customerAddress = readString(order.customerAddress) ?? '';
   const groupKey = readString(order.groupKey) ?? sourceOrderNo;
   const totalAmount = readMoney(order.totalAmount);
   const orderTime = readLocalDateTime(order.orderTime);
-  const payType = readPayType(order.payType);
+  const settlementType = normalizeSettlementType(order.payType);
   const labelOf = (key: string): string => fieldLabelMap.get(key) ?? key;
   const hasInputValue = (value: unknown): boolean => readString(value) !== undefined;
 
@@ -85,9 +89,9 @@ export function normalizePreviewOrder(
       : `${labelOf('orderTime')}不能为空`;
     errors.push({ index, sourceOrderNo, field: 'orderTime', reason });
   }
-  if (needValue('payType') && !payType) {
+  if (needValue('payType') && !settlementType) {
     const reason = hasInputValue(order.payType)
-      ? `${labelOf('payType')}不正确，仅支持 cash（现款）或 credit（账期）`
+      ? `${labelOf('payType')}不正确，仅支持 cash、credit、现款、现金、月结、周结、账期、赊账或滚结`
       : `${labelOf('payType')}不能为空`;
     errors.push({
       index,
@@ -121,9 +125,12 @@ export function normalizePreviewOrder(
   );
   errors.push(...lineItems.errors);
 
-  if (errors.length > 0 || !sourceOrderNo || !customer || !customerAddress || !totalAmount || !orderTime || !payType) {
+  if (errors.length > 0 || !sourceOrderNo || !customer || totalAmount === undefined || !orderTime || !settlementType) {
     return { error: errors };
   }
+
+  const creditDays = resolveCreditDays(settlementType.creditType);
+  const creditDueDate = resolveCreditDueDate(parsePreparedOrderTime(orderTime), creditDays);
 
   return {
     value: {
@@ -135,7 +142,10 @@ export function normalizePreviewOrder(
       customerAddress,
       totalAmount: Number(totalAmount.toFixed(2)),
       orderTime,
-      payType,
+      payType: settlementType.payType,
+      creditType: settlementType.creditType,
+      creditDays,
+      creditDueDate: formatLocalDateTime(creditDueDate) ?? null,
       customerFieldValues: customerFieldValues.values,
       mappingTemplateId: templateId,
       lineItems: lineItems.values,
@@ -363,6 +373,14 @@ function normalizeScopedCustomerFieldValues(
 
 function getCustomerFieldLabel(field: OrderImportTemplateField): string {
   return readString(field.label) ?? field.key;
+}
+
+function parsePreparedOrderTime(value: string): Date {
+  const parsed = parseLocalDateTime(value);
+  if (!parsed) {
+    throw new Error(`导入订单下单时间格式异常：${value}`);
+  }
+  return parsed;
 }
 
 export function buildPreviewSummary(

@@ -1,29 +1,44 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { PaymentMethodEnum as PrismaPaymentMethodEnum } from '@prisma/client';
 import type { PaginatedResponse } from '@shou/types/common';
-import type { TenantOrderItem } from '@shou/types/contracts';
+import type { TenantOrderItem, TenantOrderListItem } from '@shou/types/contracts';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
 import { formatDateTime, normalizePage, normalizePageSize } from '../common/validators';
+import { PaymentWindowService } from '../payment/payment-window.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ListOrdersQueryDto } from './dto/list-orders.query.dto';
-import { toTenantOrder } from './mapping/order.mapper';
+import { toTenantOrder, toTenantOrderListItem } from './mapping/order.mapper';
 import { buildOrderListWhere } from './order.query';
 import { getOrderTenantId } from './order.shared';
 
 @Injectable()
 export class OrderTenantQueryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly paymentWindowService: PaymentWindowService,
+  ) {}
+
+  private readonly latestOfflinePaymentOrderInclude = {
+    where: {
+      offlineSubmittedAt: { not: null },
+      paymentMethod: { in: [PrismaPaymentMethodEnum.CASH, PrismaPaymentMethodEnum.OTHER_PAID] },
+    },
+    orderBy: [{ offlineSubmittedAt: 'desc' as const }, { createdAt: 'desc' as const }],
+    take: 1,
+  };
 
   // 获取租户侧订单列表，自动注入 tenantId 过滤
-  async findAll(currentUser: JwtPayload, query: ListOrdersQueryDto): Promise<PaginatedResponse<TenantOrderItem>> {
+  async findAll(currentUser: JwtPayload, query: ListOrdersQueryDto): Promise<PaginatedResponse<TenantOrderListItem>> {
     const tenantId = getOrderTenantId(currentUser);
     const page = normalizePage(query.page);
     const pageSize = normalizePageSize(query.pageSize);
-    const where = buildOrderListWhere(tenantId, query);
+    const qrCodeExpiryDays = await this.paymentWindowService.getTenantQrCodeExpiryDays(tenantId);
+    const where = buildOrderListWhere(tenantId, query, [{ tenantId, qrCodeExpiryDays }]);
 
     const [orders, total] = await Promise.all([
       this.prisma.order.findMany({
         where,
-        include: { lineItems: true },
+        include: { paymentOrders: this.latestOfflinePaymentOrderInclude },
         orderBy: [{ orderTime: 'desc' }, { createdAt: 'desc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -33,7 +48,7 @@ export class OrderTenantQueryService {
 
     return {
       list: orders.map((order) => ({
-        ...toTenantOrder(order),
+        ...toTenantOrderListItem(order),
         lastPrintedAt: formatDateTime(order.lastPrintedAt),
         lastFailedAt: formatDateTime(order.lastFailedAt),
         orderTime: formatDateTime(order.orderTime),
@@ -50,7 +65,7 @@ export class OrderTenantQueryService {
     const tenantId = getOrderTenantId(currentUser);
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, tenantId, deletedAt: null },
-      include: { lineItems: true },
+      include: { lineItems: true, paymentOrders: this.latestOfflinePaymentOrderInclude },
     });
 
     if (!order) {

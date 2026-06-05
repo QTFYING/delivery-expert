@@ -1,0 +1,17 @@
+[[sources]]
+id = "shou_prod"
+description = "收单吧生产环境 PostgreSQL"
+dsn = "${SHOU_PROD_DBHUB_DSN}"
+search_path = "public"
+connection_timeout = 10
+query_timeout = 10
+
+[[tools]]
+name = "execute_sql"
+source = "shou_prod"
+readonly = true
+max_rows = 100
+
+[[tools]]
+name = "search_objects"
+source = "shou_prod"

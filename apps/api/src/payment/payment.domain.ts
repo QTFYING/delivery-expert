@@ -1,10 +1,10 @@
 import {
-  CashVerifyStatusEnum,
+  OfflinePaymentVerifyStatusEnum,
   OfflinePaymentMethodEnum,
   OrderStatusEnum,
   PaymentMethodEnum,
   PaymentOrderStatusEnum,
-  type CashVerifyStatus,
+  type OfflinePaymentVerifyStatus,
   type OfflinePaymentMethod,
   type OrderStatus,
   type PaymentChannel,
@@ -45,8 +45,8 @@ export type PaymentOrderUpdateData = {
   cashierUrl?: string | null;
   cashierExpiresAt?: Date | null;
   paidAt?: Date;
-  cashVerifyStatus?: CashVerifyStatus;
-  cashVerifiedAt?: Date;
+  offlineVerifyStatus?: OfflinePaymentVerifyStatus;
+  offlineVerifiedAt?: Date;
 };
 
 /**
@@ -89,7 +89,7 @@ export function resolvePaymentOrderStatus(
   const amountDecimal = new Decimal(order.totalAmount.toString());
   const paidDecimal = new Decimal(order.paid.toString());
 
-  if (order.voided || order.status === OrderStatusEnum.EXPIRED) {
+  if (isOrderClosed(order)) {
     return PaymentOrderStatusEnum.EXPIRED;
   }
   if (paidDecimal.gte(amountDecimal) || order.status === OrderStatusEnum.PAID) {
@@ -139,7 +139,7 @@ export function resolveOnlinePaymentSettlementDecision(
     };
   }
 
-  if (order.voided || order.status === OrderStatusEnum.EXPIRED) {
+  if (isOrderClosed(order)) {
     return { allowed: false, reason: '订单已作废或过期' };
   }
 
@@ -237,7 +237,7 @@ export function buildGatewayPaymentSucceededTransition(
 ): PaymentOrderTransitionDecision<PaymentOrderUpdateData> {
   const settlementDecision = resolveOnlinePaymentSettlementDecision(order, paymentOrder);
   if (!settlementDecision.allowed) {
-    if (order.voided || order.status === OrderStatusEnum.EXPIRED) {
+    if (isOrderClosed(order)) {
       return { allowed: false, code: 'ORDER_CLOSED', reason: settlementDecision.reason };
     }
     if (new Decimal(order.paid.toString()).gte(new Decimal(order.totalAmount.toString())) || order.status === OrderStatusEnum.PAID) {
@@ -269,8 +269,12 @@ export function buildGatewayPaymentSucceededTransition(
   };
 }
 
+function isOrderClosed(order: Pick<PaymentOrderAggregateSnapshot, 'status' | 'voided'>): boolean {
+  return order.voided || order.status === OrderStatusEnum.EXPIRED || order.status === OrderStatusEnum.VOIDED;
+}
+
 // H5 线下支付登记的支付单初始状态，由线下方式闭集统一推导
-export function buildCashPaymentSubmittedTransition(
+export function buildOfflinePaymentSubmittedTransition(
   paymentMethod: OfflinePaymentMethod,
   _now: Date,
 ): PaymentOrderTransitionDecision<PaymentOrderUpdateData> {
@@ -280,8 +284,8 @@ export function buildCashPaymentSubmittedTransition(
       data: {
         status: PaymentOrderStatusEnum.PENDING_VERIFICATION,
         paymentMethod: PaymentMethodEnum.CASH,
-        statusMessage: '订单待核销',
-        cashVerifyStatus: CashVerifyStatusEnum.PENDING,
+        statusMessage: '线下登记待确认',
+        offlineVerifyStatus: OfflinePaymentVerifyStatusEnum.PENDING,
       },
     };
   }
@@ -293,7 +297,7 @@ export function buildCashPaymentSubmittedTransition(
         status: PaymentOrderStatusEnum.PENDING_VERIFICATION,
         paymentMethod: PaymentMethodEnum.OTHER_PAID,
         statusMessage: '线下付款备注待确认',
-        cashVerifyStatus: CashVerifyStatusEnum.PENDING,
+        offlineVerifyStatus: OfflinePaymentVerifyStatusEnum.PENDING,
       },
     };
   }
@@ -302,7 +306,7 @@ export function buildCashPaymentSubmittedTransition(
 }
 
 // 财务确认只允许线下待确认支付单进入 PAID
-export function buildCashPaymentVerifiedTransition(
+export function buildOfflinePaymentVerifiedTransition(
   paymentOrder: PaymentOrderTransitionSnapshot,
   verifiedAt: Date,
 ): PaymentOrderTransitionDecision<PaymentOrderUpdateData> {
@@ -317,9 +321,9 @@ export function buildCashPaymentVerifiedTransition(
     allowed: true,
     data: {
       status: PaymentOrderStatusEnum.PAID,
-      statusMessage: '现金已核销',
-      cashVerifyStatus: CashVerifyStatusEnum.VERIFIED,
-      cashVerifiedAt: verifiedAt,
+      statusMessage: '线下登记已确认',
+      offlineVerifyStatus: OfflinePaymentVerifyStatusEnum.VERIFIED,
+      offlineVerifiedAt: verifiedAt,
       paidAt: verifiedAt,
     },
   };

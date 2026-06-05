@@ -18,35 +18,41 @@
 
 ## 核心变量
 
-| 变量                                              | 必填 | 说明                                                                |
-| ------------------------------------------------- | ---- | ------------------------------------------------------------------- |
-| `DATABASE_URL`                                    | 是   | Prisma PostgreSQL 连接串                                            |
-| `REDIS_URL`                                       | 是   | Redis 连接串                                                        |
-| `JWT_SECRET`                                      | 是   | JWT 签名密钥                                                        |
-| `CORS_ORIGINS`                                    | 是   | 允许跨域访问的前端来源，多个用英文逗号分隔                          |
-| `PORT`                                            | 否   | API 监听端口，默认 `3000`                                           |
-| `NODE_ENV`                                        | 是   | `development` 或 `production`                                       |
-| `TZ`                                              | 是   | 固定为 `UTC`，API / Worker 运行环境统一使用 UTC                     |
-| `AUTH_COOKIE_SECURE`                              | 是   | HTTPS 环境为 `true`，本地 HTTP 为 `false`                           |
-| `IMPORT_JOB_WORKER_ENABLED`                       | 是   | API 进程为 `false`，Worker 进程为 `true`                            |
-| `IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS`            | 否   | 租户级活动正式导入任务占位 TTL，单位秒，默认 `900`                  |
-| `IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS` | 否   | 租户级活动正式导入任务续期间隔，单位秒，默认 `60`，且必须小于 TTL   |
-| `SMS_SEND_ENABLED`                                | 否   | 是否真实调用阿里云发送短信，默认 `false`                            |
-| `SMS_DEBUG_CODE_VISIBLE`                          | 否   | 是否允许 debug 查码接口返回 Redis 明文验证码，默认 `true`           |
-| `ALIYUN_ACCESS_KEY_ID`                            | 否   | 阿里云 AccessKey ID；`SMS_SEND_ENABLED=true` 时必填                 |
-| `ALIYUN_ACCESS_KEY_SECRET`                        | 否   | 阿里云 AccessKey Secret；`SMS_SEND_ENABLED=true` 时必填             |
-| `ALIYUN_SMS_ENDPOINT`                             | 否   | 阿里云号码认证服务 PNVS Endpoint，默认 `dypnsapi.aliyuncs.com`      |
-| `ALIYUN_SMS_SIGN_NAME`                            | 否   | 阿里云短信签名，当前默认 `速通互联验证码`                           |
-| `ALIYUN_SMS_LOGIN_TEMPLATE_CODE`                  | 否   | Tenant 短信登录模板 Code，当前默认 `100001`                         |
-| `ALIYUN_SMS_PASSWORD_RESET_TEMPLATE_CODE`         | 否   | Tenant 找回密码模板 Code，当前默认 `100001`                         |
-| `ALIYUN_CAPTCHA_ENDPOINT`                         | 否   | 阿里云验证码 2.0 Endpoint，默认 `captcha.cn-shanghai.aliyuncs.com`  |
-| `ALIYUN_CAPTCHA_SCENE_ID`                         | 否   | 阿里云验证码 2.0 SceneId；和 AccessKey 齐全时启用滑块校验           |
-| `LAKALA_BASE_URL`                                 | 否   | 拉卡拉网关基础地址；启用拉卡拉时填写，默认 `https://api.lakala.com` |
-| `LAKALA_APP_ID`                                   | 否   | 拉卡拉应用 ID；启用拉卡拉时必填                                     |
-| `LAKALA_SERIAL_NO`                                | 否   | 拉卡拉证书序列号；启用拉卡拉时必填                                  |
-| `LAKALA_PRIVATE_KEY`                              | 否   | 拉卡拉商户私钥；启用拉卡拉时必填                                    |
-| `LAKALA_PLATFORM_PUBLIC_KEY`                      | 否   | 拉卡拉平台公钥；启用拉卡拉时必填                                    |
-| `LAKALA_NOTIFY_URL`                               | 否   | 拉卡拉异步通知地址；启用拉卡拉时必填                                |
+| 变量                                              | 必填 | 说明                                                                   |
+| ------------------------------------------------- | ---- | ---------------------------------------------------------------------- |
+| `DATABASE_URL`                                    | 是   | Prisma PostgreSQL 连接串                                               |
+| `REDIS_URL`                                       | 是   | Redis 连接串                                                           |
+| `JWT_SECRET`                                      | 是   | JWT 签名密钥                                                           |
+| `CORS_ORIGINS`                                    | 是   | 允许跨域访问的前端来源，多个用英文逗号分隔                             |
+| `PORT`                                            | 否   | API 监听端口，默认 `3000`                                              |
+| `NODE_ENV`                                        | 是   | `development` 或 `production`                                          |
+| `TZ`                                              | 是   | 固定为 `UTC`，API / payment-api / Worker 运行环境统一使用 UTC          |
+| `AUTH_COOKIE_SECURE`                              | 是   | HTTPS 环境为 `true`，本地 HTTP 为 `false`                              |
+| `IMPORT_JOB_WORKER_ENABLED`                       | 是   | API 进程为 `false`，Worker 进程为 `true`                               |
+| `IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS`            | 否   | 租户级活动正式导入任务占位 TTL，单位秒，默认 `900`                     |
+| `IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS` | 否   | 租户级活动正式导入任务续期间隔，单位秒，默认 `60`，且必须小于 TTL      |
+| `SMS_SEND_ENABLED`                                | 否   | 是否真实调用阿里云发送短信，默认 `false`                               |
+| `SMS_DEBUG_CODE_VISIBLE`                          | 否   | 是否允许 debug 查码接口返回 Redis 明文验证码，默认 `true`              |
+| `ALIYUN_ACCESS_KEY_ID`                            | 否   | 阿里云 AccessKey ID；`SMS_SEND_ENABLED=true` 时必填                    |
+| `ALIYUN_ACCESS_KEY_SECRET`                        | 否   | 阿里云 AccessKey Secret；`SMS_SEND_ENABLED=true` 或启用 OSS 上传时必填 |
+| `OSS_BUCKET`                                      | 否   | OSS Bucket；启用上传中心时必填                                         |
+| `OSS_REGION`                                      | 否   | OSS Region；启用上传中心时必填                                         |
+| `OSS_ENDPOINT`                                    | 否   | OSS Endpoint；启用上传中心时必填                                       |
+| `OSS_PUBLIC_BASE_URL`                             | 否   | OSS 对象公开访问基础地址；启用上传中心时必填                           |
+| `OSS_POLICY_EXPIRES_SECONDS`                      | 否   | OSS 直传凭证有效期，默认 `600`                                         |
+| `OSS_AVATAR_MAX_SIZE_BYTES`                       | 否   | 用户头像最大字节数，默认 `81920`                                       |
+| `ALIYUN_SMS_ENDPOINT`                             | 否   | 阿里云号码认证服务 PNVS Endpoint，默认 `dypnsapi.aliyuncs.com`         |
+| `ALIYUN_SMS_SIGN_NAME`                            | 否   | 阿里云短信签名，当前默认 `速通互联验证码`                              |
+| `ALIYUN_SMS_LOGIN_TEMPLATE_CODE`                  | 否   | Tenant 短信登录模板 Code，当前默认 `100001`                            |
+| `ALIYUN_SMS_PASSWORD_RESET_TEMPLATE_CODE`         | 否   | Tenant 找回密码模板 Code，当前默认 `100001`                            |
+| `ALIYUN_CAPTCHA_ENDPOINT`                         | 否   | 阿里云验证码 2.0 Endpoint，默认 `captcha.cn-shanghai.aliyuncs.com`     |
+| `ALIYUN_CAPTCHA_SCENE_ID`                         | 否   | 阿里云验证码 2.0 SceneId；和 AccessKey 齐全时启用滑块校验              |
+| `LAKALA_BASE_URL`                                 | 否   | 拉卡拉网关基础地址；启用拉卡拉时填写，默认 `https://api.lakala.com`    |
+| `LAKALA_APP_ID`                                   | 否   | 拉卡拉应用 ID；启用拉卡拉时必填                                        |
+| `LAKALA_SERIAL_NO`                                | 否   | 拉卡拉证书序列号；启用拉卡拉时必填                                     |
+| `LAKALA_PRIVATE_KEY`                              | 否   | 拉卡拉商户私钥；启用拉卡拉时必填                                       |
+| `LAKALA_PLATFORM_PUBLIC_KEY`                      | 否   | 拉卡拉平台公钥；启用拉卡拉时必填                                       |
+| `LAKALA_NOTIFY_URL`                               | 否   | 拉卡拉异步通知地址；启用拉卡拉时必填                                   |
 
 ## 短信与验证码配置说明
 
@@ -179,7 +185,7 @@ LAKALA_NOTIFY_URL=https://api.shoudanba.cn/api/payment/webhook/lakala
 
 - 该场景使用根目录 `docker-compose.yml`。
 - `host.docker.internal` 由 compose 中的 `extra_hosts: host-gateway` 映射到宿主机。
-- API / Worker 容器访问的是宿主机上 1Panel 托管的 PostgreSQL / Redis。
+- API / payment-api / Worker 容器访问的是宿主机上 1Panel 托管的 PostgreSQL / Redis。
 - `CORS_ORIGINS` 只填写前端来源域名，不填写 `api` 域名。
 - 1Panel 托管 PostgreSQL 需将实例时区设为 `UTC`；执行 `SHOW timezone;` 应返回 `UTC`。
 

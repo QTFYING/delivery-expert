@@ -72,12 +72,12 @@ export class UpdateOrderDto {
   lineItems?: OrderLineItemDto[];
 
   @ApiPropertyOptional({
-    description: '自定义字段键值对',
+    description: '订单级自定义字段键值对',
     type: 'object',
     additionalProperties: { type: 'string' },
     example: { customerCode: 'C-001' },
   })
   @IsOptional()
   @IsObject()
-  customFieldValues?: Record<string, string>;
+  customerFieldValues?: Record<string, string>;
 }

@@ -1,21 +1,28 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import type { PaginatedResponse } from '@shou/types/common';
 import type { AdminOrderItem } from '@shou/types/contracts';
 import { formatDateTime, normalizePage, normalizePageSize } from '../common/validators';
+import { PaymentWindowService } from '../payment/payment-window.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { GENERAL_SETTINGS_CONFIG_GROUP } from '../settings/settings.constants';
 import { ListOrdersQueryDto } from './dto/list-orders.query.dto';
 import { toAdminOrder } from './mapping/order.mapper';
+import { buildOSOrderListWhere } from './order.query';
+import type { TenantPaymentWindowRule } from './order-status.query';
 
 @Injectable()
 export class OrderOSQueryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly paymentWindowService: PaymentWindowService,
+  ) {}
 
   // 获取 OS 侧订单列表，不注入租户作用域
   async findAll(query: ListOrdersQueryDto): Promise<PaginatedResponse<AdminOrderItem>> {
     const page = normalizePage(query.page);
     const pageSize = normalizePageSize(query.pageSize);
-    const where = this.buildOSOrderListWhere(query);
+    const tenantPaymentWindows = await this.getTenantPaymentWindowRules();
+    const where = buildOSOrderListWhere(query, tenantPaymentWindows);
 
     const [orders, total] = await Promise.all([
       this.prisma.order.findMany({
@@ -58,25 +65,33 @@ export class OrderOSQueryService {
     };
   }
 
-  // 组装 OS 侧订单列表查询条件，避免租户侧 where 构造混入平台视角
-  private buildOSOrderListWhere(query: ListOrdersQueryDto): Prisma.OrderWhereInput {
-    const where: Prisma.OrderWhereInput = {
-      deletedAt: null,
-    };
+  // 读取平台侧跨租户订单查询所需的租户支付有效期规则
+  private async getTenantPaymentWindowRules(): Promise<TenantPaymentWindowRule[]> {
+    const [tenants, platformDefault] = await Promise.all([
+      this.prisma.tenant.findMany({
+        where: { deletedAt: null },
+        select: {
+          id: true,
+          generalSettings: { select: { qrCodeExpiry: true } },
+        },
+      }),
+      this.prisma.systemConfig.findUnique({
+        where: {
+          group_key: {
+            group: GENERAL_SETTINGS_CONFIG_GROUP,
+            key: 'qrCodeExpiry',
+          },
+        },
+        select: { value: true },
+      }),
+    ]);
 
-    if (query.keyword?.trim()) {
-      const keyword = query.keyword.trim();
-      where.OR = [
-        { id: keyword },
-        { sourceOrderNo: { contains: keyword, mode: 'insensitive' } },
-        { groupKey: { contains: keyword, mode: 'insensitive' } },
-        { customer: { contains: keyword, mode: 'insensitive' } },
-        { customerPhone: { contains: keyword, mode: 'insensitive' } },
-        { customerAddress: { contains: keyword, mode: 'insensitive' } },
-        { tenant: { name: { contains: keyword, mode: 'insensitive' } } },
-      ] as unknown as Prisma.OrderWhereInput[];
-    }
-
-    return where;
+    return tenants.map((tenant) => ({
+      tenantId: tenant.id,
+      qrCodeExpiryDays: this.paymentWindowService.resolveQrCodeExpiryDays({
+        tenantOverrideDays: tenant.generalSettings?.qrCodeExpiry ?? null,
+        platformDefaultValue: platformDefault?.value,
+      }),
+    }));
   }
 }

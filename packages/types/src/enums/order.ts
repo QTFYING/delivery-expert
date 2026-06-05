@@ -10,13 +10,27 @@ export const OrderStatusEnum = {
   PARTIAL: 'partial',
   /** 已结清 */
   PAID: 'paid',
-  /** 已作废或过期 */
+  /** 已过期 */
   EXPIRED: 'expired',
-  /** 账期单 */
-  CREDIT: 'credit',
+  /** 已作废 */
+  VOIDED: 'voided',
 } as const;
 
 export type OrderStatus = EnumValue<typeof OrderStatusEnum>;
+
+/**
+ * 订单列表本期开放搜索状态
+ */
+export const OrderSearchStatusEnum = {
+  /** 待收款，未结清且未过期 */
+  PENDING: OrderStatusEnum.PENDING,
+  /** 已收款 */
+  PAID: OrderStatusEnum.PAID,
+  /** 已过期 */
+  EXPIRED: OrderStatusEnum.EXPIRED,
+} as const;
+
+export type OrderSearchStatus = EnumValue<typeof OrderSearchStatusEnum>;
 
 /**
  * 订单付款类型
@@ -29,6 +43,20 @@ export const OrderPayTypeEnum = {
 } as const;
 
 export type OrderPayType = EnumValue<typeof OrderPayTypeEnum>;
+
+/**
+ * 账期子类型
+ */
+export const CreditTypeEnum = {
+  /** 月结 */
+  MONTH: 'month',
+  /** 周结 */
+  WEEK: 'week',
+  /** 普通账期 */
+  PERIOD: 'period',
+} as const;
+
+export type CreditType = EnumValue<typeof CreditTypeEnum>;
 
 /**
  * 打印事件结果

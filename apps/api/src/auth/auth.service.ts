@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
-import type { AuthMeResponse, AuthUserProfile, ChangePasswordRequest } from '@shou/types/contracts';
+import type { AuthMeResponse, AuthUserProfile, ChangePasswordRequest, UpdateMyProfileRequest } from '@shou/types/contracts';
 import { TenantStatusEnum, UserRoleEnum, UserStatusEnum } from '@shou/types/enums';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
@@ -12,6 +12,7 @@ import { assertPasswordStrength } from '../common/validators';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthSessionStore } from '../redis/auth-session.store';
 import { fromPrismaTenantStatus, fromPrismaUserRole, fromPrismaUserStatus } from '../tenant/mapping/tenant.mapper';
+import { UploadService } from '../upload/upload.service';
 import { ACCESS_TOKEN_TTL, REFRESH_TOKEN_TTL } from './auth-session.util';
 import { JwtPayload } from './decorators/current-user.decorator';
 import { LoginDto } from './dto/login.dto';
@@ -44,6 +45,7 @@ export class AuthService {
     private authSessions: AuthSessionStore,
     private permissionCache: PermissionCacheService,
     private permissionService: PermissionService,
+    private uploadService: UploadService,
   ) {}
 
   // 校验账号密码并创建新的登录会话 返回 access token 与 refresh token
@@ -199,6 +201,12 @@ export class AuthService {
       this.logger.warn(logMessage);
       throw error;
     }
+  }
+
+  // 更新当前登录用户资料 当前仅消费头像上传结果
+  async updateMe(currentUser: JwtPayload, request: UpdateMyProfileRequest): Promise<AuthMeResponse> {
+    await this.uploadService.updateUserAvatar(currentUser, request.avatarUploadId);
+    return this.getMe(currentUser);
   }
 
   // 修改当前登录用户密码 并使全部旧会话失效
@@ -378,6 +386,7 @@ export class AuthService {
       account: user.account,
       realName: user.realName,
       tenantId: user.tenantId,
+      avatarUrl: this.uploadService.buildPublicUrl(user.avatarObjectKey),
       requiresPasswordReset: user.requiresPasswordReset,
     };
   }

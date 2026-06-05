@@ -59,8 +59,8 @@ export const TenantPermissionCodeEnum = {
 
   /** 查看收款流水 */
   PAYMENTS_READ: 'payments.read',
-  /** 创建现金核销记录 */
-  PAYMENTS_CASH_VERIFY_CREATE: 'payments.cash_verify.create',
+  /** 确认线下登记支付 */
+  PAYMENTS_OFFLINE_PAYMENT_VERIFY_CREATE: 'payments.offline_payment_verify.create',
 
   /** 查看财务数据 */
   FINANCE_READ: 'finance.read',

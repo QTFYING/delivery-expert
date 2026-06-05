@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
 import type {
   AdminOrderItem as AdminOrderItemContract,
   CreateOrderPrintFailureResponse as CreateOrderPrintFailureResponseContract,
@@ -11,12 +11,14 @@ import type {
   OrderPrintRecordsResponse as OrderPrintRecordsResponseContract,
   OrderPrintRecordsSummary as OrderPrintRecordsSummaryContract,
   TenantOrderItem as TenantOrderItemContract,
+  TenantOrderListItem as TenantOrderListItemContract,
   TenantPrintRecordItem as TenantPrintRecordItemContract,
   TenantPrintRecordsResponse as TenantPrintRecordsResponseContract,
 } from '@shou/types/contracts';
 import type { PaginatedResponse } from '@shou/types/common';
-import { CreditOrderStatusEnum, OrderPayTypeEnum, OrderStatusEnum, PrintRecordResultEnum } from '@shou/types/enums';
+import { CreditOrderStatusEnum, CreditTypeEnum, OrderPayTypeEnum, OrderStatusEnum, PrintRecordResultEnum } from '@shou/types/enums';
 import { PaginatedResponseMetaSwagger } from '../common/swagger/paginated-response.swagger';
+import { OfflinePaymentInfoSwagger } from '../payment/payment.swagger';
 
 export class OrderLineItemSwagger implements OrderLineItemContract {
   @ApiPropertyOptional({ description: '行项目 ID', example: 'e9c3c63d-8fbf-42f0-9008-3f6bb62a137d' })
@@ -86,11 +88,28 @@ export class TenantOrderItemSwagger implements TenantOrderItemContract {
   @ApiProperty({ description: '已收金额（元）', example: 100 })
   paid!: number;
 
+  @ApiPropertyOptional({ description: 'H5 线下登记信息；未登记时为 null', type: OfflinePaymentInfoSwagger, nullable: true })
+  offlinePayment!: TenantOrderItemContract['offlinePayment'];
+
   @ApiProperty({ description: '订单状态', enum: Object.values(OrderStatusEnum), example: OrderStatusEnum.PARTIAL })
   status!: TenantOrderItemContract['status'];
 
   @ApiProperty({ description: '结算方式', enum: Object.values(OrderPayTypeEnum), example: OrderPayTypeEnum.CASH })
   payType!: TenantOrderItemContract['payType'];
+
+  @ApiPropertyOptional({
+    description: '账期子类型；现款订单为 null',
+    enum: Object.values(CreditTypeEnum),
+    example: CreditTypeEnum.MONTH,
+    nullable: true,
+  })
+  creditType?: TenantOrderItemContract['creditType'];
+
+  @ApiPropertyOptional({ description: '账期天数；现款订单为 null', example: 30, nullable: true })
+  creditDays?: TenantOrderItemContract['creditDays'];
+
+  @ApiPropertyOptional({ description: '应收款到期日；现款订单为 null', example: '2026-05-10T00:00:00.000Z', nullable: true })
+  dueDate?: TenantOrderItemContract['dueDate'];
 
   @ApiProperty({ description: '打印次数', example: 2 })
   prints!: number;
@@ -127,6 +146,8 @@ export class TenantOrderItemSwagger implements TenantOrderItemContract {
   @ApiPropertyOptional({ description: '作废时间', example: '2026-04-10T13:00:00.000Z' })
   voidedAt?: string;
 }
+
+export class TenantOrderListItemSwagger extends OmitType(TenantOrderItemSwagger, ['lineItems'] as const) implements TenantOrderListItemContract {}
 
 export class AdminOrderItemSwagger implements AdminOrderItemContract {
   @ApiProperty({ description: '订单 ID', example: '95dc7f09-5a01-4cae-9071-8d048d4f787c' })
@@ -179,6 +200,20 @@ export class AdminOrderItemSwagger implements AdminOrderItemContract {
   @ApiProperty({ description: '结算方式', enum: Object.values(OrderPayTypeEnum), example: OrderPayTypeEnum.CASH })
   payType!: AdminOrderItemContract['payType'];
 
+  @ApiPropertyOptional({
+    description: '账期子类型；现款订单为 null',
+    enum: Object.values(CreditTypeEnum),
+    example: CreditTypeEnum.MONTH,
+    nullable: true,
+  })
+  creditType?: AdminOrderItemContract['creditType'];
+
+  @ApiPropertyOptional({ description: '账期天数；现款订单为 null', example: 30, nullable: true })
+  creditDays?: AdminOrderItemContract['creditDays'];
+
+  @ApiPropertyOptional({ description: '应收款到期日；现款订单为 null', example: '2026-05-10T00:00:00.000Z', nullable: true })
+  dueDate?: AdminOrderItemContract['dueDate'];
+
   @ApiProperty({ description: '下单时间', example: '2026-04-10T12:00:00.000Z' })
   orderTime!: string;
 
@@ -202,6 +237,12 @@ export class CreditOrderItemSwagger implements CreditOrderItemContract {
   @ApiProperty({ description: '订单金额（元）', example: 399 })
   amount!: number;
 
+  @ApiProperty({ description: '结算方式，账期管理列表固定为 credit', enum: [OrderPayTypeEnum.CREDIT], example: OrderPayTypeEnum.CREDIT })
+  payType!: CreditOrderItemContract['payType'];
+
+  @ApiProperty({ description: '账期子类型', enum: Object.values(CreditTypeEnum), example: CreditTypeEnum.MONTH })
+  creditType!: CreditOrderItemContract['creditType'];
+
   @ApiProperty({ description: '下单时间', example: '2026-04-10T12:00:00.000Z' })
   date!: string;
 
@@ -224,9 +265,9 @@ export class CreditOrderListResponseSwagger extends PaginatedResponseMetaSwagger
   list!: CreditOrderItemSwagger[];
 }
 
-export class TenantOrderListResponseSwagger extends PaginatedResponseMetaSwagger implements PaginatedResponse<TenantOrderItemContract> {
-  @ApiProperty({ description: '列表数据', type: [TenantOrderItemSwagger] })
-  list!: TenantOrderItemSwagger[];
+export class TenantOrderListResponseSwagger extends PaginatedResponseMetaSwagger implements PaginatedResponse<TenantOrderListItemContract> {
+  @ApiProperty({ description: '列表数据', type: [TenantOrderListItemSwagger] })
+  list!: TenantOrderListItemSwagger[];
 }
 
 export class AdminOrderListResponseSwagger extends PaginatedResponseMetaSwagger implements PaginatedResponse<AdminOrderItemContract> {

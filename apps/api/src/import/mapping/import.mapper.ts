@@ -1,5 +1,6 @@
 import {
   Prisma,
+  OrderCreditTypeEnum as PrismaOrderCreditTypeEnum,
   OrderImportConflictPolicyEnum as PrismaImportConflictPolicyEnum,
   OrderImportJobStatusEnum as PrismaImportJobStatusEnum,
   OrderPayTypeEnum as PrismaOrderPayTypeEnum,
@@ -13,16 +14,19 @@ import type {
   OrderImportTemplateMutationResponse,
 } from '@shou/types/contracts';
 import {
+  CreditTypeEnum,
   OrderImportConflictPolicyEnum,
   OrderImportJobStatusEnum,
   OrderPayTypeEnum,
   OrderStatusEnum,
+  type CreditType,
   type OrderImportJobStatus,
   type OrderPayType,
   type OrderStatus,
 } from '@shou/types/enums';
 import Decimal from 'decimal.js';
 import { formatDateTime, formatLocalDateTime, normalizeOptionalText, parseLocalDateTime } from '../../common/validators';
+import { normalizeSettlementType } from '../../order/order-credit.domain';
 import { resolveDefaultTemplateFieldValueRequired } from '../import-template.fields';
 
 const IMPORT_JOB_STATUS_TEXT: Record<OrderImportJobStatus, string> = {
@@ -80,14 +84,12 @@ export function toTemplateMutationResponse(template: {
   name: string;
   isDefault: boolean;
   updatedAt: Date;
-  customerFields: Prisma.JsonValue;
 }): OrderImportTemplateMutationResponse {
   return {
     id: String(template.id),
     name: template.name,
     isDefault: template.isDefault,
     updatedAt: formatDateTime(template.updatedAt),
-    customerFields: asCustomerTemplateFields(template.customerFields),
   };
 }
 
@@ -129,20 +131,7 @@ export function readMoney(value: unknown): Decimal | undefined {
 }
 
 export function readPayType(value: unknown): OrderPayType | undefined {
-  const resolved = readString(value)?.toLowerCase();
-  if (!resolved) {
-    return undefined;
-  }
-
-  if (['credit', '账期'].includes(resolved)) {
-    return OrderPayTypeEnum.CREDIT;
-  }
-
-  if (['cash', '现款', '现金'].includes(resolved)) {
-    return OrderPayTypeEnum.CASH;
-  }
-
-  return undefined;
+  return normalizeSettlementType(value)?.payType;
 }
 
 const PRISMA_TO_IMPORT_JOB_STATUS: Record<PrismaImportJobStatusEnum, OrderImportJobStatus> = {
@@ -164,7 +153,7 @@ const PRISMA_TO_ORDER_STATUS: Record<PrismaOrderStatusEnum, OrderStatus> = {
   [PrismaOrderStatusEnum.PARTIAL]: OrderStatusEnum.PARTIAL,
   [PrismaOrderStatusEnum.PAID]: OrderStatusEnum.PAID,
   [PrismaOrderStatusEnum.EXPIRED]: OrderStatusEnum.EXPIRED,
-  [PrismaOrderStatusEnum.CREDIT]: OrderStatusEnum.CREDIT,
+  [PrismaOrderStatusEnum.VOIDED]: OrderStatusEnum.VOIDED,
 };
 
 const IMPORT_CONFLICT_POLICY_TO_PRISMA: Record<
@@ -186,6 +175,12 @@ const PRISMA_TO_IMPORT_CONFLICT_POLICY: Record<
 const ORDER_PAY_TYPE_TO_PRISMA: Record<OrderPayType, PrismaOrderPayTypeEnum> = {
   [OrderPayTypeEnum.CASH]: PrismaOrderPayTypeEnum.CASH,
   [OrderPayTypeEnum.CREDIT]: PrismaOrderPayTypeEnum.CREDIT,
+};
+
+const CREDIT_TYPE_TO_PRISMA: Record<CreditType, PrismaOrderCreditTypeEnum> = {
+  [CreditTypeEnum.MONTH]: PrismaOrderCreditTypeEnum.MONTH,
+  [CreditTypeEnum.WEEK]: PrismaOrderCreditTypeEnum.WEEK,
+  [CreditTypeEnum.PERIOD]: PrismaOrderCreditTypeEnum.PERIOD,
 };
 
 export function toImportJobStatus(status: PrismaImportJobStatusEnum): OrderImportJobStatus {
@@ -214,4 +209,8 @@ export function fromPrismaOrderStatus(status: PrismaOrderStatusEnum): OrderStatu
 
 export function toPrismaOrderPayType(payType: OrderPayType): PrismaOrderPayTypeEnum {
   return ORDER_PAY_TYPE_TO_PRISMA[payType] ?? PrismaOrderPayTypeEnum.CASH;
+}
+
+export function toPrismaOrderCreditType(creditType: CreditType | null | undefined): PrismaOrderCreditTypeEnum | null {
+  return creditType ? CREDIT_TYPE_TO_PRISMA[creditType] : null;
 }

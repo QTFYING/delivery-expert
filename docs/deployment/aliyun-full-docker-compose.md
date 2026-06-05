@@ -4,9 +4,9 @@
 
 目标形态：
 
-- Nginx、PostgreSQL、Redis、API、import-worker 全部由 Docker Compose 编排。
+- Nginx、PostgreSQL、Redis 与后端服务全部由 Docker Compose 编排。
 - 前端静态资源由内层 Nginx 容器托管。
-- API 与 Worker 运行镜像内构建好的 `dist`。
+- API、payment-api 与 Worker 运行镜像内构建好的 `dist`。
 - 不使用 PM2。
 - HTTPS、证书、外网 `80/443` 由最外层 Nginx / SLB / 网关统一处理。
 - 当前仓库内置的 `nginx.conf` 只负责应用层 HTTP 分发，不负责证书。
@@ -64,127 +64,29 @@ Docker: api
   |-- postgres:5432
   |-- redis:6379
 
+Docker: payment-api
+  |-- postgres:5432
+  |-- redis:6379
+
 Docker: import-worker
   |-- postgres:5432
   |-- redis:6379
 ```
 
-## 4. 建议新增 compose 文件
+## 4. 编排文件边界
 
-当前仓库内的 [docker-compose.full.yml](../../docker-compose.full.yml) 包含以下服务：
+当前仓库内的 [docker-compose.full.yml](../../docker-compose.full.yml) 是本场景的编排事实源。
 
-- `nginx`
-- `api`
-- `import-worker`
-- `postgres`
-- `redis`
-
-实际结构：
-
-```yaml
-services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: shou-postgres
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      TZ: UTC
-      PGTZ: UTC
-    command: ['postgres', '-c', 'timezone=UTC']
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    restart: always
-
-  redis:
-    image: redis:7-alpine
-    container_name: shou-redis
-    command: ['redis-server', '--requirepass', '${REDIS_PASSWORD}']
-    volumes:
-      - redis-data:/data
-    restart: always
-
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: api
-    container_name: shou-api
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
-      JWT_SECRET: ${JWT_SECRET}
-      CORS_ORIGINS: ${CORS_ORIGINS}
-      NODE_ENV: production
-      PORT: 3000
-      TZ: UTC
-      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
-      IMPORT_JOB_WORKER_ENABLED: 'false'
-      IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS: ${IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS:-900}
-      IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS: ${IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS:-60}
-      LAKALA_BASE_URL: ${LAKALA_BASE_URL:-}
-      LAKALA_APP_ID: ${LAKALA_APP_ID:-}
-      LAKALA_SERIAL_NO: ${LAKALA_SERIAL_NO:-}
-      LAKALA_PRIVATE_KEY: ${LAKALA_PRIVATE_KEY:-}
-      LAKALA_PLATFORM_PUBLIC_KEY: ${LAKALA_PLATFORM_PUBLIC_KEY:-}
-      LAKALA_NOTIFY_URL: ${LAKALA_NOTIFY_URL:-}
-    depends_on:
-      - postgres
-      - redis
-    restart: always
-
-  import-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: api
-    container_name: shou-import-worker
-    command: ['node', 'dist/import-worker.main']
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
-      JWT_SECRET: ${JWT_SECRET}
-      CORS_ORIGINS: ${CORS_ORIGINS}
-      NODE_ENV: production
-      PORT: 3000
-      TZ: UTC
-      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
-      IMPORT_JOB_WORKER_ENABLED: 'true'
-      IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS: ${IMPORT_ACTIVE_JOB_TENANT_TTL_SECONDS:-900}
-      IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS: ${IMPORT_ACTIVE_JOB_TENANT_RENEW_INTERVAL_SECONDS:-60}
-    depends_on:
-      - postgres
-      - redis
-    restart: always
-
-  nginx:
-    image: nginx:1.27-alpine
-    container_name: shou-nginx
-    ports:
-      - '5001:5001'
-      - '5002:5002'
-      - '5003:5003'
-    volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./deploy/frontend/admin:/usr/share/nginx/admin:ro
-      - ./deploy/frontend/tenant:/usr/share/nginx/tenant:ro
-      - ./deploy/frontend/pay-h5:/usr/share/nginx/pay-h5:ro
-    depends_on:
-      - api
-    restart: always
-
-volumes:
-  postgres-data:
-  redis-data:
-```
+- 服务清单、容器名、端口、依赖关系和环境变量转发以该文件为准。
+- 本文只说明部署拓扑、环境变量差异、Nginx 回源和运维命令，不复制 Compose 全量配置。
+- 如果 Compose 文件与本文说明冲突，优先修正本文。
 
 说明：
 
 - 这是全 Docker Compose 场景专用文件，不覆盖当前根目录 `docker-compose.yml`。
 - `DATABASE_URL` 使用 Compose 服务名 `postgres`。
 - `REDIS_URL` 使用 Compose 服务名 `redis`。
-- PostgreSQL、API 与 Worker 均固定 `TZ=UTC`；数据库事件时间字段使用 `timestamptz(3)`。
+- PostgreSQL、API、payment-api 与 Worker 均固定 `TZ=UTC`；数据库事件时间字段使用 `timestamptz(3)`。
 - 前端静态资源挂载到 Nginx 容器目录。
 - 以上 `nginx` 服务示例与根目录 [nginx.conf](../../nginx.conf) 成对使用。
 
@@ -283,13 +185,13 @@ docker compose -f docker-compose.full.yml restart nginx
 ## 9. 初始化数据
 
 ```bash
-docker exec -it shou-api node scripts/db-seed.js
+docker exec -it shou-api-server node scripts/db-seed.js
 ```
 
 或最小初始化：
 
 ```bash
-docker exec -it shou-api node scripts/db-init.js
+docker exec -it shou-api-server node scripts/db-init.js
 ```
 
 ## 10. 备份建议

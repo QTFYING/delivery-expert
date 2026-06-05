@@ -5,7 +5,7 @@ import {
   AuditTargetTypeEnum as PrismaAuditTargetTypeEnum,
   OrderPayTypeEnum as PrismaOrderPayTypeEnum,
   OrderReminderStatusEnum as PrismaOrderReminderStatusEnum,
-  OrderStatusEnum as PrismaOrderStatusEnum,
+  PaymentOrderStatusEnum as PrismaPaymentOrderStatusEnum,
   PaymentRecordStatusEnum as PrismaPaymentRecordStatusEnum,
 } from '@prisma/client';
 
@@ -18,7 +18,7 @@ import type {
   CreateOrderReminderResponse,
   CreditOrderItem,
 } from '@shou/types/contracts';
-import { PaymentOrderStatusEnum } from '@shou/types/enums';
+import { PaymentOrderStatusEnum, type OrderSearchStatus } from '@shou/types/enums';
 
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
 import { toMoney, toMoneyNumber } from '../common/money';
@@ -27,11 +27,14 @@ import { ID_CONFIG } from '../id-generator/id-generator.constants';
 import { IdGeneratorService } from '../id-generator/id-generator.service';
 import { toPaymentDomainExpirableSnapshot, toPrismaPaymentOrderUpdateData } from '../payment/mapping/payment.mapper';
 import { PaymentLedgerService } from '../payment/payment-ledger.service';
+import { PaymentWindowService } from '../payment/payment-window.service';
 import { buildExpirePayingPaymentOrderTransition, shouldExpirePayingPaymentOrder } from '../payment/payment.domain';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { fromPrismaOrderStatus } from './mapping/order-enum.mapper';
 import { toCreditOrderItem } from './mapping/order.mapper';
+import { getTenantCreditRemindDays } from './order-settings.query';
+import { buildOrderSearchStatusWhere } from './order-status.query';
 import { getOrderActorName, getOrderTenantId, normalizeReminderChannels } from './order.shared';
 
 @Injectable()
@@ -43,6 +46,7 @@ export class OrderFinanceService {
     private readonly idGen: IdGeneratorService,
     private readonly redis: RedisService,
     private readonly ledgerService: PaymentLedgerService,
+    private readonly paymentWindowService: PaymentWindowService,
   ) {}
 
   // 为订单创建催款提醒记录，并同步写入审计日志
@@ -90,18 +94,27 @@ export class OrderFinanceService {
     };
   }
 
-  // 返回租户下仍未结清的账期订单列表
-  async getCreditOrders(currentUser: JwtPayload, page?: number, pageSize?: number): Promise<PaginatedResponse<CreditOrderItem>> {
+  // 返回租户下未删除未作废的账期订单列表，可按订单搜索状态筛选
+  async getCreditOrders(
+    currentUser: JwtPayload,
+    page?: number,
+    pageSize?: number,
+    status?: OrderSearchStatus,
+  ): Promise<PaginatedResponse<CreditOrderItem>> {
     const tenantId = getOrderTenantId(currentUser);
     const resolvedPage = normalizePage(page);
     const resolvedPageSize = normalizePageSize(pageSize);
+    const qrCodeExpiryDays = await this.paymentWindowService.getTenantQrCodeExpiryDays(tenantId);
+    const statusWhere = buildOrderSearchStatusWhere(status, { tenantPaymentWindows: [{ tenantId, qrCodeExpiryDays }] });
     const where: Prisma.OrderWhereInput = {
       tenantId,
       deletedAt: null,
       voided: false,
       payType: PrismaOrderPayTypeEnum.CREDIT,
-      status: { not: PrismaOrderStatusEnum.PAID },
+      ...(statusWhere ? { AND: [statusWhere] } : {}),
     };
+
+    const remindDays = await getTenantCreditRemindDays(this.prisma, tenantId);
 
     const [orders, total] = await Promise.all([
       this.prisma.order.findMany({
@@ -114,7 +127,7 @@ export class OrderFinanceService {
     ]);
 
     return {
-      list: orders.map((order) => toCreditOrderItem(order)),
+      list: orders.map((order) => toCreditOrderItem(order, remindDays)),
       total,
       page: resolvedPage,
       pageSize: resolvedPageSize,
@@ -125,7 +138,7 @@ export class OrderFinanceService {
    * 为租户后台财务创建一条内部收款记录
    *
    * 这里只处理后台确认的已收事实，不向 H5/public 暴露部分付款能力
-   * 若订单仍存在支付中的在线支付单或待核销现金支付单，会直接拒绝本次登记
+   * 若订单仍存在支付中的在线支付单或待确认线下登记支付单，会直接拒绝本次登记
    */
   async createReceipt(currentUser: JwtPayload, orderId: string, request: CreateOrderReceiptRequest): Promise<CreateOrderReceiptResponse> {
     const tenantId = getOrderTenantId(currentUser);
@@ -221,7 +234,7 @@ export class OrderFinanceService {
    * 阻止内部收款和当前仍活跃的支付单并行处理同一订单
    *
    * 支付中的在线支付单需要先等待成功或过期
-   * 待核销现金单需要先完成核销或人工处理后再继续登记内部收款
+   * 待确认线下登记单需要先完成核销或人工处理后再继续登记内部收款
    */
   private async ensureNoBlockingPaymentOrder(tx: Prisma.TransactionClient, orderId: string, tenantId: string) {
     const latestPaymentOrder = await tx.paymentOrder.findFirst({
@@ -245,8 +258,8 @@ export class OrderFinanceService {
         return;
       }
 
-      await tx.paymentOrder.update({
-        where: { id: latestPaymentOrder.id },
+      await tx.paymentOrder.updateMany({
+        where: { id: latestPaymentOrder.id, status: PrismaPaymentOrderStatusEnum.PAYING },
         data: toPrismaPaymentOrderUpdateData(transition.data),
       });
       return;
@@ -257,7 +270,7 @@ export class OrderFinanceService {
     }
 
     if (expirablePaymentOrder.status === PaymentOrderStatusEnum.PENDING_VERIFICATION) {
-      throw new ConflictException('当前订单存在待核销的现金支付记录，请先完成核销');
+      throw new ConflictException('当前订单存在线下登记待确认记录，请先完成线下确认');
     }
   }
 }

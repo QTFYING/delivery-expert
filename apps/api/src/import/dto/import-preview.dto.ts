@@ -25,10 +25,10 @@ export class ImportPreviewOrderDto {
   @IsString()
   customerPhone?: string | null;
 
-  @ApiProperty({ description: '客户地址', example: '深圳市福田区深南大道1001号' })
+  @ApiPropertyOptional({ description: '客户地址；不传、null 或空字符串均按空地址处理', example: '深圳市福田区深南大道1001号', nullable: true })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  customerAddress!: string;
+  customerAddress?: string | null;
 
   @ApiProperty({ description: '订单总金额（允许为 0，不允许为负数）', example: 48 })
   @IsDefined()

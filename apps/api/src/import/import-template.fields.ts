@@ -4,7 +4,7 @@ export const DEFAULT_TEMPLATE_FIELDS: OrderImportTemplateField[] = [
   { label: '源订单号', key: 'sourceOrderNo', mapStr: '', isRequired: true, isValueRequired: true, type: 'list' },
   { label: '客户名称', key: 'customer', mapStr: '', isRequired: true, isValueRequired: true, type: 'list' },
   { label: '客户电话', key: 'customerPhone', mapStr: '', isRequired: false, isValueRequired: false, type: 'list' },
-  { label: '客户地址', key: 'customerAddress', mapStr: '', isRequired: false, isValueRequired: true, type: 'list' },
+  { label: '客户地址', key: 'customerAddress', mapStr: '', isRequired: false, isValueRequired: false, type: 'list' },
   { label: '总金额', key: 'totalAmount', mapStr: '', isRequired: false, isValueRequired: true, type: 'list' },
   { label: '下单时间', key: 'orderTime', mapStr: '', isRequired: true, isValueRequired: true, type: 'list' },
   { label: '结算方式', key: 'payType', mapStr: '', isRequired: false, isValueRequired: true, type: 'list' },

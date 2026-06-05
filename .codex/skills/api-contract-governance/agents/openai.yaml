@@ -1,4 +1,4 @@
 interface:
   display_name: "API 契约治理"
-  short_description: "统一 API 文档、枚举、contracts 与建模参考的单向事实源规则。"
-  default_prompt: "使用 $api-contract-governance 先判断本次改语义、改枚举还是改结构，再按对应路径维护 docs/api、enums、Swagger/DTO、contracts 与 data-model-reference。"
+  short_description: "统一 API 文档、枚举、Swagger/DTO 与 contracts 的事实源规则。"
+  default_prompt: "使用 $api-contract-governance 先判断本次改语义、改枚举还是改结构，再按对应路径维护 docs/api、enums、Swagger/DTO 与 contracts。"
