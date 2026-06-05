@@ -5,8 +5,10 @@ import type { AuthMeResponse, AuthUserProfile, ChangePasswordRequest, UpdateMyPr
 import { TenantStatusEnum, UserRoleEnum, UserStatusEnum } from '@shou/types/enums';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import { PinoLogger } from 'nestjs-pino';
 import { PermissionCacheService } from '../authorization/permission-cache.service';
 import { PermissionService } from '../authorization/permission.service';
+import { getCurrentTraceId } from '../common/trace-context';
 import { formatTraceLog } from '../common/trace-log';
 import { assertPasswordStrength } from '../common/validators';
 import { PrismaService } from '../prisma/prisma.service';
@@ -46,7 +48,10 @@ export class AuthService {
     private permissionCache: PermissionCacheService,
     private permissionService: PermissionService,
     private uploadService: UploadService,
-  ) {}
+    private pinoLogger: PinoLogger,
+  ) {
+    this.pinoLogger.setContext(AuthService.name);
+  }
 
   // 校验账号密码并创建新的登录会话 返回 access token 与 refresh token
   async login(loginDto: LoginDto) {
@@ -74,8 +79,10 @@ export class AuthService {
       const accessToken = this.jwtService.sign(this.buildAccessTokenPayload(user, sessionId, tokenVersion, permissionVersion));
       const userProfile = this.toUserProfile(user);
 
-      this.logger.log(
-        formatTraceLog('auth.login.success', {
+      this.pinoLogger.info(
+        {
+          event: 'auth.login.success',
+          traceId: getCurrentTraceId(),
           accountHash: hashAuthAccount(account),
           userId: user.id,
           tenantId: user.tenantId ?? 'null',
@@ -84,7 +91,8 @@ export class AuthService {
           tokenVersion,
           permissionVersion,
           requiresPasswordReset: user.requiresPasswordReset,
-        }),
+        },
+        '用户登录成功',
       );
 
       return {
@@ -95,11 +103,27 @@ export class AuthService {
       };
     } catch (error) {
       const reason = getAuthFailureReason(error);
-      const logMessage = formatTraceLog('auth.login.failure', { accountHash: hashAuthAccount(account), reason });
       if (reason === 'unknown') {
-        this.logger.error(logMessage, getErrorStack(error));
+        this.pinoLogger.error(
+          {
+            event: 'auth.login.failure',
+            traceId: getCurrentTraceId(),
+            accountHash: hashAuthAccount(account),
+            reason,
+            err: error instanceof Error ? error : undefined,
+          },
+          '用户登录异常',
+        );
       } else {
-        this.logger.warn(logMessage);
+        this.pinoLogger.warn(
+          {
+            event: 'auth.login.failure',
+            traceId: getCurrentTraceId(),
+            accountHash: hashAuthAccount(account),
+            reason,
+          },
+          '用户登录失败',
+        );
       }
       throw error;
     }

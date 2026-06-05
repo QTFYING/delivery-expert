@@ -4,10 +4,10 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { json, raw, urlencoded } from 'express';
+import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/business-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
-import { LocalizedConsoleLogger } from './common/logger/localized-console.logger';
 import { TRACE_ID_HEADER } from './common/request-trace';
 import { IMPORT_PREVIEW_BODY_LIMIT, PRINTING_CONFIG_BODY_LIMIT } from './import/import.constants';
 
@@ -17,8 +17,9 @@ async function bootstrap() {
   // 关闭 Nest 默认 body parser，改按路由分档挂 express 中间件
   const app = await NestFactory.create(AppModule, {
     bodyParser: false,
-    logger: new LocalizedConsoleLogger(),
+    bufferLogs: true,
   });
+  app.useLogger(app.get(Logger));
 
   const captureRawBody = (req: RequestWithRawBody, _res: Response, buf: Buffer, encoding: BufferEncoding) => {
     if (buf.length > 0) {

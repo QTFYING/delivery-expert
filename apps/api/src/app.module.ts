@@ -1,5 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
+import { LoggerModule } from 'nestjs-pino';
 import { AuthModule } from './auth/auth.module';
+import { buildPinoLoggerOptions } from './common/logger/pino-logger.options';
 import { RequestLoggingMiddleware } from './common/middleware/request-logging.middleware';
 import { EnvironmentModule } from './config/environment.module';
 import { FinanceModule } from './finance/finance.module';
@@ -19,6 +21,7 @@ import { UploadModule } from './upload/upload.module';
 
 @Module({
   imports: [
+    LoggerModule.forRoot(buildPinoLoggerOptions()),
     EnvironmentModule,
     PrismaModule,
     IdGeneratorModule,
