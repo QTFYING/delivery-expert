@@ -34,18 +34,18 @@
   |
   v
 1Panel OpenResty
-  |-- mp.shoudanba.cn  -> 前端静态资源
-  |-- www.shoudanba.cn -> 前端静态资源
-  |-- h5.shoudanba.cn  -> 前端静态资源
-  |-- api.shoudanba.cn -> http://127.0.0.1:3000
-                              |
-                              v
-                       Docker: 后端容器
-                               |
-                               +--> host.docker.internal:5432 PostgreSQL
-                               +--> host.docker.internal:6379 Redis
+  |-- mp.shoudanba.cn  -> 前端静态资源，仅 SPA 回退
+  |-- www.shoudanba.cn -> 前端静态资源，仅 SPA 回退
+  |-- h5.shoudanba.cn  -> 前端静态资源，仅 SPA 回退
+  |-- api.shoudanba.cn
+        |-- /api/pay/              -> http://127.0.0.1:3001
+        |-- /api/payment/webhook/  -> http://127.0.0.1:3001
+        |-- /api/import/preview    -> http://127.0.0.1:3000，单独放大请求体
+        |-- 其他请求               -> http://127.0.0.1:3000
 
-Docker: import-worker -> PostgreSQL / Redis
+Docker: api          -> host.docker.internal:5432 PostgreSQL / 6379 Redis
+Docker: payment-api  -> host.docker.internal:5432 PostgreSQL / 6379 Redis
+Docker: import-worker -> host.docker.internal:5432 PostgreSQL / 6379 Redis
 ```
 
 ## 4. 单机边界
@@ -169,6 +169,7 @@ docker compose ps
 
 ```bash
 docker compose logs -f api
+docker compose logs -f payment-api
 docker compose logs -f import-worker
 ```
 
@@ -193,19 +194,80 @@ docker exec -it shou-api-server node scripts/db-init.js
 
 ## 11. 配置 API 反向代理
 
-在 1Panel 中为 `api.shoudanba.cn` 创建反向代理站点。
+在 1Panel 中为 `api.shoudanba.cn` 创建反向代理站点。该站点承接所有 API 域名流量，前端静态站点不要再分散配置 `/api/` 代理。
 
-目标地址：
+当前路由口径：
 
 ```text
-http://127.0.0.1:3000
+/api/pay/              -> http://127.0.0.1:3001
+/api/payment/webhook/  -> http://127.0.0.1:3001
+/api/import/preview    -> http://127.0.0.1:3000，client_max_body_size 21m
+其他请求               -> http://127.0.0.1:3000
 ```
 
-原因：
+推荐在 `api.shoudanba.cn` 的 OpenResty 配置中保留更具体的 location，再用根代理兜底：
 
-- `docker-compose.yml` 将容器 `3000` 映射到宿主机 `127.0.0.1:3000`
-- API 不直接暴露公网
-- OpenResty 通过本机回源访问 API
+```nginx
+location ^~ /api/pay/ {
+    proxy_pass http://127.0.0.1:3001;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header REMOTE-HOST $remote_addr;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $http_connection;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Port $server_port;
+    proxy_http_version 1.1;
+}
+
+location ^~ /api/payment/webhook/ {
+    proxy_pass http://127.0.0.1:3001;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header REMOTE-HOST $remote_addr;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $http_connection;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Port $server_port;
+    proxy_http_version 1.1;
+}
+
+location ^~ /api/import/preview {
+    client_max_body_size 21m;
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header REMOTE-HOST $remote_addr;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $http_connection;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Port $server_port;
+    proxy_http_version 1.1;
+}
+
+location ^~ / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header REMOTE-HOST $remote_addr;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $http_connection;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Port $server_port;
+    proxy_http_version 1.1;
+}
+```
+
+说明：
+
+- `docker-compose.yml` 将 `api` 映射到宿主机 `127.0.0.1:3000`，将 `payment-api` 映射到宿主机 `127.0.0.1:3001`
+- H5 支付公开接口和支付回调应进入 `payment-api`，不要依赖主 API 的兼容兜底
+- 只有 `POST /api/import/preview` 需要放大请求体；正式导入 `POST /api/orders/import` 只消费 `previewId`，不需要单独放大
+- OpenResty 使用最长前缀匹配，更具体的 `/api/pay/`、`/api/payment/webhook/` 和 `/api/import/preview` 会优先于根代理
 
 ## 12. 部署前端静态资源
 
@@ -233,26 +295,19 @@ http://127.0.0.1:3000
 
 ## 13. 前端 SPA 回退
 
-每个前端静态站点都需要配置：
+每个前端静态站点只配置 SPA 回退，不配置 `/api/` 反向代理：
 
 ```nginx
-location ^~ /api/ {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-}
-
 location / {
     try_files $uri $uri/ /index.html;
 }
 ```
 
-尤其是 H5 的 `/pay/:token`，不配置会导致扫码直开 404。
+说明：
+
+- 前端 API root 使用 `https://api.shoudanba.cn`，接口流量不经过 `mp.shoudanba.cn`、`www.shoudanba.cn`、`h5.shoudanba.cn`
+- 前端静态站点只负责页面刷新不 404，复杂 API 转发规则统一放在 `api.shoudanba.cn`
+- H5 页面路径 `/pay/:token` 属于前端路由；H5 支付接口 `/api/pay/:token` 属于 API 域名路由，两者不要混淆
 
 ## 14. 日常更新
 
@@ -262,8 +317,14 @@ location / {
 cd /data/www/api
 git pull
 docker compose up -d --build api
-docker compose up -d import-worker
+docker compose up -d --force-recreate payment-api
+docker compose up -d --force-recreate import-worker
 ```
+
+说明：
+
+- `api` 是唯一带 `build` 配置的服务，会构建新的 `shou-backend:latest` 镜像
+- `payment-api` 与 `import-worker` 复用同一个镜像，通过不同 `command` 启动，更新后需要显式重建容器以吃到新镜像
 
 ## 15. 涉及数据库迁移的更新
 
@@ -276,7 +337,7 @@ docker compose up -d import-worker
 3. 停止 `import-worker`，必要时同时停止 `api`。
 4. 执行本次发布对应且已评审的迁移 SQL。
 5. 校验表结构、枚举和关键数据。
-6. 更新并启动 `api`。
+6. 更新并启动 `api` 与 `payment-api`。
 7. 验证登录、订单列表、导入、支付等关键链路。
 8. 恢复 `import-worker`。
 
@@ -286,7 +347,16 @@ docker compose up -d import-worker
 
 ```bash
 curl http://127.0.0.1:3000/api/docs
+curl http://127.0.0.1:3001/api/pay/<qrCodeToken>
 curl https://api.shoudanba.cn/api/docs
+curl https://api.shoudanba.cn/api/pay/<qrCodeToken>
+```
+
+OpenResty 生效配置：
+
+```bash
+docker exec openresty nginx -T 2>&1 | grep -n -A25 -B5 "/api/pay/"
+docker exec openresty nginx -T 2>&1 | grep -n -A25 -B5 "/api/import/preview"
 ```
 
 前端：
@@ -312,11 +382,15 @@ curl https://api.shoudanba.cn/api/docs
 ```bash
 docker compose ps
 docker compose logs -f api
+docker compose logs -f payment-api
 docker compose logs -f import-worker
 docker compose restart api
+docker compose restart payment-api
 docker compose restart import-worker
 docker compose stop import-worker
 docker compose up -d import-worker
+docker compose up -d --build api
+docker compose up -d --force-recreate payment-api
 docker compose down
 docker compose up -d --build
 ```
@@ -326,3 +400,4 @@ docker compose up -d --build
 根目录 `nginx.conf` 不参与本场景。
 
 它只作为无 1Panel、全 Docker Compose 场景下的 Nginx 参考配置。
+1Panel 场景中的 API 反向代理以 1Panel/OpenResty 站点配置为准，不复制根目录 `nginx.conf`。
