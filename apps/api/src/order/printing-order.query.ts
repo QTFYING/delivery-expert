@@ -35,7 +35,7 @@ function applyPrintingOrderDateFilter(where: Prisma.OrderWhereInput, query: Prin
     throw new BadRequestException('dateFrom 不能晚于 dateTo');
   }
 
-  where.createdAt = {
+  where.orderTime = {
     ...(start ? { gte: start.toDate() } : {}),
     ...(end ? { lte: end.toDate() } : {}),
   };

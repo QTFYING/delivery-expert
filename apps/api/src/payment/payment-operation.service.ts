@@ -80,7 +80,7 @@ export class PaymentOperationService {
     await this.assertOrderWithinPaymentWindow(
       {
         tenantId: order.tenantId,
-        createdAt: order.createdAt,
+        orderTime: order.orderTime,
       },
       this.prisma,
     );
@@ -101,7 +101,7 @@ export class PaymentOperationService {
         await this.assertOrderWithinPaymentWindow(
           {
             tenantId: currentOrder.tenantId,
-            createdAt: currentOrder.createdAt,
+            orderTime: currentOrder.orderTime,
           },
           tx,
         );
@@ -254,7 +254,7 @@ export class PaymentOperationService {
   private async assertOrderWithinPaymentWindow(
     input: {
       tenantId: string;
-      createdAt: Date;
+      orderTime: Date;
     },
     client: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<void> {

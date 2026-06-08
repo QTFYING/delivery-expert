@@ -15,9 +15,8 @@
 
 **补充说明：**
 
-- 账期筛选使用 `payType=credit`，不要使用已废弃的 `status=credit`
-- 本期状态搜索只开放 `pending / paid / expired`；`partial / voided` 保留为订单状态但不作为搜索条件
-- `status=expired` 为动态筛选：现款订单按租户 `qrCodeExpiry` 支付有效期判断，账期订单按账期到期日判断
+- `OrderStatus.voided` 表示已作废，不与 `expired` 混用；本期不开放作废状态搜索
+- 本期订单搜索只开放 `status=pending / paid / expired`，其中 `expired` 按订单下单时间动态计算支付截止时间或账期到期时间；`partial / voided` 不作为搜索条件
 - `payType=cash&creditType=month|week|period` 属于非法筛选组合，服务端应返回 400
 - `OrderListQuery.mappingTemplateId` 按订单上的导入映射模板 ID 筛选；导入预检请求中的 `templateId` 仍表示本次导入选择的模板
 
@@ -66,7 +65,7 @@
 **业务规则：**
 
 - 本接口只返回打印中心列表所需的轻量订单摘要，订单完整信息继续读取订单详情
-- 打印中心日期筛选按订单创建时间计算；`date` 不得与 `dateFrom/dateTo` 同时传入
+- 打印中心日期筛选按订单下单时间计算；`date` 不得与 `dateFrom/dateTo` 同时传入
 
 ### 1.7 提交打印成功回执
 

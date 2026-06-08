@@ -9,17 +9,17 @@ export class QueryPrintingOrdersDto extends OptionalPaginationQueryDto {
   @IsString()
   keyword?: string;
 
-  @ApiPropertyOptional({ description: '按订单创建日期筛选单天 YYYY-MM-DD', example: '2026-06-08' })
+  @ApiPropertyOptional({ description: '按订单下单日期筛选单天 YYYY-MM-DD', example: '2026-06-08' })
   @IsOptional()
   @IsDateString()
   date?: string;
 
-  @ApiPropertyOptional({ description: '按订单创建日期筛选开始日期 YYYY-MM-DD', example: '2026-06-01' })
+  @ApiPropertyOptional({ description: '按订单下单日期筛选开始日期 YYYY-MM-DD', example: '2026-06-01' })
   @IsOptional()
   @IsDateString()
   dateFrom?: string;
 
-  @ApiPropertyOptional({ description: '按订单创建日期筛选结束日期 YYYY-MM-DD', example: '2026-06-08' })
+  @ApiPropertyOptional({ description: '按订单下单日期筛选结束日期 YYYY-MM-DD', example: '2026-06-08' })
   @IsOptional()
   @IsDateString()
   dateTo?: string;

@@ -94,7 +94,7 @@ export class PaymentActionSwagger implements PaymentActionContract {
   canInitiate!: boolean;
 
   @ApiPropertyOptional({
-    description: '订单可发起支付的最大时间；以租户支付有效期配置计算',
+    description: '订单可发起支付的最大时间；以下单时间和租户支付有效期配置计算',
     example: '2026-05-06T12:35:00.000Z',
     nullable: true,
   })

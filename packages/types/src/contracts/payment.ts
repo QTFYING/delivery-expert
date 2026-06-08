@@ -42,7 +42,7 @@ export interface PaymentAction {
   resumeUrl: string | null;
   /** 是否允许重新发起在线支付 */
   canInitiate: boolean;
-  /** 订单可发起支付的最大时间；以租户支付有效期配置计算 */
+  /** 订单可发起支付的最大时间；以下单时间和租户支付有效期配置计算 */
   expiresAt: string | null;
 }
 

@@ -63,7 +63,7 @@ export class PaymentInitiationService {
     await this.assertTenantLifecycleAllowed(order.tenantId);
     await this.paymentWindowService.assertOrderWithinPaymentWindow({
       tenantId: order.tenantId,
-      createdAt: order.createdAt,
+      orderTime: order.orderTime,
     });
 
     const lockKey = `payment:initiate:${order.id}`;
@@ -114,7 +114,7 @@ export class PaymentInitiationService {
       await this.assertOrderWithinPaymentWindow(
         {
           tenantId: currentOrder.tenantId,
-          createdAt: currentOrder.createdAt,
+          orderTime: currentOrder.orderTime,
         },
         tx,
       );
@@ -171,7 +171,7 @@ export class PaymentInitiationService {
       await this.assertOrderWithinPaymentWindow(
         {
           tenantId: currentOrder.tenantId,
-          createdAt: currentOrder.createdAt,
+          orderTime: currentOrder.orderTime,
         },
         tx,
       );
@@ -300,7 +300,7 @@ export class PaymentInitiationService {
       await this.assertOrderWithinPaymentWindow(
         {
           tenantId: currentOrder.tenantId,
-          createdAt: currentOrder.createdAt,
+          orderTime: currentOrder.orderTime,
         },
         tx,
       );
@@ -413,7 +413,7 @@ export class PaymentInitiationService {
   private async assertOrderWithinPaymentWindow(
     input: {
       tenantId: string;
-      createdAt: Date;
+      orderTime: Date;
     },
     client: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<void> {

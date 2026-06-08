@@ -79,7 +79,7 @@ export class PaymentQueryService {
     });
     const paymentWindowState = await this.applyPaymentWindowOverride({
       tenantId: order.tenantId,
-      createdAt: order.createdAt,
+      orderTime: order.orderTime,
       status: resolvedStatus,
       statusMessage: this.resolveLifecycleStatusMessage(resolvedStatus, currentPaymentOrder?.statusMessage ?? undefined, tenantLifecycle),
       paymentAction: this.buildPaymentAction(order, currentPaymentOrder, resolvedStatus, activePaymentChannel, tenantLifecycle),
@@ -144,7 +144,7 @@ export class PaymentQueryService {
         : null;
     const paymentWindowState = await this.applyPaymentWindowOverride({
       tenantId: order.tenantId,
-      createdAt: order.createdAt,
+      orderTime: order.orderTime,
       status: resolvedStatus,
       statusMessage: this.resolveLifecycleStatusMessage(resolvedStatus, currentPaymentOrder?.statusMessage ?? undefined, tenantLifecycle),
       paymentAction: this.buildPaymentAction(order, currentPaymentOrder, resolvedStatus, activePaymentChannel, tenantLifecycle),
@@ -343,7 +343,7 @@ export class PaymentQueryService {
    */
   private async applyPaymentWindowOverride(input: {
     tenantId: string;
-    createdAt: Date;
+    orderTime: Date;
     status: PaymentOrderDetailResponse['status'];
     statusMessage?: string;
     paymentAction: PaymentAction;
@@ -356,7 +356,7 @@ export class PaymentQueryService {
   }> {
     const paymentWindow = await this.paymentWindowService.resolveOrderPaymentWindow({
       tenantId: input.tenantId,
-      createdAt: input.createdAt,
+      orderTime: input.orderTime,
     });
     const paymentAction = {
       ...input.paymentAction,
