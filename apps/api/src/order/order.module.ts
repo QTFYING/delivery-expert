@@ -8,13 +8,15 @@ import { OrderPrintController } from './order-print.controller';
 import { OrderPrintQueryService } from './order-print-query.service';
 import { OrderPrintService } from './order-print.service';
 import { OrderTenantQueryService } from './order-tenant-query.service';
+import { PrintingController } from './printing.controller';
+import { PrintingOrderQueryService } from './printing-order-query.service';
 import { OrderService } from './order.service';
 import { OrderController } from './order.controller';
 
 @Module({
   imports: [AuthorizationModule, PaymentCoreModule],
-  controllers: [OrderPrintController, OrderFinanceController, OrderController],
-  providers: [OrderService, OrderOSQueryService, OrderTenantQueryService, OrderFinanceService, OrderPrintService, OrderPrintQueryService],
-  exports: [OrderService, OrderFinanceService, OrderPrintService, OrderPrintQueryService],
+  controllers: [PrintingController, OrderPrintController, OrderFinanceController, OrderController],
+  providers: [OrderService, OrderOSQueryService, OrderTenantQueryService, OrderFinanceService, OrderPrintService, OrderPrintQueryService, PrintingOrderQueryService],
+  exports: [OrderService, OrderFinanceService, OrderPrintService, OrderPrintQueryService, PrintingOrderQueryService],
 })
 export class OrderModule {}

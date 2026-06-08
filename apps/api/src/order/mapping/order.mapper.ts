@@ -6,12 +6,11 @@ import {
   PaymentMethodEnum as PrismaPaymentMethodEnum,
   OfflinePaymentVerifyStatusEnum as PrismaOfflinePaymentVerifyStatusEnum,
 } from '@prisma/client';
-import type { AdminOrderItem, CreditOrderItem, OfflinePaymentInfo, OrderLineItem, TenantOrderItem, TenantOrderListItem } from '@shou/types/contracts';
-import { CreditTypeEnum, OrderPayTypeEnum, type CreditType } from '@shou/types/enums';
+import type { AdminOrderItem, OfflinePaymentInfo, OrderLineItem, TenantOrderItem, TenantOrderListItem } from '@shou/types/contracts';
+import { CreditTypeEnum, type CreditType } from '@shou/types/enums';
 import dayjs from 'dayjs';
 import { toDecimal, toMoney, toMoneyNumber, toDecimalNumber, toPrismaDecimal } from '../../common/money';
 import { formatDateTime } from '../../common/validators';
-import { resolveCreditOrderStatus } from '../order.domain';
 import { resolveCreditDays } from '../order-credit.domain';
 import { fromPrismaOfflinePaymentVerifyStatus, fromPrismaPaymentMethod, offlineVerifyStatusText } from '../../payment/mapping/payment.mapper';
 import { fromPrismaOrderCreditType, fromPrismaOrderPayType, fromPrismaOrderStatus } from './order-enum.mapper';
@@ -175,44 +174,6 @@ export function toTenantOrder(order: OrderRowBase): TenantOrderItem {
     voided: order.voided,
     voidReason: order.voidReason ?? undefined,
     voidedAt: formatDateTime(order.voidedAt),
-  };
-}
-
-export function toCreditOrderItem(
-  order: {
-    id: string;
-    customer: string;
-    totalAmount: Prisma.Decimal;
-    orderTime: Date;
-    creditType?: PrismaOrderCreditTypeEnum | string | null;
-    creditDays: number | null;
-    creditDueDate: Date | null;
-  },
-  remindDays?: number,
-): CreditOrderItem {
-  const creditFields = resolveOrderCreditFields({
-    payType: PrismaOrderPayTypeEnum.CREDIT,
-    orderTime: order.orderTime,
-    creditType: order.creditType,
-    creditDays: order.creditDays,
-    creditDueDate: order.creditDueDate,
-  });
-  const dueDate = creditFields.dueDate
-    ? new Date(creditFields.dueDate)
-    : dayjs(order.orderTime)
-        .add(creditFields.creditDays ?? 0, 'day')
-        .toDate();
-
-  return {
-    id: order.id,
-    customer: order.customer,
-    amount: toMoneyNumber(order.totalAmount),
-    payType: OrderPayTypeEnum.CREDIT,
-    creditType: creditFields.creditType ?? CreditTypeEnum.PERIOD,
-    date: formatDateTime(order.orderTime),
-    creditDays: creditFields.creditDays ?? 0,
-    dueDate: creditFields.dueDate ?? formatDateTime(dueDate),
-    creditStatus: resolveCreditOrderStatus(dueDate, new Date(), remindDays),
   };
 }
 

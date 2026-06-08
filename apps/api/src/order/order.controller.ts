@@ -89,7 +89,7 @@ export class OrderController {
   @ApiParam({ name: 'id', description: '订单 ID' })
   @ApiOkResponse({ type: TenantOrderItemSwagger })
   @Patch(':id')
-  @Permissions(TenantPermissionCodeEnum.ORDERS_VOID)
+  @Permissions(TenantPermissionCodeEnum.ORDERS_MANAGE)
   async voidOrder(@CurrentUser() currentUser: JwtPayload, @Param('id') id: string, @Body() request: VoidOrderDto): Promise<TenantOrderItem> {
     return this.orderService.voidOrder(currentUser, id, request as VoidOrderRequest);
   }

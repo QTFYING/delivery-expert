@@ -94,7 +94,6 @@ Tenant 订单导入链路为：
 | 周结                   | `credit`       | `week`            | `7`        |
 | 账期 / 赊账 / `credit` | `credit`       | `period`          | `30`       |
 
-滚结本期按现款处理，不进入账期体系，不出现在 `/orders/credit`，不参与账期待办和 `payType=credit` 统计。
 
 普通账期 `period` 当前默认 `30` 天。后续如需支持租户可配置，应先回到 `tenant-api-doc.md` 变更语义。
 

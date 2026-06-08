@@ -1,7 +1,5 @@
 import type { ListParams } from '../common';
-import type { OfflinePaymentInfo } from './payment';
 import type {
-  CreditOrderStatus,
   CreditType,
   OrderImportConflictPolicy,
   OrderImportJobStatus,
@@ -10,7 +8,9 @@ import type {
   OrderSearchStatus,
   OrderStatus,
   PrintRecordResult,
+  PrintingOrderPrintStatus,
 } from '../enums';
+import type { OfflinePaymentInfo } from './payment';
 
 export interface OrderLineItem {
   /** 行项目 ID */
@@ -675,6 +675,28 @@ export interface TenantPrintRecordsResponse {
   };
 }
 
+export interface PrintingOrderListQuery extends ListParams {
+  /** 按订单创建日期筛选单天，格式 YYYY-MM-DD */
+  date?: string;
+  /** 按订单创建日期筛选开始日期，格式 YYYY-MM-DD */
+  dateFrom?: string;
+  /** 按订单创建日期筛选结束日期，格式 YYYY-MM-DD */
+  dateTo?: string;
+  /** 打印状态筛选 */
+  printStatus?: PrintingOrderPrintStatus;
+}
+
+export interface PrintingOrderListItem {
+  /** 订单 ID */
+  id: string;
+  /** 客户名称 */
+  customer: string;
+  /** 打印成功次数 */
+  prints: number;
+  /** 导入映射模板 ID */
+  mappingTemplateId?: string;
+}
+
 export interface CreateOrderReminderRequest {
   /** 催款渠道列表 */
   channels?: string[];
@@ -685,32 +707,6 @@ export interface CreateOrderReminderResponse {
   sent: boolean;
   /** 实际发送渠道 */
   channels: string[];
-}
-
-export interface CreditOrderItem {
-  /** 订单 ID */
-  id: string;
-  /** 客户名称 */
-  customer: string;
-  /** 金额 */
-  amount: number;
-  /** 结算方式，账期管理列表固定为 credit */
-  payType: 'credit';
-  /** 账期子类型 */
-  creditType: CreditType;
-  /** 下单日期 */
-  date: string;
-  /** 账期天数 */
-  creditDays: number;
-  /** 到期日期 */
-  dueDate: string;
-  /** 账期状态 */
-  creditStatus: CreditOrderStatus;
-}
-
-export interface CreditOrderListQuery extends ListParams {
-  /** 订单状态筛选；本期仅开放 pending / paid / expired */
-  status?: OrderSearchStatus;
 }
 
 export interface CreateOrderReceiptRequest {

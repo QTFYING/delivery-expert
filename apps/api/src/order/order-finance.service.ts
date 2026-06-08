@@ -3,38 +3,30 @@ import {
   Prisma,
   AuditResultEnum as PrismaAuditResultEnum,
   AuditTargetTypeEnum as PrismaAuditTargetTypeEnum,
-  OrderPayTypeEnum as PrismaOrderPayTypeEnum,
   OrderReminderStatusEnum as PrismaOrderReminderStatusEnum,
   PaymentOrderStatusEnum as PrismaPaymentOrderStatusEnum,
   PaymentRecordStatusEnum as PrismaPaymentRecordStatusEnum,
 } from '@prisma/client';
-
-import type { PaginatedResponse } from '@shou/types/common';
 
 import type {
   CreateOrderReceiptRequest,
   CreateOrderReceiptResponse,
   CreateOrderReminderRequest,
   CreateOrderReminderResponse,
-  CreditOrderItem,
 } from '@shou/types/contracts';
-import { PaymentOrderStatusEnum, type OrderSearchStatus } from '@shou/types/enums';
+import { PaymentOrderStatusEnum } from '@shou/types/enums';
 
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
 import { toMoney, toMoneyNumber } from '../common/money';
-import { cut, normalizePage, normalizePageSize } from '../common/validators';
+import { cut } from '../common/validators';
 import { ID_CONFIG } from '../id-generator/id-generator.constants';
 import { IdGeneratorService } from '../id-generator/id-generator.service';
 import { toPaymentDomainExpirableSnapshot, toPrismaPaymentOrderUpdateData } from '../payment/mapping/payment.mapper';
 import { PaymentLedgerService } from '../payment/payment-ledger.service';
-import { PaymentWindowService } from '../payment/payment-window.service';
 import { buildExpirePayingPaymentOrderTransition, shouldExpirePayingPaymentOrder } from '../payment/payment.domain';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { fromPrismaOrderStatus } from './mapping/order-enum.mapper';
-import { toCreditOrderItem } from './mapping/order.mapper';
-import { getTenantCreditRemindDays } from './order-settings.query';
-import { buildOrderSearchStatusWhere } from './order-status.query';
 import { getOrderActorName, getOrderTenantId, normalizeReminderChannels } from './order.shared';
 
 @Injectable()
@@ -46,7 +38,6 @@ export class OrderFinanceService {
     private readonly idGen: IdGeneratorService,
     private readonly redis: RedisService,
     private readonly ledgerService: PaymentLedgerService,
-    private readonly paymentWindowService: PaymentWindowService,
   ) {}
 
   // 为订单创建催款提醒记录，并同步写入审计日志
@@ -91,46 +82,6 @@ export class OrderFinanceService {
     return {
       sent: true,
       channels,
-    };
-  }
-
-  // 返回租户下未删除未作废的账期订单列表，可按订单搜索状态筛选
-  async getCreditOrders(
-    currentUser: JwtPayload,
-    page?: number,
-    pageSize?: number,
-    status?: OrderSearchStatus,
-  ): Promise<PaginatedResponse<CreditOrderItem>> {
-    const tenantId = getOrderTenantId(currentUser);
-    const resolvedPage = normalizePage(page);
-    const resolvedPageSize = normalizePageSize(pageSize);
-    const qrCodeExpiryDays = await this.paymentWindowService.getTenantQrCodeExpiryDays(tenantId);
-    const statusWhere = buildOrderSearchStatusWhere(status, { tenantPaymentWindows: [{ tenantId, qrCodeExpiryDays }] });
-    const where: Prisma.OrderWhereInput = {
-      tenantId,
-      deletedAt: null,
-      voided: false,
-      payType: PrismaOrderPayTypeEnum.CREDIT,
-      ...(statusWhere ? { AND: [statusWhere] } : {}),
-    };
-
-    const remindDays = await getTenantCreditRemindDays(this.prisma, tenantId);
-
-    const [orders, total] = await Promise.all([
-      this.prisma.order.findMany({
-        where,
-        orderBy: [{ creditDueDate: 'asc' }, { orderTime: 'asc' }],
-        skip: (resolvedPage - 1) * resolvedPageSize,
-        take: resolvedPageSize,
-      }),
-      this.prisma.order.count({ where }),
-    ]);
-
-    return {
-      list: orders.map((order) => toCreditOrderItem(order, remindDays)),
-      total,
-      page: resolvedPage,
-      pageSize: resolvedPageSize,
     };
   }
 
