@@ -3,6 +3,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { AuthModule } from './auth/auth.module';
 import { buildPinoLoggerOptions } from './common/logger/pino-logger.options';
 import { RequestLoggingMiddleware } from './common/middleware/request-logging.middleware';
+import { BurstLimitModule } from './common/guards/burst-limit.module';
 import { EnvironmentModule } from './config/environment.module';
 import { FinanceModule } from './finance/finance.module';
 import { IdGeneratorModule } from './id-generator/id-generator.module';
@@ -26,6 +27,7 @@ import { UploadModule } from './upload/upload.module';
     PrismaModule,
     IdGeneratorModule,
     RedisModule,
+    BurstLimitModule,
     AuthModule,
     TenantModule,
     PlatformModule,

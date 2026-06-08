@@ -21,7 +21,7 @@ module.exports = {
       },
       error_file: 'logs/api-error.log',
       out_file: 'logs/api-out.log',
-      time: true,
+      time: false,
     },
     {
       name: 'shou-pay-server',
@@ -40,7 +40,7 @@ module.exports = {
       },
       error_file: 'logs/pay-error.log',
       out_file: 'logs/pay-out.log',
-      time: true,
+      time: false,
     },
     {
       name: 'shou-import-worker',
@@ -59,7 +59,7 @@ module.exports = {
       },
       error_file: 'logs/import-error.log',
       out_file: 'logs/import-out.log',
-      time: true,
+      time: false,
     },
   ],
 };

@@ -16,6 +16,7 @@ import { Permissions } from '../authorization/permissions.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { PermissionsGuard } from '../authorization/permissions.guard';
+import { BurstLimit } from '../common/decorators/burst-limit.decorator';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { ListOrdersQueryDto } from './dto/list-orders.query.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
@@ -39,6 +40,7 @@ export class OrderController {
     },
   })
   @Get()
+  @BurstLimit()
   @Roles(UserRoleEnum.OS_SUPER_ADMIN)
   @Permissions(TenantPermissionCodeEnum.ORDERS_READ)
   async findAll(

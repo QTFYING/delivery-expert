@@ -141,6 +141,15 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return result === 'OK';
   }
 
+  // 仅当 key 不存在时写入短 TTL 字符串值，适合请求级毫秒窗口频控
+  async setIfAbsentForMilliseconds(key: string, value: string, ttlMilliseconds: number): Promise<boolean> {
+    const result = await this.client.set(key, value, {
+      NX: true,
+      PX: ttlMilliseconds,
+    });
+    return result === 'OK';
+  }
+
   // 仅当当前 JSON 顶层字段仍匹配预期值时，才原子更新整份 JSON 并刷新 TTL
   // 典型用途：只有活动任务 key 里的 jobId 还是自己时，才允许续期和改状态
   async setJsonIfFieldMatches(key: string, fieldName: string, expectedFieldValue: string, value: unknown, ttlSeconds: number): Promise<boolean> {
