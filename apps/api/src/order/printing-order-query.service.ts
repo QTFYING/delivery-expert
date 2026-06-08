@@ -27,7 +27,7 @@ export class PrintingOrderQueryService {
           prints: true,
           mappingTemplateId: true,
         },
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        orderBy: [{ id: 'desc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),

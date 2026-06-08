@@ -39,7 +39,7 @@ export class OrderTenantQueryService {
       this.prisma.order.findMany({
         where,
         include: { paymentOrders: this.latestOfflinePaymentOrderInclude },
-        orderBy: [{ orderTime: 'desc' }, { createdAt: 'desc' }],
+        orderBy: [{ id: 'desc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),

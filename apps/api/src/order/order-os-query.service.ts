@@ -28,7 +28,7 @@ export class OrderOSQueryService {
       this.prisma.order.findMany({
         where,
         include: { lineItems: true, tenant: true },
-        orderBy: [{ orderTime: 'desc' }, { createdAt: 'desc' }],
+        orderBy: [{ id: 'desc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
