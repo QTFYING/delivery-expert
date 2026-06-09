@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const dayjs = require('dayjs');
 const { NestFactory } = require('@nestjs/core');
 const { ValidationPipe } = require('@nestjs/common');
 const { PrismaClient } = require('@prisma/client');
@@ -23,7 +24,7 @@ const resultPath = path.join(runtimeDir, 'import-template-custom-fields-result.j
 
 function templatePayload(overrides = {}) {
   const payload = buildImportTemplatePayload();
-  payload.name = overrides.name ?? `模板自定义字段回归-${Date.now()}`;
+  payload.name = overrides.name ?? `模板自定义字段回归-${dayjs().valueOf()}`;
   payload.defaultFields = payload.defaultFields.map(({ key, label, mapStr, type }) => ({ key, label, mapStr, type }));
   payload.customerFields = overrides.customerFields ?? [
     {
@@ -127,7 +128,7 @@ async function main() {
         url: `${baseUrl}/import/templates`,
         token,
         body: templatePayload({
-          name: `模板非法 key-${Date.now()}`,
+          name: `模板非法 key-${dayjs().valueOf()}`,
           customerFields: [{ key: 'customer', label: '客户编码', mapStr: '客商编码', type: 'list' }],
         }),
       },
@@ -142,7 +143,7 @@ async function main() {
         url: `${baseUrl}/import/templates`,
         token,
         body: templatePayload({
-          name: `模板非法值必填-${Date.now()}`,
+          name: `模板非法值必填-${dayjs().valueOf()}`,
           customerFields: [{ label: '客户编码', mapStr: '客商编码', isValueRequired: true, type: 'list' }],
         }),
       },
@@ -154,7 +155,7 @@ async function main() {
       url: `${baseUrl}/import/templates/${templateId}`,
       token,
       body: {
-        name: `模板自定义字段回归-改名-${Date.now()}`,
+        name: `模板自定义字段回归-改名-${dayjs().valueOf()}`,
       },
     });
     assert.equal(renameOnly.data.id, String(templateId));
@@ -212,7 +213,7 @@ async function main() {
     );
 
     const baseOrder = {
-      sourceOrderNo: `T08-PREVIEW-${Date.now()}`,
+      sourceOrderNo: `T08-PREVIEW-${dayjs().valueOf()}`,
       customer: '深圳联调客户',
       customerPhone: '13800001111',
       customerAddress: '广东省深圳市南山区',
@@ -273,7 +274,7 @@ async function main() {
     });
     assertInvalidReason(listKeyAtLineLevel, '属于订单级字段');
 
-    const sourceOrderNo = `T08-IMPORT-${Date.now()}`;
+    const sourceOrderNo = `T08-IMPORT-${dayjs().valueOf()}`;
     const validPreview = await apiRequest(results, 'T08-9 Import Preview Valid Line Fields', {
       method: 'POST',
       url: `${baseUrl}/import/preview`,

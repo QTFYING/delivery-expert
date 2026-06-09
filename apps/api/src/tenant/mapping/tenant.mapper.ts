@@ -249,11 +249,11 @@ export function toTenantRecordItem(tenant: {
   const monthlyFlow = tenant.payments.reduce((sum, item) => sum.plus(item.amount.toString()), new Decimal(0));
   const owner = tenant.users
     .filter((item) => item.role === PrismaUserRoleEnum.TENANT_OWNER)
-    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
+    .sort((a, b) => dayjs(a.createdAt).valueOf() - dayjs(b.createdAt).valueOf())[0];
   const lastActiveAt = tenant.users
     .map((item) => item.loginAt)
     .filter((value): value is Date => Boolean(value))
-    .sort((a, b) => b.getTime() - a.getTime())[0];
+    .sort((a, b) => dayjs(b).valueOf() - dayjs(a).valueOf())[0];
 
   return {
     id: tenant.id,

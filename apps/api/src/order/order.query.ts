@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { OrderPayTypeEnum } from '@shou/types/enums';
-import dayjs from 'dayjs';
+import { parseLocalDate } from '../common/validators';
 import { ListOrdersQueryDto } from './dto/list-orders.query.dto';
 import { toPrismaOrderCreditType, toPrismaOrderPayType } from './mapping/order-enum.mapper';
 import { buildOrderSearchStatusWhere, type TenantPaymentWindowRule } from './order-status.query';
@@ -56,10 +56,10 @@ function applyOrderListFilters(where: Prisma.OrderWhereInput, query: ListOrdersQ
   if (query.dateFrom || query.dateTo) {
     where.orderTime = {};
     if (query.dateFrom) {
-      where.orderTime.gte = dayjs(query.dateFrom).startOf('day').toDate();
+      where.orderTime.gte = parseLocalDate(query.dateFrom, 'dateFrom', 'start');
     }
     if (query.dateTo) {
-      where.orderTime.lte = dayjs(query.dateTo).endOf('day').toDate();
+      where.orderTime.lte = parseLocalDate(query.dateTo, 'dateTo', 'end');
     }
   }
 }

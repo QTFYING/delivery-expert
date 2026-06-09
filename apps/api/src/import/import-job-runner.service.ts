@@ -2,6 +2,7 @@ import { HttpException, Inject, Injectable, Logger, OnModuleDestroy, OnModuleIni
 import { ConfigType } from '@nestjs/config';
 import { OrderImportJobStatusEnum as PrismaImportJobStatusEnum, type Prisma } from '@prisma/client';
 import { OrderImportConflictPolicyEnum, OrderImportJobStatusEnum } from '@shou/types/enums';
+import dayjs from 'dayjs';
 import { cut } from '../common/validators';
 import { importConfig } from '../config/import.config';
 import { ID_CONFIG } from '../id-generator/id-generator.constants';
@@ -128,7 +129,7 @@ export class ImportJobRunnerService implements OnModuleInit, OnModuleDestroy {
 
   // 轮询数据库中的待执行或失联任务，并重新加入当前进程执行队列
   private async pollRunnableImportJobs(): Promise<void> {
-    const staleBefore = new Date(Date.now() - IMPORT_JOB_STALE_SECONDS * 1000);
+    const staleBefore = dayjs().subtract(IMPORT_JOB_STALE_SECONDS, 'second').toDate();
     const jobs = await this.prisma.importJob.findMany({
       where: {
         OR: [
@@ -201,7 +202,7 @@ export class ImportJobRunnerService implements OnModuleInit, OnModuleDestroy {
   ): Promise<void> {
     let progress = initialProgress;
     const tenantStateRenewIntervalMs = Math.max(1, this.importSettings.activeJobTenantRenewIntervalSeconds) * 1000;
-    let nextTenantStateRenewAt = Date.now() + tenantStateRenewIntervalMs;
+    let nextTenantStateRenewAt = dayjs().add(tenantStateRenewIntervalMs, 'millisecond');
 
     for (let index = progress.processedCount; index < snapshot.orders.length; index += 1) {
       const order = snapshot.orders[index];
@@ -228,11 +229,11 @@ export class ImportJobRunnerService implements OnModuleInit, OnModuleDestroy {
       if (lockInfo) {
         await this.redis.extendLock(lockInfo.lockKey, lockInfo.lockValue, IMPORT_JOB_LOCK_TTL_SECONDS).catch(() => false);
       }
-      if (Date.now() >= nextTenantStateRenewAt) {
+      if (dayjs().isAfter(nextTenantStateRenewAt) || dayjs().isSame(nextTenantStateRenewAt)) {
         if (!(await this.tenantJobState.renewTenantImportJobState(tenantId, jobId, OrderImportJobStatusEnum.PROCESSING))) {
           this.logger.warn(`导入任务续租租户活动锁失败，tenantId=${tenantId}, jobId=${jobId}`);
         }
-        nextTenantStateRenewAt = Date.now() + tenantStateRenewIntervalMs;
+        nextTenantStateRenewAt = dayjs().add(tenantStateRenewIntervalMs, 'millisecond');
       }
     }
 

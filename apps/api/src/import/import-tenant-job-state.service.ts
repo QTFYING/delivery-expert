@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
 import { OrderImportJobStatusEnum as PrismaImportJobStatusEnum } from '@prisma/client';
 import { OrderImportJobStatusEnum, type OrderImportJobStatus } from '@shou/types/enums';
+import dayjs from 'dayjs';
 import { importConfig } from '../config/import.config';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -50,7 +51,7 @@ export class ImportTenantJobStateService {
     }
 
     if (jobStatus !== state.status) {
-      const nextState: TenantImportJobState = { ...state, status: jobStatus, updatedAt: Date.now() };
+      const nextState: TenantImportJobState = { ...state, status: jobStatus, updatedAt: dayjs().valueOf() };
       await this.redis.setJson(stateKey, nextState, this.importSettings.activeJobTenantTtlSeconds);
       return nextState;
     }
@@ -88,7 +89,7 @@ export class ImportTenantJobStateService {
       stateKey,
       'jobId',
       jobId,
-      { ...state, status, updatedAt: Date.now() },
+      { ...state, status, updatedAt: dayjs().valueOf() },
       this.importSettings.activeJobTenantTtlSeconds,
     );
   }
@@ -104,7 +105,7 @@ export class ImportTenantJobStateService {
       return false;
     }
 
-    return Date.now() - state.updatedAt < IMPORT_ACTIVE_JOB_DB_CREATE_GRACE_SECONDS * 1000;
+    return dayjs().diff(dayjs(state.updatedAt), 'second', true) < IMPORT_ACTIVE_JOB_DB_CREATE_GRACE_SECONDS;
   }
 
   // 用最原始的 NX 占位尝试抢槽位，不负责孤儿占位清理
@@ -131,8 +132,8 @@ export class ImportTenantJobStateService {
     }
 
     const state = buildTenantImportJobState(job.id, toImportJobStatus(job.status));
-    state.createdAt = job.createdAt.getTime();
-    state.updatedAt = job.updatedAt.getTime();
+    state.createdAt = dayjs(job.createdAt).valueOf();
+    state.updatedAt = dayjs(job.updatedAt).valueOf();
     await this.redis.setJson(this.getTenantActiveImportJobKey(tenantId), state, this.importSettings.activeJobTenantTtlSeconds);
     this.logger.warn(
       staleJobId

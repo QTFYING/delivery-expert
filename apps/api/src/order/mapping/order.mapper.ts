@@ -66,6 +66,10 @@ interface OrderRowBase {
   voided: boolean;
   voidReason: string | null;
   voidedAt: Date | null;
+  payments?: Array<{
+    paidAt: Date;
+    remark: string | null;
+  }>;
   paymentOrders?: Array<{
     paymentMethod: PrismaPaymentMethodEnum | null;
     offlineRemark: string | null;
@@ -130,6 +134,8 @@ export function toTenantOrderListItem(order: Omit<OrderRowBase, 'lineItems'>): T
     printFailedCount: order.printFailedCount,
     lastFailedAt: formatDateTime(order.lastFailedAt),
     orderTime: formatDateTime(order.orderTime),
+    paidAt: formatDateTime(order.payments?.[0]?.paidAt ?? null),
+    paymentRemark: order.payments?.[0]?.remark ?? null,
     customerFieldValues: toCustomerFieldValues(order.customerFieldValues ?? null),
     voided: order.voided,
     voidReason: order.voidReason ?? undefined,
@@ -158,6 +164,8 @@ export function toTenantOrder(order: OrderRowBase): TenantOrderItem {
     printFailedCount: order.printFailedCount,
     lastFailedAt: formatDateTime(order.lastFailedAt),
     orderTime: formatDateTime(order.orderTime),
+    paidAt: formatDateTime(order.payments?.[0]?.paidAt ?? null),
+    paymentRemark: order.payments?.[0]?.remark ?? null,
     lineItems: order.lineItems.map((item) => ({
       itemId: String(item.id),
       skuId: item.skuId,
@@ -235,6 +243,7 @@ export function toAdminOrder(order: OrderRowBase & { tenant: { name: string } })
     payType: fromPrismaOrderPayType(order.payType),
     ...toOrderCreditFields(order),
     orderTime: formatDateTime(order.orderTime),
+    paidAt: formatDateTime(order.payments?.[0]?.paidAt ?? null),
     voided: order.voided,
     voidReason: order.voidReason ?? undefined,
     voidedAt: formatDateTime(order.voidedAt),

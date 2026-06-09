@@ -514,6 +514,7 @@ model Payment {
   net            Decimal                 @default(0.00) @db.Decimal(12, 2)
   status         PaymentRecordStatusEnum @default(SUCCESS)
   gatewayTradeNo String?                 @unique @db.VarChar(100)
+  remark         String?                 @db.VarChar(255)
   paidAt         DateTime                @db.Timestamptz(3)
   createdAt      DateTime                @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime                @updatedAt @db.Timestamptz(3)

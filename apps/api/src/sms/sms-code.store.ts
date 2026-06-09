@@ -1,6 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
 import * as crypto from 'crypto';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+
+dayjs.extend(utc);
 import { authConfig } from '../config/auth.config';
 import { smsConfig } from '../config/sms.config';
 import { BusinessException } from '../common/exceptions/business.exception';
@@ -70,7 +74,7 @@ export class SmsCodeStore {
     await this.assertRateLimits(input);
 
     const code = this.generateCode();
-    const now = Date.now();
+    const now = dayjs().valueOf();
     const codeKey = this.getCodeKey(input.scene, input.phone);
     const debugKey = this.getDebugCodeKey(input.scene, input.phone);
     const multi = this.redis.getClient().multi();
@@ -196,9 +200,9 @@ export class SmsCodeStore {
 
   /** 计算到下一个 UTC 自然日的秒数，手机号日限 key 到期后自动释放 */
   private getSecondsUntilNextUtcDay(): number {
-    const now = new Date();
-    const nextDay = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0);
-    return Math.max(Math.ceil((nextDay - now.getTime()) / 1000), 60);
+    const now = dayjs.utc();
+    const nextDay = now.add(1, 'day').startOf('day');
+    return Math.max(nextDay.diff(now, 'second'), 60);
   }
 
   /** 生成验证码主记录 key */
@@ -223,21 +227,21 @@ export class SmsCodeStore {
 
   /** 生成 IP 同场景分钟级发送次数 key */
   private getIpMinuteKey(scene: string, ip: string): string {
-    return `auth:sms:ip-minute:${scene}:${ip}:${Math.floor(Date.now() / 60000)}`;
+    return `auth:sms:ip-minute:${scene}:${ip}:${dayjs().startOf('minute').valueOf()}`;
   }
 
   /** 生成 IP 同场景小时级发送次数 key */
   private getIpHourKey(scene: string, ip: string): string {
-    return `auth:sms:ip-hour:${scene}:${ip}:${Math.floor(Date.now() / 3600000)}`;
+    return `auth:sms:ip-hour:${scene}:${ip}:${dayjs().startOf('hour').valueOf()}`;
   }
 
   /** 生成全局分钟级短信发送次数 key */
   private getGlobalMinuteKey(): string {
-    return `auth:sms:global:${Math.floor(Date.now() / 60000)}`;
+    return `auth:sms:global:${dayjs().startOf('minute').valueOf()}`;
   }
 
   /** 生成 UTC 日期片段，用于手机号日限 key */
   private getUtcDayKey(): string {
-    return new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    return dayjs.utc().format('YYYYMMDD');
   }
 }

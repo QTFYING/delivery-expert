@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { PrintingOrderListQuery } from '@shou/types/contracts';
 import { PrintingOrderPrintStatusEnum } from '@shou/types/enums';
-import dayjs from 'dayjs';
+import { parseLocalDate } from '../common/validators';
 
 export function buildPrintingOrderWhere(tenantId: string, query: PrintingOrderListQuery): Prisma.OrderWhereInput {
   const where: Prisma.OrderWhereInput = {
@@ -29,15 +29,15 @@ function applyPrintingOrderDateFilter(where: Prisma.OrderWhereInput, query: Prin
     return;
   }
 
-  const start = dateFrom ? dayjs(dateFrom).startOf('day') : undefined;
-  const end = dateTo ? dayjs(dateTo).endOf('day') : undefined;
-  if (start && end && start.isAfter(end)) {
+  const start = dateFrom ? parseLocalDate(dateFrom, 'dateFrom', 'start') : undefined;
+  const end = dateTo ? parseLocalDate(dateTo, 'dateTo', 'end') : undefined;
+  if (start && end && start > end) {
     throw new BadRequestException('dateFrom 不能晚于 dateTo');
   }
 
   where.orderTime = {
-    ...(start ? { gte: start.toDate() } : {}),
-    ...(end ? { lte: end.toDate() } : {}),
+    ...(start ? { gte: start } : {}),
+    ...(end ? { lte: end } : {}),
   };
 }
 

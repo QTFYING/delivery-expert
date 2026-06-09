@@ -188,7 +188,7 @@ export class PlatformOverviewService {
             totalUsers,
           }),
           owner: tenant.adminName?.trim() || '待分配',
-          _createdAt: tenant.createdAt.getTime(),
+          _createdAt: dayjs(tenant.createdAt).valueOf(),
         };
       })
       .sort((a, b) => {

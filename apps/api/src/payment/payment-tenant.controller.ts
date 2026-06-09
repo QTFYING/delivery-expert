@@ -1,9 +1,10 @@
-import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiExtraModels, ApiOkResponse, ApiOperation, ApiParam, ApiTags, getSchemaPath } from '@nestjs/swagger';
 import { TenantPermissionCodeEnum, UserRoleEnum } from '@shou/types/enums';
 import type { PaginatedResponse } from '@shou/types/common';
 import type {
   AdminPaymentRecordItem,
+  CreateOfflinePaymentVerificationRequest,
   CreateOfflinePaymentVerificationResponse,
   PaymentListQuery,
   PaymentSummaryResponse,
@@ -15,6 +16,7 @@ import { Permissions } from '../authorization/permissions.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { PermissionsGuard } from '../authorization/permissions.guard';
+import { CreateOfflinePaymentVerificationDto } from './dto/create-offline-payment-verification.dto';
 import { ListPaymentsQueryDto } from './dto/list-payments.query.dto';
 import { PaymentService } from './payment.service';
 import {
@@ -73,7 +75,8 @@ export class TenantPaymentController {
   async createOfflinePaymentVerification(
     @CurrentUser() currentUser: JwtPayload,
     @Param('id') orderId: string,
+    @Body() request: CreateOfflinePaymentVerificationDto,
   ): Promise<CreateOfflinePaymentVerificationResponse> {
-    return this.paymentService.createOfflinePaymentVerification(currentUser, orderId);
+    return this.paymentService.createOfflinePaymentVerification(currentUser, orderId, request as CreateOfflinePaymentVerificationRequest);
   }
 }

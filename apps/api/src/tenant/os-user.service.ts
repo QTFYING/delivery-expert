@@ -16,6 +16,7 @@ import type {
 } from '@shou/types/contracts';
 import { TenantSideEnum, UserStatusEnum, type UserRole } from '@shou/types/enums';
 import * as bcrypt from 'bcrypt';
+import dayjs from 'dayjs';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
 import { formatDateTime, normalizePage, normalizePageSize, normalizeText } from '../common/validators';
 import { PrismaService } from '../prisma/prisma.service';
@@ -172,7 +173,7 @@ export class OsUserService {
       data: {
         deletedAt: new Date(),
         status: PrismaUserStatusEnum.DISABLED,
-        account: `${existing.account}#deleted#${Date.now()}`,
+        account: `${existing.account}#deleted#${dayjs().valueOf()}`,
         phone: existing.phone ? `${existing.phone}#deleted` : existing.phone,
       },
     });

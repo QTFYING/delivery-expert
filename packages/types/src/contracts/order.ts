@@ -78,6 +78,10 @@ export interface TenantOrderItem {
   lastFailedAt?: string;
   /** 下单时间，支持 YYYY-MM-DD 或 YYYY-MM-DD HH:mm:ss */
   orderTime: string;
+  /** 最近一次支付时间；未收款时为空 */
+  paidAt?: string | null;
+  /** 财务确认线下登记时填写的备注；未填或非财务确认收款时为 null */
+  paymentRemark?: string | null;
   /** 订单商品明细 */
   lineItems: OrderLineItem[];
   /** 订单级自定义字段值，仅承载导入模板 type=list 的自定义字段 */
@@ -127,6 +131,8 @@ export interface AdminOrderItem {
   dueDate?: string | null;
   /** 下单时间 */
   orderTime: string;
+  /** 最近一次支付时间；未收款时为空 */
+  paidAt?: string | null;
   /** 订单商品明细 */
   lineItems: OrderLineItem[];
   /** 订单级自定义字段值，仅承载导入模板 type=list 的自定义字段 */

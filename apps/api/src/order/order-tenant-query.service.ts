@@ -9,7 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ListOrdersQueryDto } from './dto/list-orders.query.dto';
 import { toTenantOrder, toTenantOrderListItem } from './mapping/order.mapper';
 import { buildOrderListWhere } from './order.query';
-import { getOrderTenantId } from './order.shared';
+import { getOrderTenantId, latestSuccessfulPaymentInclude } from './order.shared';
 
 @Injectable()
 export class OrderTenantQueryService {
@@ -38,7 +38,7 @@ export class OrderTenantQueryService {
     const [orders, total] = await Promise.all([
       this.prisma.order.findMany({
         where,
-        include: { paymentOrders: this.latestOfflinePaymentOrderInclude },
+        include: { paymentOrders: this.latestOfflinePaymentOrderInclude, payments: latestSuccessfulPaymentInclude },
         orderBy: [{ id: 'desc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -65,7 +65,7 @@ export class OrderTenantQueryService {
     const tenantId = getOrderTenantId(currentUser);
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, tenantId, deletedAt: null },
-      include: { lineItems: true, paymentOrders: this.latestOfflinePaymentOrderInclude },
+      include: { lineItems: true, paymentOrders: this.latestOfflinePaymentOrderInclude, payments: latestSuccessfulPaymentInclude },
     });
 
     if (!order) {

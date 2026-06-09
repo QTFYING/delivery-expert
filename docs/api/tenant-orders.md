@@ -16,7 +16,7 @@
 **补充说明：**
 
 - `OrderStatus.voided` 表示已作废，不与 `expired` 混用；本期不开放作废状态搜索
-- 本期订单搜索只开放 `status=pending / paid / expired`，其中 `expired` 按订单下单时间动态计算支付截止时间或账期到期时间；`partial / voided` 不作为搜索条件
+- 本期订单搜索只开放 `status=pending / paid / expired`，其中 `expired` 按订单下单日期自然日动态计算支付截止日期或账期到期时间；`partial / voided` 不作为搜索条件
 - `payType=cash&creditType=month|week|period` 属于非法筛选组合，服务端应返回 400
 - `OrderListQuery.mappingTemplateId` 按订单上的导入映射模板 ID 筛选；导入预检请求中的 `templateId` 仍表示本次导入选择的模板
 
@@ -28,6 +28,7 @@
 
 - `customerFieldValues` 为映射模板 `type=list` 的订单级自定义字段值快照；商品明细行级自定义字段由 `lineItems[].customerFieldValues` 承载
 - 详情响应返回 `offlinePayment`，语义与列表一致；该字段只用于展示 H5 线下登记信息，财务针对该类订单确认入账需调用 `POST /orders/{id}/offline-payment-verifications`
+- `paidAt` 支付时间，`paymentRemark` 为财务确认线下登记时填写的备注
 
 ### 1.3 创建订单
 
@@ -65,7 +66,7 @@
 **业务规则：**
 
 - 本接口只返回打印中心列表所需的轻量订单摘要，订单完整信息继续读取订单详情
-- 打印中心日期筛选按订单下单时间计算；`date` 不得与 `dateFrom/dateTo` 同时传入
+- 打印中心日期筛选按订单下单日期自然日计算；`date` 不得与 `dateFrom/dateTo` 同时传入
 
 ### 1.7 提交打印成功回执
 

@@ -126,6 +126,12 @@ export class TenantOrderItemSwagger implements TenantOrderItemContract {
   @ApiProperty({ description: '下单时间', example: '2026-04-10T12:00:00.000Z' })
   orderTime!: string;
 
+  @ApiPropertyOptional({ description: '最近一次支付时间；未收款时为空', example: '2026-04-10 12:30:00', nullable: true })
+  paidAt?: string | null;
+
+  @ApiPropertyOptional({ description: '财务确认线下登记时填写的备注；未填或非财务确认收款时为 null', example: '已核对到账', nullable: true })
+  paymentRemark?: string | null;
+
   @ApiProperty({ description: '订单明细', type: [OrderLineItemSwagger] })
   lineItems!: OrderLineItemSwagger[];
 
@@ -216,6 +222,9 @@ export class AdminOrderItemSwagger implements AdminOrderItemContract {
 
   @ApiProperty({ description: '下单时间', example: '2026-04-10T12:00:00.000Z' })
   orderTime!: string;
+
+  @ApiPropertyOptional({ description: '最近一次支付时间；未收款时为空', example: '2026-04-10 12:30:00', nullable: true })
+  paidAt?: string | null;
 
   @ApiProperty({ description: '是否已作废', example: false })
   voided!: boolean;

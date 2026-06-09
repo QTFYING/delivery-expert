@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import dayjs from 'dayjs';
 import { OrderImportConflictPolicyEnum, type OrderImportJobStatus } from '@shou/types/enums';
 import { resolveImportJobFinalStatus } from './import-job.worker.helpers';
 import type { PreparedImportOrder } from './import.normalizer';
@@ -17,7 +18,7 @@ export type ImportJobProgressRecord = {
 };
 
 export function buildTenantImportJobState(jobId: string, status: OrderImportJobStatus): TenantImportJobState {
-  const now = Date.now();
+  const now = dayjs().valueOf();
   return { jobId, status, createdAt: now, updatedAt: now };
 }
 

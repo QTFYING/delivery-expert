@@ -1,7 +1,14 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, PaymentRecordStatusEnum as PrismaPaymentRecordStatusEnum } from '@prisma/client';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
+
+// 取最新一条成功流水，承载订单的「最近一次支付时间」与「财务确认备注」
+export const latestSuccessfulPaymentInclude = {
+  where: { status: PrismaPaymentRecordStatusEnum.SUCCESS },
+  orderBy: [{ paidAt: 'desc' as const }],
+  take: 1,
+} satisfies Prisma.Order$paymentsArgs;
 
 export function getOrderTenantId(currentUser: JwtPayload): string {
   if (!currentUser.tenantId) {

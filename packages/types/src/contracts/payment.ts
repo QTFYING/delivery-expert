@@ -42,7 +42,7 @@ export interface PaymentAction {
   resumeUrl: string | null;
   /** 是否允许重新发起在线支付 */
   canInitiate: boolean;
-  /** 订单可发起支付的最大时间；以下单时间和租户支付有效期配置计算 */
+  /** 订单可发起支付的最大时间；以下单日期和租户支付有效期配置按自然日计算 */
   expiresAt: string | null;
 }
 
@@ -132,6 +132,11 @@ export interface PaymentStatusResponse {
   paymentAction: PaymentAction;
   /** 当前订单允许的线下登记动作 */
   offlinePaymentAction: OfflinePaymentAction;
+}
+
+export interface CreateOfflinePaymentVerificationRequest {
+  /** 财务确认备注；选填，最长 255 字 */
+  remark?: string;
 }
 
 export interface CreateOfflinePaymentVerificationResponse {

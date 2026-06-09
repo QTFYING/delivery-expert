@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const dayjs = require('dayjs');
 const { NestFactory } = require('@nestjs/core');
 const { ValidationPipe } = require('@nestjs/common');
 const { PrismaClient } = require('@prisma/client');
@@ -677,7 +678,7 @@ async function main() {
       token: financeSession.token,
     });
 
-    const printRequestId = `print-regression-${Date.now()}`;
+    const printRequestId = `print-regression-${dayjs().valueOf()}`;
     await apiRequest(results, 'Print Record Create With orderId', {
       method: 'POST',
       url: `${baseUrl}/orders/print-records`,
@@ -700,7 +701,7 @@ async function main() {
       },
     });
 
-    const legacyPrintRequestId = `print-legacy-regression-${Date.now()}`;
+    const legacyPrintRequestId = `print-legacy-regression-${dayjs().valueOf()}`;
     await apiRequest(results, 'Print Record Legacy orderIds[0]', {
       method: 'POST',
       url: `${baseUrl}/orders/print-records`,
@@ -721,7 +722,7 @@ async function main() {
         token: ownerSession.token,
         body: {
           orderIds: [orderId, creditOrderId],
-          requestId: `print-reject-multi-${Date.now()}`,
+          requestId: `print-reject-multi-${dayjs().valueOf()}`,
           remark: '不允许伪批量打印回执',
         },
       },
@@ -738,7 +739,7 @@ async function main() {
         body: {
           orderId,
           orderIds: [creditOrderId],
-          requestId: `print-reject-mismatch-${Date.now()}`,
+          requestId: `print-reject-mismatch-${dayjs().valueOf()}`,
           remark: '不允许字段不一致',
         },
       },
@@ -753,7 +754,7 @@ async function main() {
         url: `${baseUrl}/orders/print-records`,
         token: ownerSession.token,
         body: {
-          requestId: `print-reject-missing-${Date.now()}`,
+          requestId: `print-reject-missing-${dayjs().valueOf()}`,
           remark: '缺少订单 ID',
         },
       },
@@ -787,7 +788,7 @@ async function main() {
       },
     });
 
-    const printFailureRequestId = `print-failure-regression-${Date.now()}`;
+    const printFailureRequestId = `print-failure-regression-${dayjs().valueOf()}`;
     await apiRequest(results, 'Print Failure Create', {
       method: 'POST',
       url: `${baseUrl}/orders/${orderId}/print-failures`,

@@ -3,6 +3,7 @@ import { AuditTargetTypeEnum as PrismaAuditTargetTypeEnum, UserRoleEnum, UserSta
 import type { CreateTenantUserRequest, TenantSettingsUser, TenantUserStatusUpdateRequest, UpdateTenantUserRequest } from '@shou/types/contracts';
 import { UserSimpleStatusEnum } from '@shou/types/enums';
 import * as bcrypt from 'bcrypt';
+import dayjs from 'dayjs';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
 import { PermissionService } from '../authorization/permission.service';
 import { normalizeText } from '../common/validators';
@@ -195,7 +196,7 @@ export class SettingsUserService {
       data: {
         deletedAt: new Date(),
         status: UserStatusEnum.DISABLED,
-        account: `${existing.account}#deleted#${Date.now()}`,
+        account: `${existing.account}#deleted#${dayjs().valueOf()}`,
         phone: existing.phone ? `${existing.phone}#deleted` : existing.phone,
       },
     });

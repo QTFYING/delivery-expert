@@ -4,6 +4,7 @@ import { UploadObjectStatusEnum, UploadSceneEnum } from '@shou/types/enums';
 import type { CompleteUploadResponse, CreateUploadPolicyRequest, UploadPolicyResponse } from '@shou/types/contracts';
 import { Inject } from '@nestjs/common';
 import * as crypto from 'crypto';
+import dayjs from 'dayjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { uploadConfig } from '../config/upload.config';
 import { JwtPayload } from '../auth/decorators/current-user.decorator';
@@ -36,7 +37,7 @@ export class UploadService {
     const uploadId = this.createUploadId();
     const objectKey = this.buildAvatarObjectKey(currentUser, uploadId, request.contentType);
     const publicUrl = this.ossAdapter.getPublicUrl(objectKey);
-    const expiresAt = new Date(Date.now() + this.uploadSettings.policyExpiresSeconds * 1000);
+    const expiresAt = dayjs().add(this.uploadSettings.policyExpiresSeconds, 'second').toDate();
     const policy = this.ossAdapter.createPostPolicy({
       objectKey,
       contentType: request.contentType,
@@ -83,7 +84,7 @@ export class UploadService {
     if (status !== UploadObjectStatusEnum.ISSUED) {
       throw new BadRequestException('上传记录状态不允许确认完成');
     }
-    if (upload.expiresAt.getTime() <= Date.now()) {
+    if (!dayjs(upload.expiresAt).isAfter(dayjs())) {
       throw new BadRequestException('上传凭证已过期');
     }
 

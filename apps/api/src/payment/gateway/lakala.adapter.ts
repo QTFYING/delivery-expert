@@ -35,7 +35,7 @@ export function generateLakalaAuthorization(settings: LakalaSignSettings, body: 
     throw new BusinessException(500, '系统尚未配置完整的拉卡拉支付参数', 500);
   }
   const nonceStr = randomBytes(6).toString('hex');
-  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const timestamp = String(dayjs().unix());
   const bodyString = typeof body === 'string' ? body : JSON.stringify(body);
   const message = `${lakalaAppId}\n${lakalaSerialNo}\n${timestamp}\n${nonceStr}\n${bodyString}\n`;
 

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { PaginatedResponse } from '@shou/types/common';
 import type {
   AdminPaymentRecordItem,
+  CreateOfflinePaymentVerificationRequest,
   CreateOfflinePaymentVerificationResponse,
   InitiatePaymentResponse,
   PaymentListQuery,
@@ -57,8 +58,12 @@ export class PaymentService {
   }
 
   // 租户财务确认线下登记支付单，并写入统一收款流水
-  async createOfflinePaymentVerification(currentUser: JwtPayload, orderId: string): Promise<CreateOfflinePaymentVerificationResponse> {
-    return this.operationService.createOfflinePaymentVerification(currentUser, orderId);
+  async createOfflinePaymentVerification(
+    currentUser: JwtPayload,
+    orderId: string,
+    request: CreateOfflinePaymentVerificationRequest,
+  ): Promise<CreateOfflinePaymentVerificationResponse> {
+    return this.operationService.createOfflinePaymentVerification(currentUser, orderId, request);
   }
 
   // 处理拉卡拉 Webhook 请求快照，入口解析与业务结算由 webhook service 负责

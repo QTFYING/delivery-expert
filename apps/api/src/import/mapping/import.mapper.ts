@@ -24,6 +24,7 @@ import {
   type OrderPayType,
   type OrderStatus,
 } from '@shou/types/enums';
+import dayjs from 'dayjs';
 import Decimal from 'decimal.js';
 import { formatDateTime, formatLocalDateTime, normalizeOptionalText, parseLocalDateTime } from '../../common/validators';
 import { normalizeSettlementType } from '../../order/order-credit.domain';
@@ -110,8 +111,8 @@ export function readDate(value: unknown): Date | undefined {
   if (!resolved) {
     return undefined;
   }
-  const date = new Date(resolved);
-  return Number.isNaN(date.getTime()) ? undefined : date;
+  const date = dayjs(resolved);
+  return date.isValid() ? date.toDate() : undefined;
 }
 
 export function readLocalDateTime(value: unknown): string | undefined {
