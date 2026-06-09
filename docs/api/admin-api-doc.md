@@ -240,7 +240,78 @@ Admin 可查看跨租户订单与收款数据，但不承担 Tenant 侧订单导
 
 - **GET** `/reconciliation/export`
 
-## 九、远景规划能力清单
+## 九、官方打印模板包库管理
+
+> Admin 可从租户已有优秀导入模板和打印配置中沉淀官方模板包，整理后发布供租户使用。预览图通过通用上传中心 `scene=template_package_preview` 落地。
+
+### 9.1 获取候选列表
+
+- **GET** `/platform/printing-template-packages/candidates`
+
+**契约类型：** 响应：`PrintingTemplateCandidateListResponse`
+
+**业务规则：**
+
+- 跨租户查看已有打印配置摘要，仅平台用户可访问
+- 可按可选 ERP 标签筛选
+
+### 9.2 获取候选详情
+
+- **GET** `/platform/printing-template-packages/candidates/{printerTemplateId}`
+
+**契约类型：** 响应：`PrintingTemplateCandidateDetail`
+
+### 9.3 从候选创建模板包草稿
+
+- **POST** `/platform/printing-template-packages/candidates/{printerTemplateId}/drafts`
+
+**契约类型：** 请求：`CreatePrintingTemplatePackageDraftFromCandidateRequest`；响应：`AdminPrintingTemplatePackageDetail`
+
+**业务规则：**
+
+- 复制候选的导入字段快照和打印配置快照
+- 预览图通过 `previewUploadId` 消费上传中心记录
+- 不保存来源租户或来源模板 ID
+- 初始状态为 `draft`
+
+### 9.4 获取模板包管理列表
+
+- **GET** `/platform/printing-template-packages`
+
+**契约类型：** 请求：`AdminPrintingTemplatePackageListQuery`；响应：`AdminPrintingTemplatePackageListResponse`
+
+### 9.5 获取模板包详情
+
+- **GET** `/platform/printing-template-packages/{packageId}`
+
+**契约类型：** 响应：`AdminPrintingTemplatePackageDetail`
+
+### 9.6 编辑模板包
+
+- **PUT** `/platform/printing-template-packages/{packageId}`
+
+**契约类型：** 请求：`UpdatePrintingTemplatePackageRequest`；响应：`AdminPrintingTemplatePackageDetail`
+
+### 9.7 发布模板包
+
+- **POST** `/platform/printing-template-packages/{packageId}/publish`
+
+**业务规则：**
+
+- 仅 `draft` 状态可发布
+- 发布后 Tenant 可见并可复制
+
+### 9.8 下线模板包
+
+- **POST** `/platform/printing-template-packages/{packageId}/offline`
+
+**业务规则：**
+
+- 仅 `published` 状态可下线
+- 下线后 Tenant 不可继续复制
+- 已复制租户模板不受影响
+
+## 十、远景规划能力清单
 
 以下能力当前未提供 Admin 联调接口，不作为 Swagger、contracts 或前端开发事实源。落地前需要重新确认业务语义、闭集枚举、传输结构与共享 contracts。
 

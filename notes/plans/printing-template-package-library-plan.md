@@ -3,7 +3,7 @@
 > 日期：2026-06-04
 > 文档状态：方案讨论稿
 > 文档定位：`notes` 非事实源，用于后续拆分实施；正式接口语义以后续 `docs/api`、`packages/types`、Swagger 与 Prisma schema 为准
-> 适用范围：Tenant 导入模板、Tenant 打印配置、Admin 模板沉淀、官方模板包库、可选 ERP 适配标签
+> 适用范围：Tenant 导入模板、Tenant 打印配置、Admin 模板沉淀、官方模板包库、可选 ERP 适配标签、模板包预览图与 OSS 物料分桶
 
 ## 一、背景
 
@@ -146,7 +146,8 @@ printing_template_packages
 ```text
 id
 name
-previewImageUrl
+erpVendor
+previewObjectKey
 status
 version
 importTemplateSnapshot
@@ -161,10 +162,18 @@ publishedAt
 | 字段 | 说明 |
 | --- | --- |
 | `erpVendor` | 可选 ERP 适配标签，可为空 |
+| `previewObjectKey` | 预览图 OSS object key，可为空；对外投影为 `previewImageUrl` |
 | `importTemplateSnapshot` | 导入映射模板字段快照，包含系统字段和自定义字段 |
 | `printingConfigSnapshot` | 打印配置黑盒 JSON 快照 |
 | `status` | 草稿、已发布、已下线 |
 | `version` | 官方模板包版本 |
+
+预览图字段约定：
+
+- 数据库只保存 `previewObjectKey`，不保存完整 URL
+- 对外响应统一投影为 `previewImageUrl = OSS 公开基础地址 + '/' + previewObjectKey`
+- 预览图通过通用上传中心 `scene=template_package_preview` 落地，详见第十三章
+- `previewObjectKey` 为空时 `previewImageUrl` 返回 `null`，不影响模板包展示和复制
 
 状态建议：
 
@@ -445,7 +454,7 @@ interface CreatePrintingTemplatePackageDraftFromCandidateRequest {
   name: string;
   description?: string;
   erpVendor?: string;
-  previewImageUrl?: string;
+  previewUploadId?: string;
   tags?: string[];
 }
 ```
@@ -458,6 +467,7 @@ interface CreatePrintingTemplatePackageDraftFromCandidateRequest {
 - 不保存来源租户或来源模板 ID
 - 初始状态为 `draft`
 - `erpVendor` 可从来源导入模板继承，也可由 Admin 发布前修正
+- `previewUploadId` 不直接传 URL，由后端消费上传中心记录后落 `previewObjectKey`，详见第十三章
 
 ### 6.7 Admin 官方模板包管理
 
@@ -471,6 +481,18 @@ POST /platform/printing-template-packages/{packageId}/publish
 POST /platform/printing-template-packages/{packageId}/offline
 ```
 
+编辑请求建议：
+
+```ts
+interface UpdatePrintingTemplatePackageRequest {
+  name?: string;
+  description?: string;
+  erpVendor?: string;
+  previewUploadId?: string | null;
+  tags?: string[];
+}
+```
+
 业务规则：
 
 - 只允许平台用户操作
@@ -478,6 +500,8 @@ POST /platform/printing-template-packages/{packageId}/offline
 - `offline` 后 Tenant 不可继续复制，但已复制出的租户模板不受影响
 - Admin 编辑已发布模板包时建议递增 `version`
 - 已复制给租户的模板不随官方模板包变化自动更新
+- `previewUploadId` 传字符串表示设置或替换预览图，传 `null` 表示清空预览图，不传表示预览图不变更
+- 替换或清空预览图时按第十三章规则消费上传记录并处理旧预览图删除
 
 ## 七、多租户与权限边界
 
@@ -577,14 +601,17 @@ docs/prisma/data-model-reference.md
 
 ```text
 ImportTemplate.erpVendor
+PrintingTemplatePackage.previewObjectKey
 PrintingTemplatePackage
 PrinterTemplate.source 可选
+Prisma UploadSceneEnum 新增 template_package_preview
 ```
 
 完成标准：
 
 - 多租户字段边界明确
 - 官方模板包不保存来源租户或来源模板 ID
+- 官方模板包预览图只存 `previewObjectKey`，不存完整 URL
 - 黑盒 JSON 字段继续用 Json
 - 索引能支撑按 `status + erpVendor` 查询模板包
 - 建模参考文档同步
@@ -676,7 +703,38 @@ POST /platform/printing-template-packages/{packageId}/offline
 - 已复制租户模板不受下线影响
 - 编辑发布态模板包时版本递增或有明确版本策略
 
-### T06 前端联调与体验收口
+### T06 预览图上传与 OSS 物料分桶
+
+目标：
+
+- 通用上传中心支持模板包预览图场景
+- 模板包消费预览图 `uploadId` 落 `previewObjectKey`
+- OSS 物料按环境分桶
+
+涉及模块与文件：
+
+```text
+packages/types/src/enums/upload.ts
+apps/api/prisma/schema.prisma
+apps/api/src/upload/upload.service.ts
+apps/api/src/upload/mapping/upload-enum.mapper.ts
+apps/api/src/config/upload.config.ts
+apps/api/.env.example
+docs/deployment/env.md
+```
+
+完成标准：
+
+- `UploadSceneEnum` 与 Prisma 场景枚举新增 `template_package_preview` 并闭集映射齐全
+- `template_package_preview` 仅平台用户可申请凭证，租户用户被拒绝
+- 预览图 objectKey 生成 `template-packages/previews/{uploadId}.{ext}`
+- 预览图大小上限默认 `2MB`，由 `OSS_TEMPLATE_PREVIEW_MAX_SIZE_BYTES` 控制
+- 模板包草稿创建与编辑消费 `previewUploadId` 并校验 scene、状态、上传人
+- 替换或清空预览图按保护规则删除旧图，删除失败不回滚
+- `OSS_BUCKET` 按环境填 `shou-static-images` 或 `shou-static-qa-images`，并同步 `OSS_PUBLIC_BASE_URL`
+- 环境分桶在 `env.md` 说明清楚
+
+### T07 前端联调与体验收口
 
 目标：
 
@@ -689,12 +747,13 @@ POST /platform/printing-template-packages/{packageId}/offline
 
 - 有 ERP 标签时按标签筛选模板包
 - 无 ERP 标签时模板包仍可展示和复制
+- Admin 上传模板包预览图并在列表展示
 - 创建副本后跳转编辑导入模板
 - 创建副本后跳转编辑打印配置
 - Admin 从候选创建草稿并发布
 - 已下线模板包不再出现在 Tenant 列表
 
-### T07 验证与质量门禁
+### T08 验证与质量门禁
 
 建议验证命令：
 
@@ -715,6 +774,11 @@ pnpm -F api test:backend-regression
 - 来源租户修改或删除原模板不影响官方模板包
 - 官方模板包更新不影响已复制出的租户模板
 - 打印配置黑盒 JSON 不被服务端解析和改写
+- Tenant 用户申请 `template_package_preview` 上传凭证被拒绝
+- 平台用户可申请并完成预览图上传
+- 模板包消费 `previewUploadId` 后正确落 `previewObjectKey`
+- 替换预览图后旧图按保护规则处理，删除失败不影响模板包更新
+- 不同环境 `OSS_BUCKET` 配置生效且物料落到对应 Bucket
 
 ## 十一、风险与决策点
 
@@ -770,7 +834,129 @@ pnpm -F api test:backend-regression
 - 不提供 `isDefaultImportTemplate`
 - 租户如需设默认，应通过现有导入模板管理能力单独操作
 
-## 十二、当前推荐决策
+## 十二、预览图与 OSS 物料分桶
+
+### 12.1 复用通用上传中心
+
+模板包预览图不另起一套上传协议，复用现有通用上传中心三步流程：
+
+```text
+POST /uploads/policies            申请直传凭证
+前端直传 OSS
+POST /uploads/{uploadId}/complete  确认上传完成
+业务接口消费 uploadId
+```
+
+与现有头像上传一致，前端不接触业务后端文件流，后端只签发凭证、确认对象存在并最终被业务接口消费。
+
+### 12.2 新增上传场景
+
+在 `UploadSceneEnum` 新增：
+
+```ts
+export const UploadSceneEnum = {
+  USER_AVATAR: 'user_avatar',
+  TEMPLATE_PACKAGE_PREVIEW: 'template_package_preview',
+} as const;
+```
+
+同步需要处理：
+
+- `packages/types/src/enums/upload.ts` 新增枚举值
+- Prisma `UploadSceneEnum` 新增 `TEMPLATE_PACKAGE_PREVIEW @map("template_package_preview")`
+- `upload-enum.mapper.ts` 的 `UPLOAD_SCENE_TO_PRISMA` 与 `UPLOAD_SCENE_FROM_PRISMA` 闭集映射补齐，让漏配在编译期暴露
+
+### 12.3 场景规则对照
+
+| 项 | `user_avatar` | `template_package_preview` |
+| --- | --- | --- |
+| 允许上传角色 | 任意已登录用户 | 仅平台用户 `tenantId=null` |
+| 大小上限 | `OSS_AVATAR_MAX_SIZE_BYTES`，默认 `80KB` | 服务端常量 `2MB`，不进 env |
+| 允许 MIME | jpeg / png / webp | jpeg / png / webp |
+| objectKey 前缀 | `avatars/{tenantId-or-os}/...` | `template-packages/previews/...` |
+| 公开读 | 是 | 是 |
+| 业务消费点 | `PATCH /auth/me` 头像字段 | 模板包草稿创建与编辑接口 |
+
+预览图大小上限取 `2MB`，因为它是打印单据缩略图，需要看清字段排版，比头像放宽。
+
+### 12.4 上传服务改造点
+
+当前 `UploadService` 只处理 `user_avatar`，需要把校验和 objectKey 生成按 scene 分流：
+
+- `createPolicy` 不再只调 `assertUserAvatarRequest`，改为按 `request.scene` 选择对应规则
+- `template_package_preview` 必须校验当前用户为平台用户 `tenantId=null`，租户用户申请该 scene 直接拒绝
+- 预览图 objectKey 不带租户段，统一生成 `template-packages/previews/{uploadId}.{ext}`
+- `completeUpload` 现有逻辑通用，仅校验 `userId=当前用户`，无需按 scene 特化
+- 业务消费时单独提供一个供模板包模块调用的服务方法，校验 scene、状态、上传人后落 `previewObjectKey`
+
+### 12.5 模板包消费预览图
+
+Admin 创建草稿或编辑模板包带 `previewUploadId` 时，服务端在事务内：
+
+```text
+校验当前用户为平台用户 tenantId=null
+校验 previewUploadId 上传记录存在
+校验 scene=template_package_preview
+校验 status=uploaded
+读取旧 previewObjectKey
+写入 printing_template_packages.previewObjectKey
+标记上传记录为 used
+事务后尝试删除被替换掉的旧预览图
+```
+
+旧预览图删除保护，沿用头像规则：
+
+- 旧 key 为空不删除
+- 旧 key 与新 key 相同不删除
+- 旧 key 不属于 `template-packages/previews/` 前缀不删除
+- 删除前确认旧 key 未被任何模板包引用
+- OSS 删除失败只记录日志，不回滚模板包更新
+
+`previewUploadId=null` 表示清空预览图，置空 `previewObjectKey` 并按上述保护删除旧图。
+
+### 12.6 预览图与实时打印预览的区别
+
+| 概念 | 含义 | 来源 |
+| --- | --- | --- |
+| 模板包预览图 | 静态缩略图，列表卡片快速展示 | Admin 上传 OSS |
+| 实时打印预览 | 前端解析 `printingConfigSnapshot` 渲染的真实排版 | 前端实时渲染 |
+
+预览图只是体验优化，不替代前端按黑盒 config 渲染的真实排版，服务端仍不解析打印配置内部结构。
+
+### 12.7 OSS 物料按环境分桶
+
+OSS 物料按部署环境拆分到不同 Bucket，避免开发物料污染生产：
+
+| 环境 | Bucket |
+| --- | --- |
+| 生产 | `shou-static-images` |
+| 开发 / QA | `shou-static-qa-images` |
+
+落地约定：
+
+- Bucket 不在代码写死，继续由 `OSS_BUCKET` 注入，按环境填不同值
+- 生产环境 `OSS_BUCKET=shou-static-images`
+- 开发环境 `OSS_BUCKET=shou-static-qa-images`
+- `OSS_PUBLIC_BASE_URL` 同步按环境配置为对应 Bucket 的公开访问域名
+- 头像与模板包预览图共用同一 Bucket，仅靠 objectKey 前缀区分业务物料
+- 该分桶约定对头像等已有上传场景同样生效，不只针对预览图
+
+### 12.8 配置增量
+
+预览图大小上限不进 env，避免持续增大 env 配置复杂度，统一用服务端常量：
+
+```ts
+const TEMPLATE_PACKAGE_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024;
+```
+
+落地点：
+
+- 在 `apps/api/src/upload/upload.service.ts` 维护预览图常量上限，不新增 env 变量
+- 头像大小上限维持现状，由 `OSS_AVATAR_MAX_SIZE_BYTES` 控制，默认 `80KB`
+- 环境分桶仅复用现有 `OSS_BUCKET` 与 `OSS_PUBLIC_BASE_URL`，按环境填不同值，不新增 OSS 相关 env
+- `env.validation.ts` 现有 OSS 核心键校验保持不变
+
+## 十三、当前推荐决策
 
 当前推荐按以下口径实施：
 
@@ -784,4 +970,7 @@ pnpm -F api test:backend-regression
 8. Admin 从候选池创建草稿，人工整理后发布
 9. 官方模板包不保存来源租户或来源模板 ID
 10. 打印配置继续保持黑盒 JSON，服务端不解析布局结构
-11. 正式实现前先同步 `docs/api`、`contracts`、Prisma schema 和建模参考
+11. 预览图复用通用上传中心，新增 `scene=template_package_preview`，仅平台用户可上传，Tenant 只读展示
+12. 预览图大小上限 `2MB` 由服务端常量控制，不进 env；数据库只存 `previewObjectKey`，对外投影 `previewImageUrl`
+13. OSS 物料按环境分桶，生产 `shou-static-images`，开发 `shou-static-qa-images`
+14. 正式实现前先同步 `docs/api`、`contracts`、Prisma schema 和建模参考

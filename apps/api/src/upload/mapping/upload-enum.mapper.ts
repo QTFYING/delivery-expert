@@ -3,10 +3,12 @@ import { UploadObjectStatusEnum, UploadSceneEnum, type UploadObjectStatus, type 
 
 const UPLOAD_SCENE_TO_PRISMA: Record<UploadScene, PrismaUploadSceneEnum> = {
   [UploadSceneEnum.USER_AVATAR]: PrismaUploadSceneEnum.USER_AVATAR,
+  [UploadSceneEnum.TEMPLATE_PACKAGE_PREVIEW]: PrismaUploadSceneEnum.TEMPLATE_PACKAGE_PREVIEW,
 };
 
 const UPLOAD_SCENE_FROM_PRISMA: Record<PrismaUploadSceneEnum, UploadScene> = {
   [PrismaUploadSceneEnum.USER_AVATAR]: UploadSceneEnum.USER_AVATAR,
+  [PrismaUploadSceneEnum.TEMPLATE_PACKAGE_PREVIEW]: UploadSceneEnum.TEMPLATE_PACKAGE_PREVIEW,
 };
 
 const UPLOAD_STATUS_TO_PRISMA: Record<UploadObjectStatus, PrismaUploadObjectStatus> = {

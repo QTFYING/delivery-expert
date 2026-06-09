@@ -1,6 +1,7 @@
 import type { ListParams, PaginatedResponse } from '../common';
 import type {
   PaymentChannel,
+  PrinterTemplateSource,
   TenantPaymentConfigStatus,
   TenantPermissionCode,
   TenantPermissionDomain,
@@ -213,6 +214,8 @@ export interface PrintingConfigListItem {
   importTemplateName: string;
   /** 是否存在租户自定义打印配置 */
   hasCustomConfig: boolean;
+  /** 打印配置来源；未配置时省略 */
+  source?: PrinterTemplateSource;
   /** 配置版本号 */
   configVersion?: number;
   /** 最近更新时间 */
@@ -235,6 +238,8 @@ export interface GetPrintingConfigDetailResponse {
   importTemplateName?: string;
   /** 是否存在租户自定义打印配置 */
   hasCustomConfig: boolean;
+  /** 打印配置来源；未配置时省略 */
+  source?: PrinterTemplateSource;
   /** 配置版本号 */
   configVersion?: number;
   /** 打印配置黑盒 JSON */

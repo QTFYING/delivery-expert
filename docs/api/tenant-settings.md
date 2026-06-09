@@ -180,6 +180,56 @@ Tenant 设置域采用单角色功能权限 RBAC。角色是长期权限包，�
 - 只有已接入且处于可用状态的线上收款渠道允许激活
 - 当前仅 `lakala` 允许激活为线上收款渠道
 
+### 4.7 官方打印模板包库
+
+> 官方模板包库提供平台预置的导入映射模板与打印配置组合。租户可浏览已发布模板包并按可选 ERP 标签筛选，选择后创建属于自己的导入模板和打印模板副本，再按现有编辑能力微调。
+
+#### 4.7.1 获取 ERP 标签选项
+
+- **GET** `/settings/printing/template-packages/erp-vendors`
+- **权限**：`printing.config.read`
+
+**契约类型：** 响应：`ErpVendorOption[]`
+
+#### 4.7.2 获取官方模板包列表
+
+- **GET** `/settings/printing/template-packages`
+- **权限**：`printing.config.read`
+
+**契约类型：** 请求：`PrintingTemplatePackageListQuery`；响应：`PrintingTemplatePackageListItem[]`
+
+**业务规则：**
+
+- 只返回 `published` 模板包
+- ERP 标签只是可选筛选字段，不传时返回全部
+- 不返回来源租户信息
+
+#### 4.7.3 获取官方模板包详情
+
+- **GET** `/settings/printing/template-packages/{packageId}`
+- **权限**：`printing.config.read`
+
+**契约类型：** 响应：`PrintingTemplatePackageDetail`
+
+**业务规则：**
+
+- 只允许查询 `published` 模板包
+- 不返回来源租户信息
+- `importTemplateSnapshot` 和 `printingConfigSnapshot` 用于前端预览
+
+#### 4.7.4 基于官方模板包创建租户副本
+
+- **POST** `/settings/printing/template-packages/{packageId}/copies`
+- **权限**：`templates.manage` 和 `printing.config.update`
+
+**契约类型：** 请求：`CreatePrintingTemplatePackageCopyRequest`；响应：`CreatePrintingTemplatePackageCopyResponse`
+
+**业务规则：**
+
+- 服务端在事务内创建当前租户的 `ImportTemplate` 和 `PrinterTemplate`
+- 新建导入模板继承官方模板包的字段映射快照和可选 ERP 标签
+- 打印配置来源标记为 `official_package`
+
 ## 五、资质认证
 
 ### 5.1 查询当前租户资质认证状态
