@@ -131,6 +131,7 @@ export const DEFAULT_TENANT_ROLE_PERMISSIONS = {
     TenantPermissionCodeEnum.ORDERS_IMPORT_MANAGE,
     TenantPermissionCodeEnum.ORDERS_PRINT_MANAGE,
     TenantPermissionCodeEnum.TEMPLATES_READ,
+    TenantPermissionCodeEnum.TEMPLATES_MANAGE,
     TenantPermissionCodeEnum.PRINTING_CONFIG_READ,
     TenantPermissionCodeEnum.TENANT_PROFILE_READ,
     TenantPermissionCodeEnum.NOTIFICATIONS_READ,

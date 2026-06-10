@@ -154,9 +154,23 @@ enum NoticeStatusEnum {
   OFFLINE   @map("offline")
 }
 
-// 通用上传场景 第一版仅开放用户头像
+// 通用上传场景 头像与官方打印模板包预览图
 enum UploadSceneEnum {
-  USER_AVATAR @map("user_avatar")
+  USER_AVATAR              @map("user_avatar")
+  TEMPLATE_PACKAGE_PREVIEW @map("template_package_preview")
+}
+
+// 官方打印模板包状态
+enum PrintingTemplatePackageStatusEnum {
+  DRAFT     @map("draft")
+  PUBLISHED @map("published")
+  OFFLINE   @map("offline")
+}
+
+// 租户打印配置来源
+enum PrinterTemplateSourceEnum {
+  CUSTOM           @map("custom")
+  OFFICIAL_PACKAGE @map("official_package")
 }
 
 // 上传对象生命周期状态
@@ -375,6 +389,7 @@ model ImportTemplate {
   tenantId       String    @db.VarChar(10)
   name           String    @db.VarChar(100)
   isDefault      Boolean   @default(false)
+  erpVendor      String?   @db.VarChar(50)
   defaultFields  Json      @default("[]")
   customerFields Json      @default("[]")
   createdAt      DateTime  @default(now()) @db.Timestamptz(3)
@@ -391,21 +406,43 @@ model ImportTemplate {
 }
 
 model PrinterTemplate {
-  id               BigInt   @id @default(autoincrement())
-  tenantId         String   @db.VarChar(10)
+  id               BigInt                    @id @default(autoincrement())
+  tenantId         String                    @db.VarChar(10)
   importTemplateId BigInt
   config           Json
-  configVersion    Int      @default(1)
-  remark           String?  @db.VarChar(255)
-  updatedBy        String?  @db.VarChar(50)
-  createdAt        DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt        DateTime @updatedAt @db.Timestamptz(3)
+  configVersion    Int                       @default(1)
+  source           PrinterTemplateSourceEnum @default(CUSTOM)
+  remark           String?                   @db.VarChar(255)
+  updatedBy        String?                   @db.VarChar(50)
+  createdAt        DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime                  @updatedAt @db.Timestamptz(3)
 
   tenant         Tenant         @relation(fields: [tenantId], references: [id])
   importTemplate ImportTemplate @relation(fields: [tenantId, importTemplateId], references: [tenantId, id])
 
   @@unique([tenantId, importTemplateId])
   @@map("printer_templates")
+}
+
+// 官方打印模板包：平台整理后的独立资产，导入字段与打印配置均为快照
+model PrintingTemplatePackage {
+  id                    String                            @id @db.VarChar(20)
+  name                  String                            @db.VarChar(100)
+  description           String?                           @db.VarChar(255)
+  erpVendor             String?                           @db.VarChar(50)
+  previewObjectKey      String?                           @db.VarChar(255)
+  tags                  String[]                          @default([])
+  status                PrintingTemplatePackageStatusEnum @default(DRAFT)
+  version               Int                               @default(1)
+  importTemplateSnapshot Json                             @default("{}")
+  printingConfigSnapshot Json                             @default("{}")
+  createdAt             DateTime                          @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime                          @updatedAt @db.Timestamptz(3)
+  publishedAt           DateTime?                         @db.Timestamptz(3)
+
+  @@index([status, erpVendor])
+  @@index([status, updatedAt])
+  @@map("printing_template_packages")
 }
 
 model ImportJob {

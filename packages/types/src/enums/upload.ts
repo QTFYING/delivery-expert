@@ -6,6 +6,8 @@ import type { EnumValue } from './common';
 export const UploadSceneEnum = {
   /** 当前登录用户头像 */
   USER_AVATAR: 'user_avatar',
+  /** 官方打印模板包预览图，仅平台用户可上传 */
+  TEMPLATE_PACKAGE_PREVIEW: 'template_package_preview',
 } as const;
 
 export type UploadScene = EnumValue<typeof UploadSceneEnum>;

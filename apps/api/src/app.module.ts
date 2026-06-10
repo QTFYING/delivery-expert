@@ -13,6 +13,7 @@ import { OrderModule } from './order/order.module';
 import { PaymentModule } from './payment/payment.module';
 import { PlatformModule } from './platform/platform.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { PrintingTemplatePackageModule } from './printing-template-package/printing-template-package.module';
 import { RedisModule } from './redis/redis.module';
 import { ReportModule } from './report/report.module';
 import { SettingsModule } from './settings/settings.module';
@@ -39,6 +40,7 @@ import { UploadModule } from './upload/upload.module';
     ReportModule,
     NotificationModule,
     UploadModule,
+    PrintingTemplatePackageModule,
     SmsModule,
   ],
   controllers: [],

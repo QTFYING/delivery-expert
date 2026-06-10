@@ -4,5 +4,6 @@ export * from './tenant';
 export * from './settings';
 export * from './order';
 export * from './payment';
+export * from './printing-template-package';
 export * from './upload';
 export * from './finance';

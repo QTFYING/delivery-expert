@@ -293,6 +293,8 @@ export interface OrderImportTemplate {
   name: string;
   /** 是否默认模板 */
   isDefault: boolean;
+  /** 可选 ERP 适配标签 code，可为空 */
+  erpVendor?: string | null;
   /** 最近更新时间 */
   updatedAt: string;
   /** 系统默认字段 */
