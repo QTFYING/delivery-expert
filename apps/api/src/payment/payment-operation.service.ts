@@ -7,6 +7,7 @@ import {
 } from '@prisma/client';
 
 import type {
+  CreateOfflinePaymentVerificationRequest,
   CreateOfflinePaymentVerificationResponse,
   InitiatePaymentResponse,
   SubmitOfflinePaymentRequest,
@@ -80,7 +81,7 @@ export class PaymentOperationService {
     await this.assertOrderWithinPaymentWindow(
       {
         tenantId: order.tenantId,
-        createdAt: order.createdAt,
+        orderTime: order.orderTime,
       },
       this.prisma,
     );
@@ -101,7 +102,7 @@ export class PaymentOperationService {
         await this.assertOrderWithinPaymentWindow(
           {
             tenantId: currentOrder.tenantId,
-            createdAt: currentOrder.createdAt,
+            orderTime: currentOrder.orderTime,
           },
           tx,
         );
@@ -162,7 +163,11 @@ export class PaymentOperationService {
    * 由租户财务确认线下款项已到账，并以统一账务逻辑完成确认入账
    * 线下确认只允许处理仍处于 PENDING_VERIFICATION 的线下登记支付单
    */
-  async createOfflinePaymentVerification(currentUser: JwtPayload, orderId: string): Promise<CreateOfflinePaymentVerificationResponse> {
+  async createOfflinePaymentVerification(
+    currentUser: JwtPayload,
+    orderId: string,
+    request: CreateOfflinePaymentVerificationRequest,
+  ): Promise<CreateOfflinePaymentVerificationResponse> {
     const tenantId = getPaymentTenantId(currentUser);
 
     return this.prisma.$transaction(async (tx) => {
@@ -216,6 +221,7 @@ export class PaymentOperationService {
         status: PrismaPaymentRecordStatusEnum.SUCCESS,
         paidAt: verifiedAt,
         gatewayTradeNo: `${paymentOrder.paymentMethod === PrismaPaymentMethodEnum.OTHER_PAID ? 'other' : 'cash'}_${paymentOrder.id}`,
+        remark: request.remark,
       });
 
       this.logger.log(
@@ -254,7 +260,7 @@ export class PaymentOperationService {
   private async assertOrderWithinPaymentWindow(
     input: {
       tenantId: string;
-      createdAt: Date;
+      orderTime: Date;
     },
     client: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<void> {

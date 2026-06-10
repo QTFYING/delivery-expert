@@ -1,5 +1,6 @@
 import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
 import { NextFunction, Request, Response } from 'express';
+import dayjs from 'dayjs';
 import { ensureTraceId, TRACE_ID_HEADER } from '../request-trace';
 import { runWithTraceContext } from '../trace-context';
 
@@ -9,7 +10,7 @@ export class RequestLoggingMiddleware implements NestMiddleware {
 
   /** 为每个 HTTP 请求补齐 traceId，并在请求结束时输出基础访问日志 */
   use(req: Request, res: Response, next: NextFunction): void {
-    const startedAt = Date.now();
+    const startedAt = dayjs().valueOf();
     const traceId = ensureTraceId(req);
     const requestPath = req.originalUrl || req.url;
 
@@ -17,7 +18,7 @@ export class RequestLoggingMiddleware implements NestMiddleware {
       res.setHeader(TRACE_ID_HEADER, traceId);
 
       res.on('finish', () => {
-        const durationMs = Date.now() - startedAt;
+        const durationMs = dayjs().diff(dayjs(startedAt));
         const statusCode = res.statusCode;
         const method = req.method;
         const ip = this.getClientIp(req);

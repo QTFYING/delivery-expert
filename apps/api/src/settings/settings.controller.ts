@@ -293,7 +293,7 @@ export class SettingsController {
   @ApiOperation({ summary: '获取打印配置列表' })
   @ApiOkResponse({ type: GetPrintingConfigListResponseSwagger })
   @Get('printing')
-  @Permissions(TenantPermissionCodeEnum.SETTINGS_PRINTING_READ)
+  @Permissions(TenantPermissionCodeEnum.PRINTING_CONFIG_READ)
   async getPrintingConfigList(@CurrentUser() currentUser: JwtPayload): Promise<GetPrintingConfigListResponse> {
     return this.settingsPrintingService.getPrintingConfigList(currentUser);
   }
@@ -303,7 +303,7 @@ export class SettingsController {
   @ApiParam({ name: 'importTemplateId', description: '导入映射模板 ID' })
   @ApiOkResponse({ type: GetPrintingConfigDetailResponseSwagger })
   @Get('printing/:importTemplateId')
-  @Permissions(TenantPermissionCodeEnum.SETTINGS_PRINTING_READ)
+  @Permissions(TenantPermissionCodeEnum.PRINTING_CONFIG_READ)
   async getPrintingConfigDetail(
     @CurrentUser() currentUser: JwtPayload,
     @Param('importTemplateId') importTemplateId: string,
@@ -316,7 +316,7 @@ export class SettingsController {
   @ApiParam({ name: 'importTemplateId', description: '导入映射模板 ID' })
   @ApiOkResponse({ type: UpdatePrintingConfigResponseSwagger })
   @Put('printing/:importTemplateId')
-  @Permissions(TenantPermissionCodeEnum.SETTINGS_PRINTING_UPDATE)
+  @Permissions(TenantPermissionCodeEnum.PRINTING_CONFIG_UPDATE)
   async updatePrintingConfig(
     @CurrentUser() currentUser: JwtPayload,
     @Param('importTemplateId') importTemplateId: string,

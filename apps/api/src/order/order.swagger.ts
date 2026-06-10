@@ -4,8 +4,8 @@ import type {
   CreateOrderPrintFailureResponse as CreateOrderPrintFailureResponseContract,
   CreateOrderReceiptResponse as CreateOrderReceiptResponseContract,
   CreateOrderReminderResponse as CreateOrderReminderResponseContract,
-  CreditOrderItem as CreditOrderItemContract,
   OrderLineItem as OrderLineItemContract,
+  PrintingOrderListItem as PrintingOrderListItemContract,
   OrderPrintRecordItem as OrderPrintRecordItemContract,
   OrderPrintRecordResponse as OrderPrintRecordResponseContract,
   OrderPrintRecordsResponse as OrderPrintRecordsResponseContract,
@@ -16,7 +16,7 @@ import type {
   TenantPrintRecordsResponse as TenantPrintRecordsResponseContract,
 } from '@shou/types/contracts';
 import type { PaginatedResponse } from '@shou/types/common';
-import { CreditOrderStatusEnum, CreditTypeEnum, OrderPayTypeEnum, OrderStatusEnum, PrintRecordResultEnum } from '@shou/types/enums';
+import { CreditTypeEnum, OrderPayTypeEnum, OrderStatusEnum, PrintRecordResultEnum } from '@shou/types/enums';
 import { PaginatedResponseMetaSwagger } from '../common/swagger/paginated-response.swagger';
 import { OfflinePaymentInfoSwagger } from '../payment/payment.swagger';
 
@@ -126,6 +126,12 @@ export class TenantOrderItemSwagger implements TenantOrderItemContract {
   @ApiProperty({ description: '下单时间', example: '2026-04-10T12:00:00.000Z' })
   orderTime!: string;
 
+  @ApiPropertyOptional({ description: '最近一次支付时间；未收款时为空', example: '2026-04-10 12:30:00', nullable: true })
+  paidAt?: string | null;
+
+  @ApiPropertyOptional({ description: '财务确认线下登记时填写的备注；未填或非财务确认收款时为 null', example: '已核对到账', nullable: true })
+  paymentRemark?: string | null;
+
   @ApiProperty({ description: '订单明细', type: [OrderLineItemSwagger] })
   lineItems!: OrderLineItemSwagger[];
 
@@ -217,6 +223,9 @@ export class AdminOrderItemSwagger implements AdminOrderItemContract {
   @ApiProperty({ description: '下单时间', example: '2026-04-10T12:00:00.000Z' })
   orderTime!: string;
 
+  @ApiPropertyOptional({ description: '最近一次支付时间；未收款时为空', example: '2026-04-10 12:30:00', nullable: true })
+  paidAt?: string | null;
+
   @ApiProperty({ description: '是否已作废', example: false })
   voided!: boolean;
 
@@ -227,42 +236,23 @@ export class AdminOrderItemSwagger implements AdminOrderItemContract {
   voidedAt?: string;
 }
 
-export class CreditOrderItemSwagger implements CreditOrderItemContract {
-  @ApiProperty({ description: '订单 ID' })
+export class PrintingOrderListItemSwagger implements PrintingOrderListItemContract {
+  @ApiProperty({ description: '订单 ID', example: 'SO202606080001' })
   id!: string;
 
-  @ApiProperty({ description: '客户名称' })
+  @ApiProperty({ description: '客户名称', example: '深圳华强贸易' })
   customer!: string;
 
-  @ApiProperty({ description: '订单金额（元）', example: 399 })
-  amount!: number;
+  @ApiProperty({ description: '打印成功次数', example: 0 })
+  prints!: number;
 
-  @ApiProperty({ description: '结算方式，账期管理列表固定为 credit', enum: [OrderPayTypeEnum.CREDIT], example: OrderPayTypeEnum.CREDIT })
-  payType!: CreditOrderItemContract['payType'];
-
-  @ApiProperty({ description: '账期子类型', enum: Object.values(CreditTypeEnum), example: CreditTypeEnum.MONTH })
-  creditType!: CreditOrderItemContract['creditType'];
-
-  @ApiProperty({ description: '下单时间', example: '2026-04-10T12:00:00.000Z' })
-  date!: string;
-
-  @ApiProperty({ description: '账期天数', example: 30 })
-  creditDays!: number;
-
-  @ApiProperty({ description: '到期日', example: '2026-05-10' })
-  dueDate!: string;
-
-  @ApiProperty({
-    description: '账期状态',
-    enum: Object.values(CreditOrderStatusEnum),
-    example: CreditOrderStatusEnum.SOON,
-  })
-  creditStatus!: CreditOrderItemContract['creditStatus'];
+  @ApiPropertyOptional({ description: '导入映射模板 ID', example: '1' })
+  mappingTemplateId?: string;
 }
 
-export class CreditOrderListResponseSwagger extends PaginatedResponseMetaSwagger implements PaginatedResponse<CreditOrderItemContract> {
-  @ApiProperty({ description: '列表数据', type: [CreditOrderItemSwagger] })
-  list!: CreditOrderItemSwagger[];
+export class PrintingOrderListResponseSwagger extends PaginatedResponseMetaSwagger implements PaginatedResponse<PrintingOrderListItemContract> {
+  @ApiProperty({ description: '列表数据', type: [PrintingOrderListItemSwagger] })
+  list!: PrintingOrderListItemSwagger[];
 }
 
 export class TenantOrderListResponseSwagger extends PaginatedResponseMetaSwagger implements PaginatedResponse<TenantOrderListItemContract> {

@@ -8,6 +8,7 @@ import { GENERAL_SETTINGS_CONFIG_GROUP } from '../settings/settings.constants';
 import { ListOrdersQueryDto } from './dto/list-orders.query.dto';
 import { toAdminOrder } from './mapping/order.mapper';
 import { buildOSOrderListWhere } from './order.query';
+import { latestSuccessfulPaymentInclude } from './order.shared';
 import type { TenantPaymentWindowRule } from './order-status.query';
 
 @Injectable()
@@ -27,8 +28,8 @@ export class OrderOSQueryService {
     const [orders, total] = await Promise.all([
       this.prisma.order.findMany({
         where,
-        include: { lineItems: true, tenant: true },
-        orderBy: [{ orderTime: 'desc' }, { createdAt: 'desc' }],
+        include: { lineItems: true, tenant: true, payments: latestSuccessfulPaymentInclude },
+        orderBy: [{ id: 'desc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
@@ -51,7 +52,7 @@ export class OrderOSQueryService {
   async getOrder(orderId: string): Promise<AdminOrderItem> {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, deletedAt: null },
-      include: { lineItems: true, tenant: true },
+      include: { lineItems: true, tenant: true, payments: latestSuccessfulPaymentInclude },
     });
 
     if (!order) {

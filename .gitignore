@@ -58,3 +58,6 @@ static_alias
 
 # Release
 release/
+
+# Docs
+docs/deployment/

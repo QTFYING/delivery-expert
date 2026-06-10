@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { SmsCodeSceneEnum, TenantStatusEnum, UserRoleEnum, UserStatusEnum } from '@shou/types/enums';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import dayjs from 'dayjs';
 import { PermissionCacheService } from '../authorization/permission-cache.service';
 import { assertPasswordStrength } from '../common/validators';
 import { PrismaService } from '../prisma/prisma.service';
@@ -132,7 +133,7 @@ export class AuthSmsService {
       phone,
       scene: query.scene,
       code: result.code,
-      expiresAt: new Date(Date.now() + result.expiresInSeconds * 1000).toISOString(),
+      expiresAt: dayjs().add(result.expiresInSeconds, 'second').toISOString(),
     };
   }
 

@@ -16,6 +16,8 @@ export const TenantPermissionDomainEnum = {
   PAYMENTS: 'payments',
   /** 财务 */
   FINANCE: 'finance',
+  /** 打印 */
+  PRINTING: 'printing',
   /** 设置 */
   SETTINGS: 'settings',
   /** 租户主体 */
@@ -35,14 +37,12 @@ export const TenantPermissionCodeEnum = {
 
   /** 查看订单 */
   ORDERS_READ: 'orders.read',
-  /** 维护订单 */
+  /** 管理订单：创建、编辑和作废订单 （业务暂不支持手动创单、编辑订单） */
   ORDERS_MANAGE: 'orders.manage',
-  /** 作废订单 */
-  ORDERS_VOID: 'orders.void',
   /** 管理订单导入 */
   ORDERS_IMPORT_MANAGE: 'orders.import.manage',
-  /** 打印中心 */
 
+  /** 打印中心 */
   ORDERS_PRINT_MANAGE: 'orders.print.manage',
   /** 创建催款提醒 */
   ORDERS_REMINDER_CREATE: 'orders.reminder.create',
@@ -52,8 +52,6 @@ export const TenantPermissionCodeEnum = {
   /** 管理映射模板 */
   TEMPLATES_MANAGE: 'templates.manage',
 
-  /** 查看账期订单 */
-  CREDIT_READ: 'credit.read',
   /** 创建内部收款记录 */
   CREDIT_RECEIPT_CREATE: 'credit.receipt.create',
 
@@ -67,16 +65,17 @@ export const TenantPermissionCodeEnum = {
   /** 导出财务数据 */
   FINANCE_EXPORT: 'finance.export',
 
+  /** 查看打印配置 */
+  PRINTING_CONFIG_READ: 'printing.config.read',
+  /** 更新打印配置 */
+  PRINTING_CONFIG_UPDATE: 'printing.config.update',
+
   /** 管理通用设置 */
   SETTINGS_GENERAL_MANAGE: 'settings.general.manage',
   /** 管理用户 */
   SETTINGS_USERS_MANAGE: 'settings.users.manage',
   /** 管理角色和权限 */
   SETTINGS_ROLES_MANAGE: 'settings.roles.manage',
-  /** 查看打印配置 */
-  SETTINGS_PRINTING_READ: 'settings.printing.read',
-  /** 更新打印配置 */
-  SETTINGS_PRINTING_UPDATE: 'settings.printing.update',
   /** 查看操作日志 */
   SETTINGS_AUDIT_LOGS_READ: 'settings.audit_logs.read',
   /** 查看支付渠道配置 */

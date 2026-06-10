@@ -18,6 +18,7 @@
 **补充说明：**
 
 - `paymentAction` 与 `offlinePaymentAction` 是服务端裁决后的动作能力，不表达按钮文案或页面布局
+- 订单支付有效期按北京时间下单日期自然日计算；例如 2026-05-01 13:23 下单且有效期 30 天，最后可支付日为北京时间 2026-05-30
 - 订单超过租户当前支付有效期且尚未进入 `paid / pending_verification` 时，H5 展示状态投影为 `expired`
 - 已进入 `paid / pending_verification` 的订单不会因为超过支付有效期而回滚为 `expired`
 

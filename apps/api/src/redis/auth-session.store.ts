@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { UserRole } from '@shou/types/enums';
 import * as crypto from 'crypto';
+import dayjs from 'dayjs';
 import { RedisService } from './redis.service';
 
 type SessionStatus = 'active' | 'revoked';
@@ -50,7 +51,7 @@ export class AuthSessionStore {
     accessTtlSeconds: number,
     refreshTtlSeconds: number,
   ): Promise<AuthSessionRecord> {
-    const now = Date.now();
+    const now = dayjs().valueOf();
     const refreshTokenHash = this.hashToken(refreshToken);
     const session: AuthSessionRecord = {
       ...snapshot,
@@ -105,7 +106,7 @@ export class AuthSessionStore {
       return null;
     }
 
-    const now = Date.now();
+    const now = dayjs().valueOf();
     const nextRefreshTokenHash = this.hashToken(nextRefreshToken);
     const nextSession: AuthSessionRecord = {
       ...existing,
@@ -123,7 +124,7 @@ export class AuthSessionStore {
 
   // 刷新最近访问时间 维持用户会话集合中的活跃度排序
   async touchAuthSession(sessionId: string, userId: string): Promise<void> {
-    const now = Date.now();
+    const now = dayjs().valueOf();
     await this.redis
       .getClient()
       .multi()

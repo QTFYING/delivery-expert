@@ -143,3 +143,17 @@ export const CreditOrderStatusEnum = {
 } as const;
 
 export type CreditOrderStatus = EnumValue<typeof CreditOrderStatusEnum>;
+
+/**
+ * 打印中心订单打印状态筛选
+ */
+export const PrintingOrderPrintStatusEnum = {
+  /** 全部 */
+  ALL: 'all',
+  /** 未打印 */
+  UNPRINTED: 'unprinted',
+  /** 已打印 */
+  PRINTED: 'printed',
+} as const;
+
+export type PrintingOrderPrintStatus = EnumValue<typeof PrintingOrderPrintStatusEnum>;

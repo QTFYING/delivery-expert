@@ -7,7 +7,7 @@ import {
   type TenantRole,
 } from '@shou/types/enums';
 
-export const TENANT_PERMISSION_TREE_VERSION = 'tenant-rbac-2026-05-28';
+export const TENANT_PERMISSION_TREE_VERSION = 'v2026.06.08';
 
 export interface TenantPermissionDefinition {
   code: TenantPermissionCode;
@@ -31,10 +31,9 @@ export const TENANT_PERMISSION_DEFINITIONS = [
     description: '订单域',
     permissions: [
       { code: TenantPermissionCodeEnum.ORDERS_READ, description: '查看订单' },
-      { code: TenantPermissionCodeEnum.ORDERS_MANAGE, description: '维护订单' },
-      { code: TenantPermissionCodeEnum.ORDERS_VOID, description: '作废订单' },
-      { code: TenantPermissionCodeEnum.ORDERS_IMPORT_MANAGE, description: '管理订单导入' },
-      { code: TenantPermissionCodeEnum.ORDERS_PRINT_MANAGE, description: '管理订单打印' },
+      { code: TenantPermissionCodeEnum.ORDERS_MANAGE, description: '订单管理' },
+      { code: TenantPermissionCodeEnum.ORDERS_IMPORT_MANAGE, description: '订单导入' },
+      { code: TenantPermissionCodeEnum.ORDERS_PRINT_MANAGE, description: '打印中心' },
       { code: TenantPermissionCodeEnum.ORDERS_REMINDER_CREATE, description: '创建催款提醒' },
     ],
   },
@@ -49,10 +48,7 @@ export const TENANT_PERMISSION_DEFINITIONS = [
   {
     domain: TenantPermissionDomainEnum.CREDIT,
     description: '账期域',
-    permissions: [
-      { code: TenantPermissionCodeEnum.CREDIT_READ, description: '查看账期订单' },
-      { code: TenantPermissionCodeEnum.CREDIT_RECEIPT_CREATE, description: '创建内部收款记录' },
-    ],
+    permissions: [{ code: TenantPermissionCodeEnum.CREDIT_RECEIPT_CREATE, description: '创建内部收款记录' }],
   },
   {
     domain: TenantPermissionDomainEnum.PAYMENTS,
@@ -71,14 +67,20 @@ export const TENANT_PERMISSION_DEFINITIONS = [
     ],
   },
   {
+    domain: TenantPermissionDomainEnum.PRINTING,
+    description: '打印域',
+    permissions: [
+      { code: TenantPermissionCodeEnum.PRINTING_CONFIG_READ, description: '查看打印配置' },
+      { code: TenantPermissionCodeEnum.PRINTING_CONFIG_UPDATE, description: '更新打印配置' },
+    ],
+  },
+  {
     domain: TenantPermissionDomainEnum.SETTINGS,
     description: '设置域',
     permissions: [
       { code: TenantPermissionCodeEnum.SETTINGS_GENERAL_MANAGE, description: '管理通用设置' },
       { code: TenantPermissionCodeEnum.SETTINGS_USERS_MANAGE, description: '管理用户' },
       { code: TenantPermissionCodeEnum.SETTINGS_ROLES_MANAGE, description: '管理角色和权限' },
-      { code: TenantPermissionCodeEnum.SETTINGS_PRINTING_READ, description: '查看打印配置' },
-      { code: TenantPermissionCodeEnum.SETTINGS_PRINTING_UPDATE, description: '更新打印配置' },
       { code: TenantPermissionCodeEnum.SETTINGS_AUDIT_LOGS_READ, description: '查看操作日志' },
       { code: TenantPermissionCodeEnum.SETTINGS_PAYMENT_CONFIGS_READ, description: '查看支付渠道配置' },
       { code: TenantPermissionCodeEnum.SETTINGS_PAYMENT_CONFIGS_MANAGE, description: '管理支付渠道配置' },
@@ -113,7 +115,6 @@ export const DEFAULT_TENANT_ROLE_PERMISSIONS = {
     TenantPermissionCodeEnum.ORDERS_READ,
     TenantPermissionCodeEnum.ORDERS_REMINDER_CREATE,
     TenantPermissionCodeEnum.TEMPLATES_READ,
-    TenantPermissionCodeEnum.CREDIT_READ,
     TenantPermissionCodeEnum.CREDIT_RECEIPT_CREATE,
     TenantPermissionCodeEnum.PAYMENTS_READ,
     TenantPermissionCodeEnum.PAYMENTS_OFFLINE_PAYMENT_VERIFY_CREATE,
@@ -130,8 +131,7 @@ export const DEFAULT_TENANT_ROLE_PERMISSIONS = {
     TenantPermissionCodeEnum.ORDERS_IMPORT_MANAGE,
     TenantPermissionCodeEnum.ORDERS_PRINT_MANAGE,
     TenantPermissionCodeEnum.TEMPLATES_READ,
-    TenantPermissionCodeEnum.TEMPLATES_MANAGE,
-    TenantPermissionCodeEnum.SETTINGS_PRINTING_READ,
+    TenantPermissionCodeEnum.PRINTING_CONFIG_READ,
     TenantPermissionCodeEnum.TENANT_PROFILE_READ,
     TenantPermissionCodeEnum.NOTIFICATIONS_READ,
     TenantPermissionCodeEnum.NOTIFICATIONS_MANAGE,

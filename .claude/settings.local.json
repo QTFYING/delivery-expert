@@ -23,7 +23,11 @@
       "Bash(echo \"EXIT=$?\")",
       "Bash(echo \"=== EXIT=$?\")",
       "Bash(echo \"==EXIT=$?\")",
-      "Bash(_ZO_DOCTOR=0 bash -c 'cd apps/api && npx tsc --noEmit -p tsconfig.json')"
+      "Bash(_ZO_DOCTOR=0 bash -c 'cd apps/api && npx tsc --noEmit -p tsconfig.json')",
+      "Bash(npm --prefix apps/api run build)",
+      "Bash(npm --prefix packages/types run build)",
+      "Bash(npm --prefix apps/api run test:smoke)",
+      "Bash(npm --prefix apps/api run prisma:generate)"
     ]
   }
 }

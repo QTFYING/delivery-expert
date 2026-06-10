@@ -33,11 +33,7 @@
 
 - 导入预检中的 `payType` 必须由前端显式提交；若源文件未映射或映射值为空，前端应按用户确认的默认选择补入 `cash` 或其他明确结算方式，服务端不自行把空值判定为现款
 - 滚结本期按现款处理：导入识别为 `payType=cash, creditType=null`，不进入账期管理、账期待办和 `payType=credit` 统计
-- `creditStatus` 只作为查询时动态计算的展示字段，不作为订单固定字段
-- `OrderStatus.credit` 已废弃；账期只由 `payType=credit` 表达
-- `OrderStatus.voided` 表示已作废，不与 `expired` 混用；本期不开放作废状态搜索
-- 本期订单搜索只开放 `status=pending / paid / expired`，其中 `expired` 按现款支付有效期或账期到期日动态判断；`partial / voided` 不作为搜索条件
-- 当前不新增独立账期规则配置，首页账期待办继续由统计聚合能力承载
+
 
 ---
 

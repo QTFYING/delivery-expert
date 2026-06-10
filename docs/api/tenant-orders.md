@@ -15,9 +15,8 @@
 
 **补充说明：**
 
-- 账期筛选使用 `payType=credit`，不要使用已废弃的 `status=credit`
-- 本期状态搜索只开放 `pending / paid / expired`；`partial / voided` 保留为订单状态但不作为搜索条件
-- `status=expired` 为动态筛选：现款订单按租户 `qrCodeExpiry` 支付有效期判断，账期订单按账期到期日判断
+- `OrderStatus.voided` 表示已作废，不与 `expired` 混用；本期不开放作废状态搜索
+- 本期订单搜索只开放 `status=pending / paid / expired`，其中 `expired` 按订单下单日期自然日动态计算支付截止日期或账期到期时间；`partial / voided` 不作为搜索条件
 - `payType=cash&creditType=month|week|period` 属于非法筛选组合，服务端应返回 400
 - `OrderListQuery.mappingTemplateId` 按订单上的导入映射模板 ID 筛选；导入预检请求中的 `templateId` 仍表示本次导入选择的模板
 
@@ -29,6 +28,7 @@
 
 - `customerFieldValues` 为映射模板 `type=list` 的订单级自定义字段值快照；商品明细行级自定义字段由 `lineItems[].customerFieldValues` 承载
 - 详情响应返回 `offlinePayment`，语义与列表一致；该字段只用于展示 H5 线下登记信息，财务针对该类订单确认入账需调用 `POST /orders/{id}/offline-payment-verifications`
+- `paidAt` 支付时间，`paymentRemark` 为财务确认线下登记时填写的备注
 
 ### 1.3 创建订单
 
@@ -59,7 +59,16 @@
 - 作废后订单状态为 `voided`，不再与 `expired` 混用
 - 已作废订单不参与本期开放的状态搜索
 
-### 1.6 提交打印成功回执
+### 1.6 获取打印中心订单列表
+
+- **GET** `/printing/orders`
+
+**业务规则：**
+
+- 本接口只返回打印中心列表所需的轻量订单摘要，订单完整信息继续读取订单详情
+- 打印中心日期筛选按订单下单日期自然日计算；`date` 不得与 `dateFrom/dateTo` 同时传入
+
+### 1.7 提交打印成功回执
 
 - **POST** `/orders/print-records`
 
@@ -69,7 +78,7 @@
 - 成功回执会累计订单打印次数并更新最近打印时间；不影响失败类计数
 - 同一租户下，相同 `requestId` 的重复提交必须幂等返回首次结果，且不得产生重复事件与重复自增
 
-### 1.7 上报打印失败记录
+### 1.8 上报打印失败记录
 
 - **POST** `/orders/{id}/print-failures`
 
@@ -80,7 +89,7 @@
 - 同步更新 `orders.printFailedCount += 1`，`orders.lastFailedAt = printedAt`
 - 同一租户下，相同 `requestId` 的重复提交必须幂等返回首次结果，且不得产生重复事件与重复自增
 
-### 1.8 获取单订单打印历史
+### 1.9 获取单订单打印历史
 
 - **GET** `/orders/{id}/print-records`
 
@@ -90,7 +99,7 @@
 - `summary` 是为详情页卡片准备的聚合视图，与分页参数无关；页面切换分页不需要重算
 - 事件是不可变历史快照，不提供任何修改或删除接口
 
-### 1.9 跨订单打印事件追溯
+### 1.10 跨订单打印事件追溯
 
 - **GET** `/orders/print-records`
 
@@ -99,34 +108,23 @@
 - `summary` 针对当前过滤条件计算，与分页参数无关
 - 该接口为只读追溯视图，不提供修改或删除能力
 
-### 1.10 创建催款提醒记录
+### 1.11 创建催款提醒记录
 
 - **POST** `/orders/{id}/reminders`
+
+### 1.12 导出订单
+
+- **GET** `/orders/export`
+
+**业务规则：**
+
+- 复用订单列表的全部筛选条件（`status / payType / creditType / mappingTemplateId / dateFrom / dateTo / keyword`），
 
 ## 二、账期管理与内部收款
 
 > 管理 `payType=credit` 的订单，并提供租户财务后台内部收款能力。滚结本期按现款处理，不出现在账期列表中。
 
-### 2.1 获取账期订单列表
-
-- **GET** `/orders/credit`
-
-**补充说明：**
-
-- 列表只返回未删除、未作废且 `payType=credit` 的订单
-- 账期列表中的 `status=expired` 来自账期到期日动态判断，语义为账期已过期
-- `creditStatus` 由 `dueDate`、当前日期和租户 `creditRemindDays` 动态计算，不作为数据库字段持久化
-
-**状态说明：**
-
-| creditStatus | 中文     | 规则                       |
-| ------------ | -------- | -------------------------- |
-| `overdue`    | 逾期     | 超过 dueDate               |
-| `today`      | 今日到期 | dueDate = 今天             |
-| `soon`       | 即将到期 | dueDate 在提醒天数范围内   |
-| `normal`     | 正常     | dueDate 在提醒天数范围之后 |
-
-### 2.2 创建内部收款记录
+### 2.1 创建内部收款记录
 
 - **POST** `/orders/{id}/receipts`
 

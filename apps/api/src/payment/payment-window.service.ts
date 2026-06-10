@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import dayjs from 'dayjs';
+import { businessLocalTimestampCarrierToInstant } from '../common/business-time';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { PrismaService } from '../prisma/prisma.service';
 import { DEFAULT_QR_CODE_EXPIRY_DAYS, GENERAL_SETTINGS_CONFIG_GROUP } from '../settings/settings.constants';
@@ -43,18 +44,18 @@ export class PaymentWindowService {
     });
   }
 
-  /** 基于订单进入系统时间和租户当前有效期，统一裁决订单是否超过支付窗口 */
+  /** 基于订单下单时间和租户当前有效期，统一裁决订单是否超过支付窗口 */
   async resolveOrderPaymentWindow(
     input: {
       tenantId: string;
-      createdAt: Date;
+      orderTime: Date;
       now?: Date;
     },
     client: PaymentWindowClient = this.prisma,
   ): Promise<PaymentWindowDecision> {
     const qrCodeExpiryDays = await this.getTenantQrCodeExpiryDays(input.tenantId, client);
     return this.resolvePaymentWindow({
-      windowStartedAt: input.createdAt,
+      windowStartedAt: input.orderTime,
       qrCodeExpiryDays,
       now: input.now,
     });
@@ -67,7 +68,7 @@ export class PaymentWindowService {
   async assertOrderWithinPaymentWindow(
     input: {
       tenantId: string;
-      createdAt: Date;
+      orderTime: Date;
       now?: Date;
     },
     client: PaymentWindowClient = this.prisma,
@@ -94,19 +95,22 @@ export class PaymentWindowService {
     return Math.max(1, Math.floor(rawValue));
   }
 
-  /** 基于订单进入系统时间计算支付窗口边界和超期提示 */
+  /** 基于订单下单日期计算支付窗口边界和超期提示，忽略下单时间中的时分秒 */
   resolvePaymentWindow(input: { windowStartedAt: Date; qrCodeExpiryDays: number; now?: Date }): PaymentWindowDecision {
     const now = input.now ?? new Date();
     const qrCodeExpiryDays = this.resolveQrCodeExpiryDays({
       tenantOverrideDays: input.qrCodeExpiryDays,
     });
-    const payableUntilAt = dayjs(input.windowStartedAt).add(qrCodeExpiryDays, 'day').toDate();
-    const isExpired = now.getTime() >= payableUntilAt.getTime();
+    const payableUntilAt = businessLocalTimestampCarrierToInstant(input.windowStartedAt)
+      .startOf('day')
+      .add(qrCodeExpiryDays - 1, 'day')
+      .endOf('day');
+    const isExpired = dayjs(now).isAfter(payableUntilAt);
 
     return {
       isExpired,
       qrCodeExpiryDays,
-      payableUntilAt,
+      payableUntilAt: payableUntilAt.toDate(),
       expiredMessage: isExpired ? this.buildExpiredMessage(qrCodeExpiryDays) : null,
     };
   }

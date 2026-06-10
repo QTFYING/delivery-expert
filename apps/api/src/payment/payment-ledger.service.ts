@@ -28,11 +28,13 @@ export class PaymentLedgerService {
       gatewayTradeNo?: string;
       fee?: Decimal;
       net?: Decimal;
+      remark?: string;
     },
   ) {
     const paymentId = await this.idGen.nextDailyId(ID_CONFIG.PAYMENT.prefix, ID_CONFIG.PAYMENT.digits);
     const fee = input.fee ?? new Decimal(0);
     const net = input.net ?? input.amount;
+    const remark = input.remark?.trim();
 
     return tx.payment.create({
       data: {
@@ -47,6 +49,7 @@ export class PaymentLedgerService {
         status: input.status,
         paidAt: input.paidAt,
         gatewayTradeNo: input.gatewayTradeNo,
+        remark: remark ? cut(remark, 255) : null,
       },
     });
   }
@@ -70,6 +73,7 @@ export class PaymentLedgerService {
       gatewayTradeNo?: string;
       fee?: Decimal;
       net?: Decimal;
+      remark?: string;
     },
   ) {
     await this.createPaymentRecord(tx, {
@@ -83,6 +87,7 @@ export class PaymentLedgerService {
       gatewayTradeNo: input.gatewayTradeNo,
       fee: input.fee,
       net: input.net,
+      remark: input.remark,
     });
 
     return this.applyOrderPaidAmountWithRetry(tx, {

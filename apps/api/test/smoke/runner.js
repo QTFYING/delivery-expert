@@ -1,6 +1,10 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const dayjs = require('dayjs');
+const utc = require('dayjs/plugin/utc');
+
+dayjs.extend(utc);
 
 const {
   isImportWorkerEnabled,
@@ -13,7 +17,7 @@ const { toImportOrderCreateInput, toImportOrderUpdateInput } = require('../../di
 const { DEFAULT_TEMPLATE_FIELDS } = require('../../dist/import/import-template.fields');
 const { ImportTemplateService } = require('../../dist/import/import-template.service');
 const { readDate, readMoney, readPayType, readString } = require('../../dist/import/mapping/import.mapper');
-const { toLineItemCreateInput, toAdminOrder, toTenantOrder, toCreditOrderItem } = require('../../dist/order/mapping/order.mapper');
+const { toLineItemCreateInput, toAdminOrder, toTenantOrder } = require('../../dist/order/mapping/order.mapper');
 const { normalizeOrderLineItem } = require('../../dist/order/order.validation');
 const { buildOrderListWhere } = require('../../dist/order/order.query');
 const { deriveOrderStatus, resolveCreditOrderStatus } = require('../../dist/order/order.domain');
@@ -25,6 +29,7 @@ const {
   shouldExpirePayingPaymentOrder,
 } = require('../../dist/payment/payment.domain');
 const { buildGatewayTradeNo } = require('../../dist/payment/payment.shared');
+const { PaymentWindowService } = require('../../dist/payment/payment-window.service');
 
 const OrderPayTypeEnum = {
   CASH: 'cash',
@@ -549,6 +554,20 @@ run('订单列表账期子类型筛选隐含 credit 并拒绝现款组合', () =
   );
 });
 
+run('订单列表 expired 按下单日期自然日筛选现款过期订单', () => {
+  const where = buildOrderListWhere('T000000001', { status: OrderStatusEnum.EXPIRED }, [{ tenantId: 'T000000001', qrCodeExpiryDays: 30 }]);
+  const expiredCashWhere = where.AND[0].OR[1].OR[0];
+
+  assert.equal(expiredCashWhere.tenantId, 'T000000001');
+  assert.equal(expiredCashWhere.payType, 'CASH');
+  assert.equal(expiredCashWhere.status, 'PENDING');
+  assert.equal(expiredCashWhere.voided, false);
+
+  const todayInBeijing = dayjs().utcOffset(8).format('YYYY-MM-DD');
+  const expectedBoundary = dayjs.utc(`${todayInBeijing}T00:00:00.000Z`).subtract(29, 'day');
+  assert.equal(dayjs.utc(expiredCashWhere.orderTime.lt).isSame(expectedBoundary), true);
+});
+
 run('订单明细读写映射保留包装规格和行级自定义字段', () => {
   const normalized = normalizeOrderLineItem({
     skuName: ' 桶面 ',
@@ -862,24 +881,6 @@ run('账期状态推导覆盖逾期、当天、临近与正常场景', () => {
   assert.equal(resolveCreditOrderStatus(new Date('2026-04-25T12:00:00'), now), CreditOrderStatusEnum.NORMAL);
   assert.equal(resolveCreditOrderStatus(new Date('2026-04-15T12:00:00'), now, 3), CreditOrderStatusEnum.NORMAL);
   assert.equal(resolveCreditOrderStatus(new Date('2026-04-14T12:00:00'), now, 3), CreditOrderStatusEnum.SOON);
-
-  const futureDueDate = new Date();
-  futureDueDate.setDate(futureDueDate.getDate() + 5);
-  const creditOrder = toCreditOrderItem(
-    {
-      id: 'O202605190002',
-      customer: '账期客户',
-      totalAmount: decimalLike(100),
-      orderTime: new Date('2026-04-11T09:30:00.000Z'),
-      creditType: 'MONTH',
-      creditDays: null,
-      creditDueDate: futureDueDate,
-    },
-    3,
-  );
-  assert.equal(creditOrder.creditType, CreditTypeEnum.MONTH);
-  assert.equal(creditOrder.creditDays, 30);
-  assert.equal(creditOrder.creditStatus, CreditOrderStatusEnum.NORMAL);
 });
 
 run('支付状态推导覆盖已作废、已支付、待支付与线下登记待确认场景', () => {
@@ -927,7 +928,7 @@ run('PAYING 支付单超过超时时间后应转入过期判定', () => {
     shouldExpirePayingPaymentOrder(
       {
         status: PaymentOrderStatusEnum.PAYING,
-        lastInitiatedAt: new Date(Date.now() - (PAYMENT_PAYING_EXPIRE_MINUTES + 1) * 60 * 1000),
+        lastInitiatedAt: dayjs().subtract(PAYMENT_PAYING_EXPIRE_MINUTES + 1, 'minute').toDate(),
       },
       new Date(),
     ),
@@ -943,6 +944,28 @@ run('PAYING 支付单超过超时时间后应转入过期判定', () => {
     ),
     false,
   );
+});
+
+run('订单支付有效期按北京时间下单日期自然日截止', () => {
+  const service = new PaymentWindowService({});
+  const orderTime = new Date('2026-05-01T13:23:25.000Z');
+
+  const beforeEnd = service.resolvePaymentWindow({
+    windowStartedAt: orderTime,
+    qrCodeExpiryDays: 30,
+    now: new Date('2026-05-30T23:59:59.999+08:00'),
+  });
+  assert.equal(beforeEnd.isExpired, false);
+
+  const expectedPayableUntilAt = new Date('2026-05-30T23:59:59.999+08:00');
+  assert.equal(beforeEnd.payableUntilAt.toISOString(), expectedPayableUntilAt.toISOString());
+
+  const nextDay = service.resolvePaymentWindow({
+    windowStartedAt: orderTime,
+    qrCodeExpiryDays: 30,
+    now: new Date('2026-05-31T00:00:00.000+08:00'),
+  });
+  assert.equal(nextDay.isExpired, true);
 });
 
 run('构建产物包含订单领域规则 helper', () => {

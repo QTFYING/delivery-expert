@@ -112,9 +112,9 @@ REDIS_URL=redis://:<Redis强密码>@redis:6379
 - `5001`：平台运营台内层入口
 - `5002`：租户工作台内层入口
 - `5003`：C 端 H5 内层入口
-- 三个前端站点都支持 `/api/` 代理到 `http://api:3000`
+- 三个前端站点都支持 `/api/` 代理；`/api/pay/` 与 `/api/payment/webhook/` 转发到 `payment-api:3001`，其他 `/api/` 转发到 `api:3000`
 - 三个前端站点都使用 `try_files $uri $uri/ /index.html;` 处理 SPA 路由
-- 租户站点启用 `client_max_body_size 21m`
+- 仅租户工作台入口 `5002` 的 `/api/import/preview` 单独启用 `client_max_body_size 21m`；正式导入只消费 `previewId`，不放大站点或其他接口请求体限制
 
 外层网关回源建议：
 

@@ -129,11 +129,7 @@ export class AliyunOssAdapter {
   }
 
   // 生成 OSS Header 签名 用于服务端确认和清理对象
-  private buildAuthorization(
-    method: 'HEAD' | 'DELETE',
-    objectKey: string,
-    requestDate: string,
-  ): string {
+  private buildAuthorization(method: 'HEAD' | 'DELETE', objectKey: string, requestDate: string): string {
     const resource = `/${this.uploadSettings.bucket}/${objectKey}`;
     const canonical = `${method}\n\n\n${requestDate}\n${resource}`;
     const signature = crypto.createHmac('sha1', this.uploadSettings.aliyunAccessKeySecret).update(canonical).digest('base64');

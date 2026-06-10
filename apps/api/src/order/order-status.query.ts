@@ -5,6 +5,7 @@ import {
   OrderStatusEnum as PrismaOrderStatusEnum,
 } from '@prisma/client';
 import { OrderStatusEnum, type OrderSearchStatus } from '@shou/types/enums';
+import { businessInstantToLocalTimestampCarrierDayStart } from '../common/business-time';
 import { DEFAULT_QR_CODE_EXPIRY_DAYS } from '../settings/settings.constants';
 
 export type TenantPaymentWindowRule = {
@@ -59,12 +60,13 @@ function buildExpiredCashOrderWhere(date: Date, tenantPaymentWindows: TenantPaym
 }
 
 function buildExpiredCashOrderByWindow(date: Date, qrCodeExpiryDays: number, tenantId?: string): Prisma.OrderWhereInput {
+  const expiredBefore = getCashOrderExpiredBefore(date, qrCodeExpiryDays);
   return {
     ...(tenantId ? { tenantId } : {}),
     payType: PrismaOrderPayTypeEnum.CASH,
     status: PrismaOrderStatusEnum.PENDING,
     voided: false,
-    orderTime: { lt: addDays(date, -normalizeExpiryDays(qrCodeExpiryDays)) },
+    orderTime: { lt: expiredBefore },
   };
 }
 
@@ -83,19 +85,19 @@ function buildCreditDueDateBeforeWhere(date: Date): Prisma.OrderWhereInput[] {
     {
       creditDueDate: null,
       creditDays: { not: null },
-      orderTime: { lt: addDays(date, -7) },
+      orderTime: { lt: businessInstantToLocalTimestampCarrierDayStart(date, -7) },
       creditType: PrismaOrderCreditTypeEnum.WEEK,
     },
     {
       creditDueDate: null,
       creditDays: { not: null },
-      orderTime: { lt: addDays(date, -30) },
+      orderTime: { lt: businessInstantToLocalTimestampCarrierDayStart(date, -30) },
       creditType: { in: [PrismaOrderCreditTypeEnum.MONTH, PrismaOrderCreditTypeEnum.PERIOD] },
     },
     {
       creditDueDate: null,
       creditDays: null,
-      orderTime: { lt: addDays(date, -30) },
+      orderTime: { lt: businessInstantToLocalTimestampCarrierDayStart(date, -30) },
     },
   ];
 }
@@ -104,8 +106,7 @@ function normalizeExpiryDays(days: number): number {
   return Number.isFinite(days) ? Math.max(1, Math.floor(days)) : DEFAULT_QR_CODE_EXPIRY_DAYS;
 }
 
-function addDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
+function getCashOrderExpiredBefore(date: Date, qrCodeExpiryDays: number): Date {
+  const days = normalizeExpiryDays(qrCodeExpiryDays);
+  return businessInstantToLocalTimestampCarrierDayStart(date, -(days - 1));
 }

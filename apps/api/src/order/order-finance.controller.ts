@@ -1,12 +1,10 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiExtraModels, ApiOkResponse, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import type { PaginatedResponse } from '@shou/types/common';
 import type {
   CreateOrderReceiptRequest,
   CreateOrderReceiptResponse,
   CreateOrderReminderRequest,
   CreateOrderReminderResponse,
-  CreditOrderItem,
 } from '@shou/types/contracts';
 import { TenantPermissionCodeEnum } from '@shou/types/enums';
 import { CurrentUser, JwtPayload } from '../auth/decorators/current-user.decorator';
@@ -15,29 +13,16 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../authorization/permissions.guard';
 import { CreateOrderReceiptDto } from './dto/create-order-receipt.dto';
 import { CreateOrderReminderDto } from './dto/create-order-reminder.dto';
-import { ListCreditOrdersQueryDto } from './dto/list-credit-orders.query.dto';
 import { OrderFinanceService } from './order-finance.service';
-import { CreateOrderReceiptResponseSwagger, CreateOrderReminderResponseSwagger, CreditOrderListResponseSwagger } from './order.swagger';
+import { CreateOrderReceiptResponseSwagger, CreateOrderReminderResponseSwagger } from './order.swagger';
 
 @ApiTags('Orders')
 @ApiBearerAuth()
-@ApiExtraModels(CreditOrderListResponseSwagger, CreateOrderReminderResponseSwagger, CreateOrderReceiptResponseSwagger)
+@ApiExtraModels(CreateOrderReminderResponseSwagger, CreateOrderReceiptResponseSwagger)
 @Controller('orders')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class OrderFinanceController {
   constructor(private readonly orderFinanceService: OrderFinanceService) {}
-
-  // 获取账期订单列表，面向租户账期管理视图
-  @ApiOperation({ summary: '获取账期订单列表' })
-  @ApiOkResponse({ type: CreditOrderListResponseSwagger })
-  @Get('credit')
-  @Permissions(TenantPermissionCodeEnum.CREDIT_READ)
-  async getCreditOrders(
-    @CurrentUser() currentUser: JwtPayload,
-    @Query() query: ListCreditOrdersQueryDto,
-  ): Promise<PaginatedResponse<CreditOrderItem>> {
-    return this.orderFinanceService.getCreditOrders(currentUser, query.page, query.pageSize, query.status);
-  }
 
   // 创建催款提醒记录，并由 finance service 收口通知渠道语义
   @ApiOperation({ summary: '创建催款提醒记录' })

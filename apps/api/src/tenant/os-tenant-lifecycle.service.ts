@@ -25,6 +25,7 @@ import type {
 import { PaymentChannelEnum, ReviewActionEnum, type PaymentChannel } from '@shou/types/enums';
 import * as bcrypt from 'bcrypt';
 import dayjs from 'dayjs';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
 import { normalizeIdArray, normalizeText } from '../common/validators';
 import { ensureTenantRbacBootstrap } from '../authorization/tenant-rbac-bootstrap';
@@ -41,6 +42,8 @@ import {
 import { getTenantOrThrow } from './tenant.access';
 import { TenantPhoneIdentityService } from './tenant-phone-identity.service';
 import { createTenantAuditLog } from './tenant.shared';
+
+dayjs.extend(customParseFormat);
 
 const DEFAULT_OWNER_PASSWORD = '123456';
 
@@ -415,16 +418,12 @@ export class OsTenantLifecycleService {
       throw new BadRequestException('serviceExpireAt 必须是 YYYY-MM-DD 日期格式');
     }
 
-    const year = Number(matched[1]);
-    const month = Number(matched[2]);
-    const day = Number(matched[3]);
-    const normalized = new Date(Date.UTC(year, month - 1, day, 15, 59, 59, 999));
-
-    if (normalized.getUTCFullYear() !== year || normalized.getUTCMonth() !== month - 1 || normalized.getUTCDate() !== day) {
+    const normalized = dayjs(value.trim(), 'YYYY-MM-DD', true);
+    if (!normalized.isValid()) {
       throw new BadRequestException('serviceExpireAt 不是合法日期');
     }
 
-    return normalized;
+    return normalized.endOf('day').toDate();
   }
 
   // 查询用于平台租户列表和编辑返回的租户记录快照

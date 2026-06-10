@@ -2,12 +2,13 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import type { Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import { json, raw, urlencoded } from 'express';
 import { PaymentPublicModule } from './payment/payment-public.module';
 import { GlobalExceptionFilter } from './common/filters/business-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { LocalizedConsoleLogger } from './common/logger/localized-console.logger';
+import { RequestLoggingMiddleware } from './common/middleware/request-logging.middleware';
 import { TRACE_ID_HEADER } from './common/request-trace';
 
 type RequestWithRawBody = Request & { rawBody?: string };
@@ -27,6 +28,8 @@ async function bootstrap() {
   app.use('/api/payment/webhook/lakala', raw({ type: '*/*', verify: captureRawBody, limit: '256kb' }));
   app.use(json());
   app.use(urlencoded({ extended: true }));
+  const requestLoggingMiddleware = new RequestLoggingMiddleware();
+  app.use((req: Request, res: Response, next: NextFunction) => requestLoggingMiddleware.use(req, res, next));
 
   const configService = app.get(ConfigService);
   const corsOrigins = configService.get<string[]>('app.corsOrigins') ?? [];

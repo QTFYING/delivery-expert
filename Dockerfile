@@ -47,7 +47,7 @@ RUN rm -f /deploy/api/.env /deploy/api/.env.*
 
 # 把 dist 和 prisma schema 复制进去
 RUN cp -r /app/apps/api/dist /deploy/api/dist && \
-    cp -r /app/apps/api/prisma /deploy/api/prisma
+  cp -r /app/apps/api/prisma /deploy/api/prisma
 
 # 在 deploy 目录内重新生成 prisma client（确保路径正确）
 RUN cd /deploy/api && node_modules/.bin/prisma generate
@@ -57,14 +57,21 @@ RUN cd /deploy/api && node_modules/.bin/prisma generate
 # ============================================
 FROM node:22-alpine AS api
 
+# 设置生产环境变量
+ENV NODE_ENV=production
+
 # Prisma 引擎依赖 OpenSSL
 RUN apk add --no-cache openssl
 
 WORKDIR /app
 
-COPY --from=build /deploy/api ./
-COPY --from=build /app/scripts ./scripts
+# 拷贝构建产物
+COPY --from=build --chown=node:node /deploy/api ./
+COPY --from=build --chown=node:node /app/scripts ./scripts
+
+# 切换为node（非特权）用户运行
+USER node
 
 EXPOSE 3000 3001
 
-CMD ["node", "dist/main"]
+CMD ["node", "dist/main.js"]
