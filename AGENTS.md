@@ -116,3 +116,9 @@
 - 纯 `lint` / `format` 收尾批次、纯机械格式修正批次，可不因本次改动额外补业务注释。
 - 默认在一个章节全部完成、验证通过、用户审查确认后再统一提交；如果用户明确要求，也可以按单个 `T0X` 小项提前提交。
 - 需要跨设备、跨会话或切换到其他 AI 接力时，优先使用 `work-handoff` Skill，把当前状态写入 `notes/handoffs/*.md`，并显式区分已完成项、未完成项、核心关注点和验证状态。
+
+## 10. 外部文档与第三方库引用规则 (Context7)
+
+- 当需要引入或查阅外部依赖库（如 NestJS, Dayjs, Redis, Bcrypt, Prisma 等）的文档、方法签名或配置参数时，禁止凭空猜测或生成过期的 API。
+- 必须优先通过 Context7 平台（MCP 服务或 `ctx7` CLI 工具）实时拉取该库的最新官方文档，以保证生成的库使用代码完全准确和无幻觉。
+- 开发者与 AI 在本地使用 Claude Code 或是 Cursor 等 AI IDE 编码时，建议配置接入 Context7 MCP 服务端点 `https://mcp.context7.com/mcp`。

@@ -19,7 +19,8 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,mjs,cjs,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,cjs,json,md,yml,yaml}\"",
     "db:init": "node scripts/db-init.js",
-    "db:seed": "node scripts/db-seed.js"
+    "db:seed": "node scripts/db-seed.js",
+    "prepare": "simple-git-hooks"
   },
   "devDependencies": {
     "eslint": "^9.0.0",
@@ -27,6 +28,19 @@
     "turbo": "latest",
     "typescript-eslint": "^8.0.0",
     "typescript": "^5.4.0",
-    "prettier": "^3.2.0"
+    "prettier": "^3.2.0",
+    "simple-git-hooks": "^2.11.0",
+    "lint-staged": "^15.2.0"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "npx lint-staged"
+  },
+  "lint-staged": {
+    "*.ts": [
+      "node scripts/check-file-limits.js"
+    ],
+    "apps/api/src/**/*.ts": [
+      "eslint"
+    ]
   }
 }
