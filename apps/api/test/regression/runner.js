@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const dayjs = require('dayjs');
 const { NestFactory } = require('@nestjs/core');
-const { ValidationPipe } = require('@nestjs/common');
+const { BadRequestException, ValidationPipe } = require('@nestjs/common');
 const { PrismaClient } = require('@prisma/client');
 const { DocumentBuilder, SwaggerModule } = require('@nestjs/swagger');
 const { apiRequest, expectHttpFailure, loadEnvFromFile, sanitizeDatabaseUrl, serializeError } = require('../shared/helpers');
@@ -53,6 +53,7 @@ async function main() {
         whitelist: true,
         forbidNonWhitelisted: true,
         transform: true,
+        exceptionFactory: (errors) => new BadRequestException(errors),
       }),
     );
     app.useGlobalInterceptors(new ResponseInterceptor());

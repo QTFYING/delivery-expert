@@ -40,15 +40,38 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       const exceptionResponse = exception.getResponse();
 
       let message = 'error';
+      let validationErrors: any[] = [];
       if (typeof exceptionResponse === 'string') {
         message = exceptionResponse;
       } else if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
-        const resp = exceptionResponse as Record<string, unknown>;
-        // class-validator 返回 message 数组
+        const resp = exceptionResponse as any;
+        // class-validator 默认返回 message 数组
         if (Array.isArray(resp.message)) {
           message = resp.message.join('; ');
         } else if (typeof resp.message === 'string') {
           message = resp.message;
+        } else if (Array.isArray(resp)) {
+          // 自定义 exceptionFactory 返回的 ValidationError 数组
+          const formatValidationErrors = (errors: any[]): any[] => {
+            const result: any[] = [];
+            for (const error of errors) {
+              if (error.constraints) {
+                result.push({
+                  property: error.property,
+                  value: error.value,
+                  constraints: error.constraints,
+                });
+              }
+              if (error.children && error.children.length > 0) {
+                result.push(...formatValidationErrors(error.children));
+              }
+            }
+            return result;
+          };
+          validationErrors = formatValidationErrors(resp);
+          message = validationErrors
+            .map((err) => `${err.property}: ${Object.values(err.constraints).join(', ')}`)
+            .join('; ');
         }
       }
 
@@ -68,7 +91,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       return response.status(status).json({
         code: bizCode,
         message,
-        data: null,
+        data: process.env.NODE_ENV !== 'production' && validationErrors.length > 0 ? { validationErrors } : null,
       });
     }
 
